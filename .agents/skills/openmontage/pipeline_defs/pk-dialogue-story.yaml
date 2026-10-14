@@ -1,0 +1,259 @@
+name: pk-dialogue-story
+version: "1.0"
+description: >
+  角色对白小故事（竖屏生成式）：角色会说话、有来有回，**没有旁白**。
+  说话声由 H3 按每个角色的**参考音频克隆音色**并当场生成，随视频片段一起产出 ——
+  所以片段自带的音轨**就是成品对白，必须保留**（与 pk-novoice-explainer 正好相反）。
+  一致性靠三件套资产：角色板（长相）+ 角色参考音频（音色）+ 场景图（环境）。
+  视频素材必须经 h3_refine 二采定稿；合成分辨率 = 素材原生尺寸，禁止放大；不做字幕轨。
+category: generated
+stability: beta
+
+default_checkpoint_policy: guided
+
+reference_input:
+  supported: false
+
+extensions:
+  custom_scripts: true
+  custom_playbooks: true
+  custom_skills: true
+  custom_tools: false
+
+required_skills:
+  - pipelines/explainer/executive-producer
+  - pipelines/explainer/research-director
+  - pipelines/explainer/proposal-director
+  - pipelines/explainer/script-director
+  - pipelines/explainer/scene-director
+  - pipelines/explainer/asset-director
+  - pipelines/explainer/edit-director
+  - pipelines/explainer/compose-director
+  - pipelines/explainer/publish-director
+  - meta/reviewer
+  - meta/checkpoint-protocol
+  - meta/skill-creator
+  - meta/animation-runtime-selector
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/explainer/executive-producer
+  budget_default_usd: 2.00
+  max_revisions_per_stage: 3
+  max_send_backs: 3
+  max_wall_time_minutes: 900   # 15 分钟成片可能跑数小时；这只是防死跑的护栏，不限制正片长度
+
+compatible_playbooks:
+  recommended:
+    - cinematic
+    - clean-professional
+  also_works:
+    - flat-motion-graphics
+  custom_allowed: true
+
+stages:
+  - name: research
+    skill: pipelines/explainer/research-director
+    produces:
+      - research_brief
+    tools_available: []
+    checkpoint_required: false
+    human_approval_default: false
+    review_focus:
+      - Story world and characters are concrete (who / where / what changes)
+      - Any real-world facts used by the story are checked and cited
+    success_criteria:
+      - Schema-valid research_brief with at least 3 data_points
+      - "Cast list drafted: every character has a name, a role and a one-line voice note"
+      - At least 3 sources cited with URLs
+
+  - name: proposal
+    skill: pipelines/explainer/proposal-director
+    required_artifacts_in:
+      - research_brief
+    produces:
+      - proposal_packet
+      - decision_log
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - "Production plan MUST state: character dialogue by default, H3 keeps the dialogue audio track, three-asset kit (character sheet + character reference voice + scene plate), one line per shot, h3_refine finished, compose size = source native size, no subtitle track. IF the story needs a narrator (画外音): narration is pre-recorded TTS mixed at compose — never generated inside H3, and its shots are generated silent (marked audio_mode: pre_recorded_narration)"
+      - Character count kept within the audio slot limit (max 3 speaking characters per shot)
+      - Cost estimate is itemized and honest
+    success_criteria:
+      - Schema-valid proposal_packet with at least 3 concept_options
+      - selected_concept references a valid concept_id
+      - cost_estimate has itemized line_items with per-tool costs
+      - approval.status is "approved" or "approved_with_changes" before proceeding
+
+  - name: script
+    skill: pipelines/explainer/script-director
+    required_artifacts_in:
+      - proposal_packet
+    optional_artifacts_in:
+      - research_brief
+    produces:
+      - script
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - "Dialogue-first: every spoken line is spoken by a named speaker — a character, or `narrator` when the story uses 画外音. A narrator line is PRE-RECORDED TTS (cloned from assets/voice_<旁白名>.wav), never generated inside H3; its shots are silent and marked audio_mode: pre_recorded_narration"
+      - "Each line is short enough to be said in <= 8 seconds; one spoken line per shot (a shot may run to 15s ONLY when the action cannot be cut — that shot is a 480P fast-mode shot and is never h3_refined)"
+      - "Speaker directions allowed here — one voice per character, kept consistent across the whole film"
+      - "Story arc: hook -> turn -> payoff; the last beat lands the point without explaining it"
+    success_criteria:
+      - Schema-valid script with speaker labels on every section
+      - "Total duration matches selected concept target within 10%; total film duration <= 900 seconds (15 minutes). A longer story must be split into parts, never silently compressed"
+      - Every spoken line has a named speaker
+
+  - name: scene_plan
+    skill: pipelines/explainer/scene-director
+    required_artifacts_in:
+      - script
+    optional_artifacts_in:
+      - proposal_packet
+    produces:
+      - scene_plan
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - "Full script duration covered with no gaps"
+      - "Shot count MUST be a multiple of 4 (four-panel storyboard batches) and each shot <= 8 seconds (a long shot up to 15s must be flagged long_shot: true and is never h3_refined)"
+      - "Grid grouping MUST be by location: the 4 panels of one grid belong to the SAME scene, so the scene plate applies to the whole batch"
+      - "Every shot lists: location, the characters on screen, audio_mode (h3_dialogue | pre_recorded_narration), and the spoken line (empty for silent and narration shots); narration shots also carry narration_segment + narration_text, and their duration_seconds is derived from the MEASURED TTS length (voice_check.py), not from a character-count estimate"
+      - "No shot has more than 3 speaking characters"
+    success_criteria:
+      - Schema-valid scene_plan with required_assets per scene
+      - "Shot count is a multiple of 4; padded shots are labelled (e.g. 10 planned -> 12 delivered)"
+      - "Every shot carries location + on-screen characters; grids are grouped by location"
+      - "At least one location has 2+ shots (otherwise the film cannot show a scene twice)"
+
+  - name: assets
+    skill: pipelines/explainer/asset-director
+    required_artifacts_in:
+      - scene_plan
+      - script
+    optional_artifacts_in:
+      - proposal_packet
+    produces:
+      - asset_manifest
+    required_tools:
+      - image_selector
+      - video_selector
+      - tts_selector
+    optional_tools:
+      - music_gen
+    tools_available:
+      - image_selector
+      - video_selector
+      - tts_selector
+      - music_gen
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - "THREE-ASSET KIT FIRST, verify one of each before batching: (1) char_<角色>.png character sheet per character (text_to_image -> character, 16:9 multi-view); (2) voice_<角色>.wav reference voice per character (zizai_tts, a DIFFERENT preset voice per character — this profile does NOT lock the voice); (3) scene_<场景>.png scene plate per location (image.*.scene, one clean plate reused by every shot in that location)"
+      - "File names carry the identity: char_狗.png / voice_狗.wav. The reference-mapping sentence the MCP appends is generated FROM the file name — a generic name degrades it to 本片主角/本片角色"
+      - "Grids are generated WITH the character sheets AND the scene plate of their location as reference images; grid ratio = delivery ratio (9:16)"
+      - "Every video shot is submitted with: reference_image_paths = [storyboard panel, scene plate, character sheets of the characters on screen] and reference_audio_paths = [reference voices of the speaking characters]"
+      - "The prompt MUST carry the spoken line verbatim and name the audio slots (参考音频1 = 狗，它说：\"…\") — the MCP appends the mapping sentence but cannot invent the lines"
+      - "Prompt states explicitly: character appearance follows the character sheet, environment follows the scene plate; the panel only supplies framing"
+      - "AUDIO IS THE PRODUCT for dialogue shots: never strip a dialogue clip's audio (this profile keeps it). 480P quick_preview drafts are scratch only — every dialogue clip MUST be finished with zizai_video_post(mode='h3_refine'), which keeps the dialogue track. Narration shots (audio_mode: pre_recorded_narration) are generated SILENT on purpose — no reference audio, no spoken line in the prompt — and get their audio mixed at compose from the pre-recorded TTS; their silence is not a lost dialogue"
+      - "Vertical finalize size is fixed by the store-man dedicated MCP at 736x1312 — do NOT hand-fill width/height"
+      - "Retry discipline: at most 3 drafts per shot; after the third, pick the best one (lip-sync / voice / consistency) and refine it — never a fourth draft"
+      - "Job ledger: every submitted video job is appended to assets/jobs.jsonl as `shot, job_id, draft_path` the moment it is submitted; refine reads job ids from that file only"
+      - "BGM: zizai_music (ACE-Step instrumental only). Write it as a score brief; lyrics MUST stay empty. It sits UNDER the dialogue"
+      - "Resolution truth: a 9:16 grid returns 941x1672 at ANY resolution — measure every grid/panel with identify/ffprobe and record the true pixel size, never claim 2K, never pass off a locally upscaled image as high-res"
+    success_criteria:
+      - Schema-valid asset_manifest with all required assets generated
+      - "Kit complete: one character sheet AND one reference voice per character; one scene plate per location"
+      - "Every video asset has an h3_refine product on disk whose ffprobe resolution is >= 736x1312; raw 480x853 quick_preview drafts must NOT be handed to edit/compose"
+      - "EVERY h3_dialogue video asset carries an audio stream (its own dialogue) — a silent dialogue clip means the dialogue was lost and is a FAIL. A pre_recorded_narration asset is different: it is submitted silent by design and receives its audio (pre-recorded TTS) at compose"
+      - "assets/jobs.jsonl exists with one line per video job (shot, job_id, draft path)"
+      - "Panel count = 4 x grid count; every grid has been split (no grid handed downstream as a shot)"
+      - "Every grid/panel pixel size measured and recorded truthfully"
+      - All file paths resolve to existing files
+
+  - name: edit
+    skill: pipelines/explainer/edit-director
+    required_artifacts_in:
+      - scene_plan
+      - asset_manifest
+    optional_artifacts_in:
+      - script
+    produces:
+      - edit_decisions
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - "Every cut references a refined (h3_refine) video asset — never a 480P draft"
+      - "KEEP the dialogue clips' audio: the timeline is dialogue-driven, one spoken line per shot. Narration shots (audio_mode: pre_recorded_narration) are silent clips — their track is the pre-recorded TTS segment placed at that shot's exact start"
+      - "subtitles.enabled MUST be false (the owner adds subtitles in his editor)"
+      - "No timeline gaps or overlaps"
+    success_criteria:
+      - Schema-valid edit_decisions
+      - Full video duration covered
+      - "edit_decisions.metadata.compose_target equals the source clips' native size (e.g. 736x1312) — never upscale to 1080x1920"
+      - "edit_decisions.subtitles.enabled is false"
+      - "Dialogue audio from the clips is not muted in the timeline"
+
+  - name: compose
+    skill: pipelines/explainer/compose-director
+    required_artifacts_in:
+      - edit_decisions
+      - asset_manifest
+    optional_artifacts_in:
+      - scene_plan
+    produces:
+      - render_report
+      - final_review
+    required_tools:
+      - video_compose
+      - audio_mixer
+    optional_tools:
+      - video_stitch
+    tools_available:
+      - video_compose
+      - hyperframes_compose
+      - video_stitch
+      - audio_mixer
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Output video exists and is playable
+      - "Duration within +/-5% of target; total film duration within the 900s (15 min) cap"
+      - "Audio track = dialogue + narration + BGM, with BGM ducked under the speech (audio_mixer operation=duck/full_mix). Narration shots: strip the clip's own track (ffmpeg -an) and lay the pre-recorded TTS segment at the shot's exact start (frame-accurate), then duck BGM. A music-only track means dialogue/narration was dropped — rejection"
+      - "Output resolution equals compose_target (source native size); upscaling 480P drafts to 1080x1920 is a rejection"
+      - "render_runtime in edit_decisions matches proposal_packet — a silent swap to another runtime is a CRITICAL governance violation"
+    success_criteria:
+      - Schema-valid render_report with output paths
+      - Output file exists and passes ffprobe validation
+      - "ffprobe shows an audio stream; transcribing the film with whisper recovers the written lines (dialogue and narration both)"
+
+  - name: publish
+    skill: pipelines/explainer/publish-director
+    required_artifacts_in:
+      - render_report
+      - final_review
+    optional_artifacts_in:
+      - proposal_packet
+    produces:
+      - publish_log
+    tools_available: [export_bundle]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - "Export package contains: final video, refined clips by shot number, BGM as a separate file, the script, and the three-asset kit (character sheets / reference voices / scene plates)"
+      - "No subtitle file in the export"
+    success_criteria:
+      - Schema-valid publish_log
+      - "Export directory contains the final video, the refined clips, the BGM file and the asset kit"
+
+metadata:
+  owner: pk
+  purpose: "角色对白小故事（竖屏生成式）：无旁白、H3 克隆音色并生成对白、对白音轨保留、三件套资产保一致性、二采强制、不放大、无字幕轨"
+  derived_from: pk-novoice-explainer
+  created: "2026-10-06"

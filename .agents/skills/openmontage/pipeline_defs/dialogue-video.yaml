@@ -1,0 +1,68 @@
+name: dialogue-video
+version: "1.0"
+description: Portable dialogue-video-skill integration; videofree generates media, OpenMontage persists and validates production stages.
+category: generated
+stability: beta
+default_checkpoint_policy: auto_noncreative
+extensions:
+  custom_scripts: true
+  custom_skills: true
+  custom_playbooks: true
+  custom_tools: false
+required_skills:
+  - pipelines/dialogue-video/director
+  - meta/checkpoint-protocol
+  - meta/reviewer
+metadata:
+  caller_skill: dialogue-video-skill
+  generation_backend: videofree
+  legacy_pipeline: false
+  release_scope: local integration validated; live generation acceptance remains environment-specific
+stages:
+  - name: research
+    skill: pipelines/dialogue-video/director
+    produces: [research_brief]
+    checkpoint_required: true
+    human_approval_default: false
+  - name: proposal
+    skill: pipelines/dialogue-video/director
+    required_artifacts_in: [research_brief]
+    produces: [proposal_packet, decision_log]
+    checkpoint_required: true
+    human_approval_default: false
+  - name: script
+    skill: pipelines/dialogue-video/director
+    required_artifacts_in: [proposal_packet]
+    produces: [script]
+    checkpoint_required: true
+    human_approval_default: false
+  - name: scene_plan
+    skill: pipelines/dialogue-video/director
+    required_artifacts_in: [script]
+    produces: [scene_plan]
+    checkpoint_required: true
+    human_approval_default: false
+  - name: assets
+    skill: pipelines/dialogue-video/director
+    required_artifacts_in: [scene_plan]
+    produces: [asset_manifest]
+    checkpoint_required: true
+    human_approval_default: false
+  - name: edit
+    skill: pipelines/dialogue-video/director
+    required_artifacts_in: [asset_manifest]
+    produces: [edit_decisions]
+    checkpoint_required: true
+    human_approval_default: false
+  - name: compose
+    skill: pipelines/dialogue-video/director
+    required_artifacts_in: [edit_decisions]
+    produces: [render_report]
+    checkpoint_required: true
+    human_approval_default: false
+  - name: publish
+    skill: pipelines/dialogue-video/director
+    required_artifacts_in: [render_report]
+    produces: [publish_log]
+    checkpoint_required: true
+    human_approval_default: false

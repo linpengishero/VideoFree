@@ -1,0 +1,91 @@
+{
+  "476": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "Qwen\\qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "477": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "478": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "479": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "480": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["481", 0],
+      "vae": ["478", 0]
+    }
+  },
+  "481": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["483", 0],
+      "positive": ["497", 0],
+      "negative": ["497", 1],
+      "latent_image": ["479", 0],
+      "seed": 0,
+      "steps": 30,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
+    }
+  },
+  "483": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": ["649", 0],
+      "device": "auto",
+      "dtype": "default"
+    }
+  },
+  "487": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["480", 0],
+      "filename_prefix": "MediaGateway/qwen_image_2_1"
+    }
+  },
+  "497": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": ["477", 0],
+      "vae": ["478", 0],
+      "prompt": "",
+      "negative_prompt": "",
+      "resolution": 1024
+    }
+  },
+  "649": {
+    "class_type": "TESpeedQwenImage21",
+    "inputs": {
+      "model": ["476", 0],
+      "attention": "kitchen_int8",
+      "step_cache": "te_predictor",
+      "reuse_threshold": 0.06,
+      "start_percent": 0.0,
+      "end_percent": 0.0,
+      "predictor_error_limit": 0.08,
+      "verbose": false
+    }
+  }
+}

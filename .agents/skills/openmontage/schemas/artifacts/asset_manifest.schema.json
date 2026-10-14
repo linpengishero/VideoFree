@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/asset_manifest",
+  "title": "Asset Manifest",
+  "description": "Inventory of generated/sourced assets produced by the Asset Generator.",
+  "type": "object",
+  "required": ["version", "assets"],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "path", "source_tool", "scene_id"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["image", "video", "audio", "narration", "music", "sfx", "diagram", "animation", "3d_asset", "3d_world", "code_snippet", "subtitle", "font", "lut"]
+          },
+          "path": { "type": "string", "description": "Relative path within the pipeline project directory" },
+          "source_tool": { "type": "string" },
+          "scene_id": { "type": "string" },
+          "prompt": { "type": "string", "description": "Generation prompt if AI-generated" },
+          "seed": { "type": "integer", "description": "Seed if applicable" },
+          "model": { "type": "string", "description": "Model used for generation" },
+          "cost_usd": { "type": "number", "minimum": 0 },
+          "duration_seconds": { "type": "number", "minimum": 0 },
+          "resolution": { "type": "string" },
+          "format": { "type": "string" },
+          "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "subtype": { "type": "string", "description": "Sub-classification (e.g. 'background', 'stock', 'generated')" },
+          "generation_summary": { "type": "string", "description": "Brief summary of how the asset was generated or sourced" },
+          "provider": { "type": "string", "description": "Provider name (e.g. pixabay, google_imagen)" },
+          "license": { "type": "string", "description": "License type (e.g. Pixabay License, CC0)" },
+          "original_url": { "type": "string", "description": "Source URL if downloaded from a stock service" },
+          "voice_performance": {
+            "type": "object",
+            "description": "Applied voice-performance contract for narration assets.",
+            "properties": {
+              "source_section_id": { "type": "string" },
+              "delivery_cues_applied": { "type": "boolean" },
+              "provider_text_used": { "type": "boolean" },
+              "provider_settings": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "sample_approved": { "type": "boolean" },
+              "sample_path": { "type": "string" },
+              "review_notes": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "total_cost_usd": { "type": "number", "minimum": 0 },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": false
+}

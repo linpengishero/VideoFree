@@ -1,0 +1,46 @@
+{
+  "1": {
+    "class_type": "Qwen3Loader",
+    "inputs": {
+      "repo_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+      "source": "ModelScope",
+      "precision": "bf16",
+      "attention": "sdpa"
+    }
+  },
+  "2": {
+    "class_type": "LoadAudio",
+    "inputs": {
+      "audio": "reference.wav"
+    }
+  },
+  "3": {
+    "class_type": "Qwen3VoiceClone",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "ref_audio": [
+        "2",
+        0
+      ],
+      "text": "{{prompt}}",
+      "seed": 42,
+      "language": "Chinese",
+      "x_vector_only_mode": true,
+      "max_new_tokens": 2048,
+      "ref_audio_max_seconds": 30
+    }
+  },
+  "4": {
+    "class_type": "SaveAudio",
+    "inputs": {
+      "audio": [
+        "3",
+        0
+      ],
+      "filename_prefix": "audio/clone"
+    }
+  }
+}

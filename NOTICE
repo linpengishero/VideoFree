@@ -1,0 +1,16 @@
+videofree
+
+Copyright (c) 2026 videofree contributors.
+
+本仓库中的 videofree 自有源代码按根目录 LICENSE 中的 GNU Affero
+General Public License v3.0 发布。
+
+本项目是一个调用本地 ComfyUI 及其已安装节点、模型和外部服务的媒体网关。
+ComfyUI、社区节点、模型、LoRA、字体和其他资源不属于 videofree 的统一授权范围，
+其版权和许可证归各自权利人所有。
+
+OpenMontage 是可选安装的独立智能体技能和剪辑工具。它不是 videofree 网关的
+核心运行依赖，也不是 videofree 自有代码；使用时必须保留其目录中的许可证、
+版权和来源声明，并遵守 OpenMontage 及其所含组件的许可证。
+
+商业授权咨询：459082139@qq.com

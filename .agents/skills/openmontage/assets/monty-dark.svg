@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Monty the Clapper, the OpenMontage mascot">
+  <defs>
+    <pattern id="mstr" width="22" height="22" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="11" height="22" fill="#241d15"/>
+    </pattern>
+  </defs>
+
+  <!-- idle float -->
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      values="0 0; 0 -7; 0 0" keyTimes="0;0.5;1"
+      calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1"
+      dur="4.5s" repeatCount="indefinite"/>
+
+    <!-- legs -->
+    <rect x="74" y="156" width="16" height="26" rx="8" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3"/>
+    <rect x="112" y="156" width="16" height="26" rx="8" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3"/>
+
+    <!-- clapper jaw, hinged left -->
+    <g>
+      <animateTransform attributeName="transform" type="rotate"
+        values="-22 46 88; -22 46 88; -2 46 88; -2 46 88; -26 46 88; -22 46 88"
+        keyTimes="0;0.62;0.70;0.78;0.86;1"
+        dur="5s" repeatCount="indefinite"/>
+      <rect x="42" y="64" width="120" height="24" rx="10" fill="#f2ecdf"/>
+      <rect x="42" y="64" width="120" height="24" rx="10" fill="url(#mstr)"/>
+    </g>
+
+    <!-- slate body -->
+    <rect x="42" y="88" width="120" height="76" rx="14" fill="#241d15" stroke="#f2ecdf" stroke-width="3.5"/>
+    <rect x="42" y="88" width="120" height="20" rx="10" fill="#f2ecdf"/>
+    <rect x="42" y="88" width="120" height="20" rx="10" fill="url(#mstr)"/>
+
+    <!-- arms -->
+    <rect x="24" y="116" width="24" height="14" rx="7" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3" transform="rotate(24 36 123)"/>
+    <rect x="156" y="116" width="24" height="14" rx="7" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3" transform="rotate(-24 168 123)"/>
+
+    <!-- face -->
+    <circle cx="79" cy="132" r="13" fill="#f2ecdf"/>
+    <circle cx="123" cy="132" r="13" fill="#f2ecdf"/>
+    <circle cx="81" cy="133" r="5.5" fill="#241d15"/>
+    <circle cx="121" cy="133" r="5.5" fill="#241d15"/>
+    <circle cx="61" cy="146" r="5" fill="#e0704f" opacity=".85"/>
+    <circle cx="141" cy="146" r="5" fill="#e0704f" opacity=".85"/>
+    <path d="M93 148 Q101 155 109 148" stroke="#f2ecdf" stroke-width="4" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

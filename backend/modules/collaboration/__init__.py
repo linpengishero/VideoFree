@@ -1,0 +1,1 @@
+"""Director collaboration domain."""

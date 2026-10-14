@@ -1,0 +1,1 @@
+"""Freedom Hand backend package."""

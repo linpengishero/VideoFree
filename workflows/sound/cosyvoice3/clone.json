@@ -1,0 +1,35 @@
+{
+  "1": {
+    "class_type": "FL_CosyVoice3_ModelLoader",
+    "inputs": {
+      "model_version": "Fun-CosyVoice3-0.5B",
+      "download_source": "ModelScope",
+      "device": "auto",
+      "force_redownload": false,
+      "force_reload": false
+    }
+  },
+  "2": {
+    "class_type": "LoadAudio",
+    "inputs": { "audio": "reference.wav" }
+  },
+  "3": {
+    "class_type": "FL_CosyVoice3_ZeroShot",
+    "inputs": {
+      "model": ["1", 0],
+      "text": "{{prompt}}",
+      "reference_audio": ["2", 0],
+      "speed": 1.0,
+      "seed": 42,
+      "text_frontend": true
+    }
+  },
+  "4": {
+    "class_type": "SaveAudioMP3",
+    "inputs": {
+      "audio": ["3", 0],
+      "filename_prefix": "MediaGateway/cosyvoice3",
+      "quality": "320k"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1280px; height:640px; }
+  body {
+    background:#171310;
+    font-family:"Segoe UI", system-ui, sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden; position:relative;
+  }
+  /* warm key light behind the mascot */
+  .glow {
+    position:absolute; left:150px; top:50%; transform:translateY(-50%);
+    width:620px; height:620px; border-radius:50%;
+    background:radial-gradient(circle, rgba(224,112,79,.20) 0%, rgba(224,112,79,.07) 42%, rgba(23,19,16,0) 68%);
+  }
+  /* clapper-stripe motif, bottom-right, very quiet */
+  .motif {
+    position:absolute; right:0; bottom:0; width:560px; height:360px;
+    background:repeating-linear-gradient(45deg,#f2ecdf 0 26px, transparent 26px 52px);
+    opacity:.05;
+    -webkit-mask-image:radial-gradient(ellipse at 100% 100%, #000 0%, transparent 72%);
+            mask-image:radial-gradient(ellipse at 100% 100%, #000 0%, transparent 72%);
+  }
+  .row { display:flex; align-items:center; gap:76px; position:relative; z-index:2; }
+  .mark { width:340px; height:340px; flex:none; }
+  h1 {
+    font-size:86px; font-weight:700; letter-spacing:-2.5px; color:#f2ecdf; line-height:1;
+  }
+  .rule {
+    width:520px; height:7px; margin:26px 0 24px; border-radius:3px;
+    background:repeating-linear-gradient(45deg,#f2ecdf 0 9px,#241d15 9px 18px);
+    opacity:.55;
+    -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 45%,transparent 100%);
+            mask-image:linear-gradient(90deg,#000 0%,#000 45%,transparent 100%);
+  }
+  p.tag {
+    font-size:29px; color:#b9ab97; line-height:1.35; max-width:520px; font-weight:400;
+  }
+  .stats { margin-top:26px; font-size:22px; color:#e0704f; font-weight:600; letter-spacing:.2px; }
+  .stats span { color:#6b5c4d; font-weight:400; margin:0 10px; }
+  .url {
+    position:absolute; bottom:44px; left:0; right:0; text-align:center;
+    font-size:19px; color:#6b5c4d; letter-spacing:2.5px; text-transform:uppercase; z-index:2;
+  }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="motif"></div>
+
+<div class="row">
+  <svg class="mark" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="mstr" width="22" height="22" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+        <rect width="11" height="22" fill="#241d15"/>
+      </pattern>
+    </defs>
+    <g transform="translate(0,-4)">
+      <rect x="74" y="156" width="16" height="26" rx="8" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3"/>
+      <rect x="112" y="156" width="16" height="26" rx="8" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3"/>
+      <g transform="rotate(-24 46 88)">
+        <rect x="42" y="64" width="120" height="24" rx="10" fill="#f2ecdf"/>
+        <rect x="42" y="64" width="120" height="24" rx="10" fill="url(#mstr)"/>
+      </g>
+      <rect x="42" y="88" width="120" height="76" rx="14" fill="#241d15" stroke="#f2ecdf" stroke-width="3.5"/>
+      <rect x="42" y="88" width="120" height="20" rx="10" fill="#f2ecdf"/>
+      <rect x="42" y="88" width="120" height="20" rx="10" fill="url(#mstr)"/>
+      <rect x="24" y="116" width="24" height="14" rx="7" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3" transform="rotate(24 36 123)"/>
+      <rect x="156" y="116" width="24" height="14" rx="7" fill="#3a2f26" stroke="#f2ecdf" stroke-width="3" transform="rotate(-24 168 123)"/>
+      <circle cx="79" cy="132" r="13" fill="#f2ecdf"/>
+      <circle cx="123" cy="132" r="13" fill="#f2ecdf"/>
+      <circle cx="81" cy="133" r="5.5" fill="#241d15"/>
+      <circle cx="121" cy="133" r="5.5" fill="#241d15"/>
+      <circle cx="61" cy="146" r="5" fill="#e0704f" opacity=".85"/>
+      <circle cx="141" cy="146" r="5" fill="#e0704f" opacity=".85"/>
+      <path d="M93 148 Q101 155 109 148" stroke="#f2ecdf" stroke-width="4" stroke-linecap="round" fill="none"/>
+    </g>
+  </svg>
+
+  <div>
+    <h1>OpenMontage</h1>
+    <div class="rule"></div>
+    <p class="tag">The first open-source, agentic<br>video production system.</p>
+    <div class="stats">12 pipelines<span>·</span>100+ tools<span>·</span>700+ agent skills</div>
+  </div>
+</div>
+
+<div class="url">openmontage.video</div>
+</body>
+</html>

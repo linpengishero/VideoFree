@@ -1,0 +1,106 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Local model downloads (e.g. Piper TTS voices, fetched at runtime — not source)
+*.onnx
+*.onnx.json
+
+# Test/IDE
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.trae/
+.idea/
+.vscode/
+
+# Pipeline outputs (regenerable — never commit large media)
+output/
+pipeline/
+tests/qa/output/
+
+# Project workspaces (generated assets, renders — all regenerable)
+projects/
+
+# Corpus directories (downloaded stock clips, thumbnails, embeddings —
+# regenerable from source APIs via corpus_builder). Explicit rule even
+# though most corpora live under projects/ since agents sometimes
+# build scratch corpora at the repo root.
+corpus/
+**/corpus/
+
+# User music library (personal royalty-free tracks — not part of repo)
+music_library/
+
+# Environment & credentials
+.env
+.env.local
+*.env
+.youtube-token.json
+# Google service-account / Vertex AI keys — never commit
+gcp-*.json
+*-service-account.json
+service-account*.json
+service_account*.json
+
+# Stray media downloads (test/scratch clips left in repo root)
+pexels_video_*.mp4
+
+# Scratch/debug scripts
+scratch/
+
+# Internal docs (strategy, handoffs, playbooks — not shipped)
+internal/
+
+# Local agent config (user-specific)
+.claude/memory/
+.claude/settings.local.json
+
+# Agent skills lock (local install tracking)
+skills-lock.json
+
+# Generated images (logo drafts — final logo lives in assets/)
+logo_*.png
+generated_image.png
+
+# Downloaded music files (Pixabay, Freesound — not source code)
+pixabay_music_*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (for remotion-composer/)
+node_modules/
+
+# Remotion build output and copied project assets (regenerable at render time)
+remotion-composer/out/
+# Project-local bespoke ("atelier") compositions — hand-authored per video,
+# throwaway and regenerable. Keeps the shared src/ free of one-off scenes.
+remotion-composer/projects/
+remotion-composer/public/*
+# But keep demo props (shipped with the project for zero-key demos)
+!remotion-composer/public/demo-props/
+# Ignore test/scratch compositions in demo-props (keep only curated demos)
+remotion-composer/public/demo-props/test-*
+remotion-composer/public/demo-props/talking-head-*
+remotion-composer/public/demo-props/caption-burn-*
+
+venv/
+.venv/
+
+# Backlot local cache (thumbnails)
+.backlot/
+
+# Workspace-local third-party runtimes (for example the portable Blender LTS
+# used by blender_world). These are checksum-verified but never committed.
+.runtime/
+
+# Local Wan / diffusers GPU environment
+.venv-wan/

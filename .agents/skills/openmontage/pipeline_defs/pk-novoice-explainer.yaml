@@ -1,0 +1,270 @@
+name: pk-novoice-explainer
+version: "1.0"
+description: >
+  生成式竖屏短视频（无配音版）：画面与 BGM 全生成，**不生成配音、不生成字幕**
+  （旁白文本只作为主人在剪映里自己配音的脚本）。视频素材必须经 H3 二采（h3_refine）
+  定稿后才允许进入剪辑与合成；合成输出分辨率 = 素材原生尺寸，禁止本地放大。
+  与 animated-explainer 的唯一差别就是这三条：无配音/无字幕、二采强制、不放大。
+category: generated
+stability: beta
+
+default_checkpoint_policy: guided
+
+reference_input:
+  supported: false
+
+extensions:
+  custom_scripts: true
+  custom_playbooks: true
+  custom_skills: true
+  custom_tools: false
+
+required_skills:
+  - pipelines/explainer/executive-producer
+  - pipelines/explainer/research-director
+  - pipelines/explainer/proposal-director
+  - pipelines/explainer/script-director
+  - pipelines/explainer/scene-director
+  - pipelines/explainer/asset-director
+  - pipelines/explainer/edit-director
+  - pipelines/explainer/compose-director
+  - pipelines/explainer/publish-director
+  - meta/reviewer
+  - meta/checkpoint-protocol
+  - meta/skill-creator
+  - meta/animation-runtime-selector
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/explainer/executive-producer
+  budget_default_usd: 2.00
+  max_revisions_per_stage: 3
+  max_send_backs: 3
+  # 12 段视频的抽卡 + 二采本身就约 60-90 分钟，20 分钟对这条管线是假护栏
+  max_wall_time_minutes: 120
+
+compatible_playbooks:
+  recommended:
+    - clean-professional
+    - flat-motion-graphics
+  also_works:
+    - minimalist-diagram
+  custom_allowed: true
+
+stages:
+  - name: research
+    skill: pipelines/explainer/research-director
+    produces:
+      - research_brief
+    tools_available: []
+    checkpoint_required: false
+    human_approval_default: false
+    review_focus:
+      - Content landscape mapped with at least 3 existing pieces
+      - Data points are specific and sourced, not vague
+      - At least 3 genuinely different angles discovered
+    success_criteria:
+      - Schema-valid research_brief with at least 3 data_points
+      - At least 3 angles_discovered, each with grounded_in references
+      - At least 5 sources cited with URLs
+
+  - name: proposal
+    skill: pipelines/explainer/proposal-director
+    required_artifacts_in:
+      - research_brief
+    produces:
+      - proposal_packet
+      - decision_log
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Concept options are genuinely different (structure, hook, audience)
+      - Production plan reflects actual tool availability from preflight
+      - "Production plan MUST state: no narration/TTS, no subtitles, every video clip is h3_refine finished, compose size = source native size"
+      - Cost estimate is itemized and honest
+    success_criteria:
+      - Schema-valid proposal_packet with at least 3 concept_options
+      - selected_concept references a valid concept_id
+      - cost_estimate has itemized line_items with per-tool costs
+      - approval.status is "approved" or "approved_with_changes" before proceeding
+    sub_stages:
+      - name: sample
+        description: "10-15 second preview clip for reference-driven productions"
+        condition: "video_analysis_brief_exists"
+        human_approval_default: true
+        tools_available: [image_selector, video_selector, music_gen, video_compose, audio_mixer]
+        review_focus:
+          - "Sample represents the approved concept faithfully"
+          - "Sample has music only — no narration track"
+
+  - name: script
+    skill: pipelines/explainer/script-director
+    required_artifacts_in:
+      - proposal_packet
+    optional_artifacts_in:
+      - research_brief
+    produces:
+      - script
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - "Word count within +/-10% of duration target from selected concept"
+      - "Narrative arc: hook -> setup -> build -> climax -> landing"
+      - "NO speaker directions for TTS and NO voice performance plan — this pipeline is silent; the narration text is a script for the human to record later"
+      - Script incorporates research data points and cited facts
+    success_criteria:
+      - Schema-valid script with enhancement_cues per section
+      - Total duration matches selected concept target within 10%
+
+  - name: scene_plan
+    skill: pipelines/explainer/scene-director
+    required_artifacts_in:
+      - script
+    optional_artifacts_in:
+      - proposal_packet
+    produces:
+      - scene_plan
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Full script duration covered with no gaps
+      - "Shot count MUST be a multiple of 4 (four-panel storyboard batches). If the story needs 10 shots, pad to 12 with real content shots (transition / mood / closing B-roll) — never empty frames, never split one long shot in two"
+      - "Visual variety: no 3+ consecutive scenes of same type"
+      - "Asset feasibility: every scene's visual comes from image/video generation (no narration assets exist in this pipeline)"
+      - "Silent timeline: scene durations come from the script plan, NOT from measured TTS audio (there is none)"
+    success_criteria:
+      - Schema-valid scene_plan with required_assets per scene
+      - At least 3 different scene types used
+      - "Shot count is a multiple of 4 and the padded shots are labelled in the scene_plan (e.g. 10 planned -> 12 delivered, 镜11/镜12 marked as padded)"
+
+  - name: assets
+    skill: pipelines/explainer/asset-director
+    required_artifacts_in:
+      - scene_plan
+      - script
+    optional_artifacts_in:
+      - proposal_packet
+    produces:
+      - asset_manifest
+    required_tools:
+      - image_selector
+      - video_selector
+    optional_tools:
+      - music_gen
+      - diagram_gen
+      - code_snippet
+      - math_animate
+    tools_available:
+      - image_selector
+      - video_selector
+      - music_gen
+      - diagram_gen
+      - code_snippet
+      - math_animate
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - "NO VOICE: do not call any TTS tool, do not create narration/voice assets (tts_selector is intentionally absent from this pipeline)"
+      - "Two-stage video: 480P quick_preview drafts are scratch only — every clip MUST be finished with zizai_video_post(mode='h3_refine')"
+      - "Vertical finalize size is fixed by the video-man dedicated MCP at 736x1312 (the proven 猫片/鸽子片 pixel size) — do NOT hand-fill width/height; the old 1312x736 landscape default no longer applies"
+      - "Job ledger: every submitted video job must be appended to assets/jobs.jsonl as `shot, job_id, draft_path` the moment it is submitted; refine reads job ids from that file only"
+      - "IMAGES (all enforced by the video-man dedicated MCP, port 8992): family = gpt_image ONLY (qwen is disabled — unstable). Resolution is locked per mode: text_to_image / image_to_image / character / scene = 1K; storyboard_4 / storyboard_6 = 2K. Pipeline: (1) text_to_image → one clean subject image; (2) character mode with that image as reference → 16:9 multi-view character sheet; (3) storyboard_4 with the character sheet as image_paths (a reference image is REQUIRED — the MCP rejects grid generation without one); (4) panels are auto-cropped (white/black borders) by the MCP; (5) verify each panel is a single frame, not a stack. Overlay text/data cards are composited later, never generated into the image"
+      - "BGM: zizai_music (ACE-Step instrumental only — no songs in this profile). Write the prompt as a production-ready score brief (instruments / rhythm / intensity curve / ending); lyrics MUST stay empty"
+      - "Voice: this pipeline is silent — never call zizai_tts here (the dedicated MCP would force cosyvoice3 + my_voice, but the film must stay voice-free; narration is the owner's job in post)"
+      - "Grid ratio must equal the delivery aspect (9:16 for vertical): a 1:1 grid yields square panels and is wrong for a vertical film"
+      - "Split immediately: image.split turns each 4-panel grid into 4 single panels; the panels are the assets, the grid is only the intermediate"
+      - "resolution=2K is declared by the API but the gateway currently returns 941x1672 for a 9:16 grid at ANY resolution (1K and 2K measure identical). Measure every grid with identify/ffprobe and RECORD the true pixel size — never claim 2K in the manifest or the report, never pass off a locally upscaled image as high-res"
+      - "Image style consistency across all generated visuals"
+      - "Total cost within approved budget from proposal_packet"
+    success_criteria:
+      - Schema-valid asset_manifest with all required assets generated
+      - "No narration assets: asset_manifest contains no narration/voice entries and no TTS tool was invoked"
+      - "Every video asset has an h3_refine product on disk whose ffprobe resolution is >= 736x1312; raw 480x853 quick_preview drafts must NOT be handed to edit/compose"
+      - "assets/jobs.jsonl exists with one line per video job (shot, job_id, draft path)"
+      - "Panel count = 4 x grid count; every grid has been split (no grid handed downstream as a shot)"
+      - "Every grid/panel pixel size measured and recorded truthfully (no 2K claims when the file is 941x1672)"
+      - All file paths resolve to existing files
+
+  - name: edit
+    skill: pipelines/explainer/edit-director
+    required_artifacts_in:
+      - scene_plan
+      - asset_manifest
+    optional_artifacts_in:
+      - script
+    produces:
+      - edit_decisions
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - "Every cut references a refined (h3_refine) video asset — never a 480P draft"
+      - "subtitles.enabled MUST be false (this pipeline has no subtitles; the owner adds them in his editor)"
+      - "No voice ducking: audio is music-only, no narration segments"
+      - "No timeline gaps or overlaps"
+    success_criteria:
+      - Schema-valid edit_decisions
+      - Full video duration covered
+      - "edit_decisions.metadata.compose_target equals the source clips' native size (e.g. 736x1312) — never upscale to 1080x1920"
+      - "edit_decisions.audio.narration.segments is empty and subtitles.enabled is false"
+
+  - name: compose
+    skill: pipelines/explainer/compose-director
+    required_artifacts_in:
+      - edit_decisions
+      - asset_manifest
+    optional_artifacts_in:
+      - scene_plan
+    produces:
+      - render_report
+      - final_review
+    required_tools:
+      - video_compose
+      - audio_mixer
+    optional_tools:
+      - video_stitch
+    tools_available:
+      - video_compose
+      - hyperframes_compose
+      - video_stitch
+      - audio_mixer
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Output video exists and is playable
+      - "Duration within +/-5% of target"
+      - "Audio track is music only — must contain no human voice"
+      - "Output resolution equals compose_target (source native size); upscaling 480P drafts to 1080x1920 is a rejection"
+      - "render_runtime in edit_decisions matches proposal_packet — silent swap to another runtime is a CRITICAL governance violation"
+    success_criteria:
+      - Schema-valid render_report with output paths
+      - Output file exists and passes ffprobe validation
+      - "ffprobe shows audio streams = music track only (no narration)"
+
+  - name: publish
+    skill: pipelines/explainer/publish-director
+    required_artifacts_in:
+      - render_report
+      - final_review
+    optional_artifacts_in:
+      - proposal_packet
+    produces:
+      - publish_log
+    tools_available: [export_bundle]
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Export package contains final video, refined clips and BGM as separate files
+      - "No subtitle file, no dubbed audio in the export"
+    success_criteria:
+      - Schema-valid publish_log
+      - Export directory contains video and refined clip assets
+
+metadata:
+  owner: pk
+  purpose: "无配音/无字幕的生成式竖屏短视频；二采定稿强制；合成不放大"
+  derived_from: animated-explainer
+  created: "2026-10-02"

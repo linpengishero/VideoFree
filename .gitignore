@@ -1,0 +1,44 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data, generated media, caches and local databases
+data/
+backups/
+commuity/
+__pycache__/
+*.py[cod]
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Frontend dependencies and generated build output
+frontend/node_modules/
+frontend/dist/
+
+# Local tools and editor files
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.vscode/
+.idea/
+Thumbs.db
+*.swp
+
+# Temporary exports and downloaded model/media files
+*.tmp
+*.part
+*.bak
+*.backup
+*.safetensors
+*.ckpt
+*.pth
+*.onnx
+*.mp4
+*.mov
+*.wav
+*.mp3
