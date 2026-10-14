@@ -8,7 +8,8 @@ data/
 backups/
 commuity/
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyo
 *.sqlite
 *.sqlite3
 *.db
