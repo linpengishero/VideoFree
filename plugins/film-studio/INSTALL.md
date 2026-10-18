@@ -12,4 +12,13 @@
 
 ## 其他依赖与验证
 
-Windows x64 的 FFmpeg/ffprobe 已随插件放在 `binaries/windows-x64/`，来源和许可证见 `licenses/`。其他平台需从 [FFmpeg 官方下载页](https://ffmpeg.org/download.html) 安装可执行文件并确保进程可访问。重启 ComfyUI 后先验证 `Apply Whisper` 和 `Display Any (rgthree)`，再在剪辑页执行一次短音频自动字幕。
+FFmpeg 与 ffprobe 是必需的系统依赖，不随 VideoFree 或本插件提交、下载或分发：
+
+- 官方下载入口：[ffmpeg.org/download.html](https://ffmpeg.org/download.html)。
+- Windows 可使用官方页面列出的构建，解压后把包含 `ffmpeg.exe` 和 `ffprobe.exe` 的 `bin` 目录加入系统 `PATH`。
+- Debian/Ubuntu：`sudo apt install ffmpeg`。
+- macOS（Homebrew）：`brew install ffmpeg`。
+
+安装后在**启动 VideoFree 的同一终端环境**执行 `ffmpeg -version` 和 `ffprobe -version`，两条命令都成功才算完成。随后重启 VideoFree。剪辑、预览、代理图、波形和自动字幕的时间线混音都会使用这两个命令；缺失时只影响剪辑插件，不影响其他生成插件。
+
+重启 ComfyUI 后还应验证 `Apply Whisper` 和 `Display Any (rgthree)`，再在剪辑页执行一次短音频自动字幕。

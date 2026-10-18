@@ -15,7 +15,7 @@
 - 修复声明式语音任务恢复时参考音频字段错位，以及云端语音任务恢复后被误判为本地执行的问题。
 - 比例和分辨率按通用规则解析，插件可声明自定义比例及 P/K 分辨率，不再受旧枚举白名单限制；最终尺寸仍受请求安全范围约束。
 - 生成能力必须注册到模型菜单，或明确声明 `ui_hidden: true`；移除框架按固定能力 ID 隐藏菜单的逻辑，避免插件静默消失。
-- `启动VideoFree.cmd --check` 检查应用导入、插件清单、前端构建 manifest、动态 JS/CSS 及依赖文件、应用插件入口和 socket/SSL/SQLite 运行库；检查失败返回非零退出码，不探测 ComfyUI。
+- `videofree.bat --check`（Linux 使用 `./videofree.sh --check`）检查应用导入、插件清单、前端构建 manifest、动态 JS/CSS 及依赖文件、应用插件入口和 socket/SSL/SQLite 运行库；检查失败返回非零退出码，不探测 ComfyUI。
 - 重启按当前插件能力恢复全部排队协作，不再限定旧的 `studio.*` ID；执行中、能力已移除或恢复队列已满的协作标记中断，不遗留无法执行的排队记录。
 - 两种协作提交入口入队失败均标记失败；相同幂等请求可重试入队，同键并发只入队一次，成功后清除入队失败标记。
 - 独立协作入口的 quick 模式正确选择 compile，并保存插件 ID、版本和修订快照；插件更新后拒绝确认旧修订。
@@ -29,7 +29,7 @@
 cd frontend
 npm run build
 cd ..
-cmd /c "启动VideoFree.cmd --check"
+cmd /c "videofree.bat --check"
 ```
 
 后端 220 项测试通过，包含 13 项插件边界与动作引用回归测试。12 个插件清单及当前前端构建资源通过发布自检。
@@ -79,7 +79,7 @@ cmd /c "启动VideoFree.cmd --check"
 - V2 router 显式接收 context，已删除未使用的路径和 handler 参数；新增边界回归测试防止 FastAPI、integration 和 TaskStore 反向依赖重新出现。
 - 新增 Windows CI、最小 Ruff 阻断规则和独立开发依赖；CI 执行编译、后端与成片测试、前端构建和发布自检。
 
-验证结果：Ruff 通过，264 项后端测试通过，40 项成片引擎测试通过，前端构建通过；`启动VideoFree.cmd --check` 检出 13 个插件并通过前端资源、socket、SSL、SQLite 与运行库自检。
+验证结果：Ruff 通过，264 项后端测试通过，40 项成片引擎测试通过，前端构建通过；`videofree.bat --check` 检出 13 个插件并通过前端资源、socket、SSL、SQLite 与运行库自检。
 
 当前剩余发布门槛：
 

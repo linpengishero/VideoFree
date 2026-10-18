@@ -1,11 +1,10 @@
-"""Real FFmpeg regressions for the bundled 成片 timeline engine.
+"""Real FFmpeg regressions for the editing timeline engine.
 
 Run from the repository root:
 
     python -m unittest discover -s plugins/film-studio/tests -p 'test_*.py'
 
-The suite uses only the FFmpeg build shipped inside the plugin, so it also proves
-the bundled binaries work without a system PATH installation.
+The suite uses the FFmpeg and FFprobe executables installed on system PATH.
 """
 import array
 import os
@@ -17,6 +16,7 @@ from types import SimpleNamespace
 import asyncio
 import json
 import unittest
+from unittest.mock import patch
 
 from backend.modules.generation.plugins import PluginCatalog
 from backend.modules.projects.service import ProjectService
@@ -34,11 +34,11 @@ try:
 except ValueError:
     FFMPEG = FFPROBE = None
 
-needs_toolkit = unittest.skipUnless(FFMPEG is not None, '插件未内置当前平台的 FFmpeg 构建')
+needs_toolkit = unittest.skipUnless(FFMPEG is not None, '系统 PATH 中未安装 FFmpeg/ffprobe')
 
 
 def tool(*args) -> bytes:
-    """Run the bundled ffmpeg with an argument array and return stdout."""
+    """Run the installed ffmpeg with an argument array and return stdout."""
     result = subprocess.run([str(FFMPEG), '-hide_banner', '-nostdin', '-loglevel', 'error', *map(str, args)],
                             capture_output=True)
     if result.returncode:
@@ -518,18 +518,14 @@ class TimelineTaskTests(unittest.TestCase):
             self.service.cancel(self.project, film['id'])
         self.assertIn('无需取消', str(raised.exception))
 
-    def test_missing_binary_for_current_platform_is_reported(self):
+    def test_missing_system_ffmpeg_is_reported(self):
         self.add_job('video-one')
         self.service.select('video-one', True)
         film = self.service.save(self.project, self.body('video-one'))
-        original = render.BINARY_ROOT
-        try:
-            render.BINARY_ROOT = self.context.paths.root / 'no-such-binaries'
+        with patch.object(render.shutil, 'which', return_value=None):
             with self.assertRaises(ValueError) as raised:
                 asyncio.run(self.service.submit(self.project, film['id']))
-        finally:
-            render.BINARY_ROOT = original
-        self.assertIn('未内置', str(raised.exception))
+        self.assertIn('系统 PATH', str(raised.exception))
         self.assertEqual(self.context.application_tasks, {})
         self.assertEqual(self.service.get(self.project, film['id'])['render']['status'], 'draft')
 

@@ -371,7 +371,7 @@ def category_delete(event, runtime):
 ```powershell
 python -m compileall -q backend tests plugins
 python -m unittest discover -s tests -p 'test_*.py'
-cmd /c "启动VideoFree.cmd --check"
+cmd /c "videofree.bat --check"
 ```
 
 发布前确认：`INSTALL.md` 与当前工作流一致且没有本机绝对路径；每个模型和自定义节点都有来源与安装位置；固定资源都在插件目录；没有框架专用分支；没有直接 SQLite/ComfyUI 文件访问；独立 UI bundle 位于 `ui/dist`；动作已通过通用能力发现和 MCP 入口暴露；项目和分类删除不会留下插件数据。

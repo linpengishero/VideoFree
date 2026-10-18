@@ -2,11 +2,13 @@
 
 ## 模型
 
-官方来源：[Qwen-Image-2.1](https://github.com/QwenLM/Qwen-Image-2.1)、[T2I 模型](https://huggingface.co/Qwen/Qwen-Image-2.1-PE-T2I)、[I2I 模型](https://huggingface.co/Qwen/Qwen-Image-2.1-PE-I2I)。工作流使用：
+官方来源：[Qwen-Image-2.1](https://github.com/QwenLM/Qwen-Image-2.1)、[T2I 模型](https://huggingface.co/Qwen/Qwen-Image-2.1-PE-T2I)、[I2I 模型](https://huggingface.co/Qwen/Qwen-Image-2.1-PE-I2I)。
 
-- `models/diffusion_models/Qwen/qwen_image_2.1_int8_convrot.safetensors`
-- `models/text_encoders/qwen3vl_8b_int8_convrot.safetensors`
-- `models/vae/qwen_image_2.1_vae_bf16.safetensors`
+| 必需 | 文件 | 下载地址 | 安装到（相对 ComfyUI 根目录） |
+| --- | --- | --- | --- |
+| 是 | `qwen_image_2.1_int8_convrot.safetensors` | [Qwen Image 2.1 发布入口](https://github.com/QwenLM/Qwen-Image-2.1) | `models/diffusion_models/Qwen/` |
+| 是 | `qwen3vl_8b_int8_convrot.safetensors` | [Qwen Image 2.1 发布入口](https://github.com/QwenLM/Qwen-Image-2.1) | `models/text_encoders/` |
+| 是 | `qwen_image_2.1_vae_bf16.safetensors` | [Qwen Image 2.1 发布入口](https://github.com/QwenLM/Qwen-Image-2.1) | `models/vae/` |
 
 ## ComfyUI 节点
 

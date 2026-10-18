@@ -68,5 +68,5 @@ cd frontend
 npm ci
 npm run build
 cd ..
-cmd /c "启动VideoFree.cmd --check"
+cmd /c "videofree.bat --check"
 ```

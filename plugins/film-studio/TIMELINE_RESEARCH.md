@@ -12,7 +12,7 @@
 
 - 现在的 `clips[]` 顺序数组 + `in/out` + 全局画幅，本质就是"单轨、无空档、无转场"
   的时间线退化形式；引擎的"逐段标准化 → 拼接"与时间线模型天然对齐。
-- 内置 FFmpeg 具备时间线所需的全部原语：`xfade`、`acrossfade`、`overlay`、`adelay`、
+- FFmpeg 具备时间线所需的全部原语：`xfade`、`acrossfade`、`overlay`、`adelay`、
   `amix`、`volume`、`afade`、`tpad`、`trim/setpts`、`concat`、`drawtext`、`ass/subtitles`、
   `showwavespic`、`thumbnail`，还带 `h264_nvenc/amf/qsv/mf` 硬件编码器。
 - 成本不是障碍：24s 成片整片重渲 720p 1.5s、1080p 2.25s、480p15 代理 1.1s；
@@ -29,7 +29,7 @@
 | 动作 | `film.list/sources/get/save/add-clip/select-source/progress/render/delete` | 缺预览、缺代理素材接口 |
 | 前端依赖 | 仅 `vue` + `@iconify/vue`，框架内无时间线/拖拽组件 | 时间线交互需手写 pointer 事件 |
 
-## 内置 FFmpeg 实测
+## FFmpeg 实测
 
 | 能力 | 命令要点 | 实测 |
 | --- | --- | --- |

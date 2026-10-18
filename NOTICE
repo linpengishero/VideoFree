@@ -1,16 +1,33 @@
-videofree
+VideoFree
 
-Copyright (c) 2026 videofree contributors.
+Copyright (c) 2026 VideoFree contributors.
 
-本仓库中的 videofree 自有源代码按根目录 LICENSE 中的 GNU Affero
-General Public License v3.0 发布。
+VideoFree-owned source code in this repository is released under the GNU Affero
+General Public License v3.0 in the root LICENSE file.
 
-本项目是一个调用本地 ComfyUI 及其已安装节点、模型和外部服务的媒体网关。
-ComfyUI、社区节点、模型、LoRA、字体和其他资源不属于 videofree 的统一授权范围，
-其版权和许可证归各自权利人所有。
+VideoFree calls a user-configured ComfyUI installation, installed nodes, models,
+and external services. ComfyUI, community nodes, models, LoRAs, fonts, FFmpeg,
+and other third-party resources retain their own copyrights and licenses.
 
-OpenMontage 是独立智能体技能和剪辑工具，网关可选基础合成功能也调用其源码。
-它不是 videofree 自有代码；使用时必须保留其目录中的许可证、
-版权和来源声明，并遵守 OpenMontage 及其所含组件的许可证。
+OpenMontage is an independent agent skill and editing tool under
+.agents/skills/openmontage/. It is not VideoFree-owned code. Its license,
+copyright, source, and third-party notices must remain with its source.
+
+Commercial licensing contact: 459082139@qq.com
+
+--- 中文说明 ---
+
+VideoFree
+
+Copyright (c) 2026 VideoFree contributors.
+
+本仓库中的 VideoFree 自有源代码按根目录 LICENSE 中的 GNU Affero General Public
+License v3.0 发布。
+
+VideoFree 调用用户配置的 ComfyUI、已安装节点、模型和外部服务。ComfyUI、社区节点、
+模型、LoRA、字体、FFmpeg 及其他第三方资源保留各自的版权和许可证。
+
+OpenMontage 是位于 .agents/skills/openmontage/ 的独立智能体技能和剪辑工具，不属于
+VideoFree 自有代码。使用或分发时必须保留其许可证、版权、来源及第三方声明。
 
 商业授权咨询：459082139@qq.com

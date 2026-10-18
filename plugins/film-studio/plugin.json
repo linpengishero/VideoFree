@@ -1,15 +1,11 @@
 {
   "schema_version": 1,
   "id": "film-studio",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "name": "剪辑",
-  "description": "项目成片管理、时间线剪辑、自动字幕与插件内置 FFmpeg 合成。",
+  "description": "项目成片管理、时间线剪辑、自动字幕与 FFmpeg 合成。",
   "assets": [
-    "binaries/windows-x64/ffmpeg.exe",
-    "binaries/windows-x64/ffprobe.exe",
     "licenses/FFMPEG-NOTICE.md",
-    "licenses/LICENSE.txt",
-    "licenses/README.txt",
     "ui/icon.png"
   ],
   "categories": [],
@@ -762,7 +758,7 @@
     {
       "id": "film.render",
       "name": "提交基础剪辑合成",
-      "description": "使用插件内置 FFmpeg 异步合成，返回成片详情；用 film.get 查询 render.status 和 progress，composition 阶段由系统维护。",
+      "description": "使用系统安装的 FFmpeg 异步合成，返回成片详情；用 film.get 查询 render.status 和 progress，composition 阶段由系统维护。",
       "scope": "workspace",
       "automation": true,
       "handler": "actions.py:execute",
@@ -822,7 +818,7 @@
     {
       "id": "film.preview",
       "name": "生成时间线预览",
-      "description": "用插件内置 FFmpeg 以低画质快速合成预览，用于剪辑确认；结果在 preview.url，不影响正式成片。用 film.get 查询 preview.status 和 progress。",
+      "description": "用系统安装的 FFmpeg 以低画质快速合成预览，用于剪辑确认；结果在 preview.url，不影响正式成片。用 film.get 查询 preview.status 和 progress。",
       "scope": "workspace",
       "automation": true,
       "handler": "actions.py:execute",

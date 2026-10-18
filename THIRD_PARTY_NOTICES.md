@@ -1,33 +1,43 @@
-# 第三方组件与资源说明
+# Third-Party Components and Resources
 
-videofree 是媒体网关，负责调用用户配置的本地 ComfyUI、ComfyUI 节点、模型和
-其他媒体服务。以下内容不因随项目目录提供而自动取得 videofree 的统一授权。
+**English** · [中文](THIRD_PARTY_NOTICES_ZH.md)
 
-## ComfyUI 与社区节点
+VideoFree is a media gateway that calls a user-configured ComfyUI installation,
+installed nodes, models, and external services. Content listed below is not covered
+by a single VideoFree license merely because it is referenced by this repository.
 
-ComfyUI 及其社区节点由各自项目作者维护，许可证和版权归各自权利人所有。使用
-或分发配套插件时，应同时遵守对应仓库、插件目录和发布包中的许可证文件。
+## ComfyUI and community nodes
 
-## 模型、LoRA、字体和媒体资源
+ComfyUI and its community nodes are maintained by their respective authors. Their
+copyrights and licenses remain with those rights holders. When installing or
+redistributing a plugin, retain and follow the notices shipped by its upstream
+project and release package.
 
-模型、LoRA、字体、示例素材及其他媒体资源可能具有独立的使用范围、署名要求或
-商业限制。请在下载、分发或用于商业项目之前，核对来源页面和随附许可证。
+## Models, LoRAs, fonts, and media
+
+Models, LoRAs, fonts, sample files, and other media may carry separate use limits,
+attribution requirements, or commercial restrictions. Review the source page and
+the accompanying license before downloading, redistributing, or using an item in a
+commercial project.
 
 ## OpenMontage
 
-OpenMontage 位于 `.agents/skills/openmontage/`，可独立作为技能使用，也是网关可选
-基础合成功能的运行依赖；网关启动和其他生成功能不依赖它。其 AGPL-3.0 许可仍独立适用，
-videofree 的商业授权不免除第三方许可义务。OpenMontage 目录内的 `LICENSE`、版权声明和
-其他来源说明必须与其源码一起保留。使用 OpenMontage 时，以其目录中的许可证和
-第三方声明为准。
+OpenMontage is located under `.agents/skills/openmontage/`. It can be used as an
+independent skill and is not a runtime dependency of the VideoFree editor plugin.
+Its AGPL-3.0 license applies independently. Keep the OpenMontage license, copyright,
+source notices, and other required files with its source distribution.
 
-## 其他依赖
+## Other dependencies
 
-Python、JavaScript、FFmpeg 及其他依赖的许可证以依赖项目自身发布的许可证为准。
-依赖清单不代表 videofree 对这些项目拥有版权或再授权权。
+Python, JavaScript packages, FFmpeg, and other dependencies retain the licenses of
+their own projects. Listing a dependency does not transfer its copyright or grant a
+VideoFree sublicense. The editor calls user-installed `ffmpeg` and `ffprobe` from
+system `PATH`; this repository does not commit or distribute those binaries. See
+`plugins/film-studio/INSTALL.md` for installation and verification instructions.
 
-## Krea 2 提示词扩写模板
+## Krea 2 prompt expansion template
 
-`plugins/krea2/collaboration/skills/upstream/krea-2/expansion.txt` 来自 Krea AI 的
-Krea 2 官方仓库 `docs/expansion.txt`，按 Apache License 2.0 使用。原始来源与许可链接
-记录在同目录 `SOURCE.md`；其版权归 Krea AI 及上游贡献者所有。
+`plugins/krea2/collaboration/skills/upstream/krea-2/expansion.txt` is derived from
+Krea AI's official Krea 2 repository file `docs/expansion.txt` and is used under the
+Apache License 2.0. Its upstream source and license links are recorded in the nearby
+`SOURCE.md`; copyright remains with Krea AI and upstream contributors.

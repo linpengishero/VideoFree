@@ -1,8 +1,7 @@
-"""Self-contained FFmpeg timeline engine for the 成片 plugin.
+"""Self-contained FFmpeg timeline engine for the editing plugin.
 
-The plugin ships its own FFmpeg and FFprobe binaries under ``binaries/<platform>/``.
-Nothing here looks at ``PATH``, at a shell string or at any file outside the plugin
-and the project runtime directory the caller passes in.
+FFmpeg and FFprobe are external system dependencies resolved from ``PATH``. The
+plugin owns the timeline logic but does not redistribute platform binaries.
 
 A plan is a resolved timeline:
 
@@ -19,14 +18,11 @@ import asyncio
 import hashlib
 import json
 import os
-import platform
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-PLUGIN_ROOT = Path(__file__).resolve().parent
-BINARY_ROOT = PLUGIN_ROOT / 'binaries'
 TOOLS = ('ffmpeg', 'ffprobe')
 
 CUT_TOLERANCE = 0.05
@@ -46,30 +42,15 @@ SEG_SUFFIX = '.seg'
 TRANSITIONS = frozenset({'fade', 'wipeleft', 'wiperight', 'slideleft', 'slideright', 'slideup', 'slidedown', 'circleopen', 'circleclose'})
 
 
-def platform_tag() -> str:
-    system = {'Windows': 'windows', 'Darwin': 'macos', 'Linux': 'linux'}.get(platform.system(), platform.system().lower())
-    machine = platform.machine().lower()
-    arch = {'amd64': 'x64', 'x86_64': 'x64', 'arm64': 'arm64', 'aarch64': 'arm64'}.get(machine, machine)
-    return f'{system}-{arch}'
-
-
-def _tool(directory: Path, name: str) -> Path:
-    path = directory / (f'{name}.exe' if os.name == 'nt' else name)
-    if not path.is_file():
-        raise ValueError(f'成片插件未内置 {name}：{path}')
-    return path
-
-
 def toolkit() -> tuple[Path, Path]:
-    """Resolve the bundled ffmpeg and ffprobe, or explain why they are absent."""
-    tag = platform_tag()
-    directory = BINARY_ROOT / tag
-    missing = [name for name in TOOLS if not (directory / (f'{name}.exe' if os.name == 'nt' else name)).is_file()]
+    """Resolve ffmpeg and ffprobe from PATH, or explain how to install them."""
+    resolved = {name: shutil.which(name) for name in TOOLS}
+    missing = [name for name, path in resolved.items() if not path]
     if missing:
         raise ValueError(
-            f'成片插件未内置 {tag} 平台的 {"、".join(missing)}。请把对应平台的 FFmpeg 构建放入 '
-            f'{BINARY_ROOT / tag} 后重启网关；合成不会改用系统 PATH 上的版本。')
-    return _tool(directory, 'ffmpeg'), _tool(directory, 'ffprobe')
+            f'剪辑插件找不到 {"、".join(missing)}。请安装 FFmpeg，并确保 ffmpeg 和 ffprobe '
+            '可从系统 PATH 执行，然后重启 VideoFree。安装说明见 plugins/film-studio/INSTALL.md。')
+    return Path(resolved['ffmpeg']), Path(resolved['ffprobe'])
 
 
 def _kill_flags() -> dict:

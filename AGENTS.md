@@ -32,7 +32,7 @@
 | 运行数据、缓存、任务和生成资源 | `data/`，不得作为源码提交或手工编辑 |
 | 前端构建结果 | `static/dist/`，仅由前端构建生成 |
 
-根目录只保留项目入口和仓库级文件，例如 `启动VideoFree.cmd`、`README.md`、
+根目录只保留项目入口和仓库级文件，例如 `videofree.bat`、`videofree.sh`、`README.md`、
 `ARCHITECTURE.md`、`AGENTS.md`、依赖清单和环境变量示例。无法明确归属的文件先不要创建。
 
 ## 依赖与实现边界
@@ -69,7 +69,7 @@ bootstrap / lifecycle -> application modules
 ```powershell
 python -m compileall -q backend tests
 python -m unittest discover -s tests -p 'test_*.py'
-cmd /c "启动VideoFree.cmd --check"
+cmd /c "videofree.bat --check"
 ```
 
 前端修改：

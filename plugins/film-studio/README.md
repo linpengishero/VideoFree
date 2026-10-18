@@ -1,7 +1,7 @@
 # 成片插件（film-studio）
 
-项目内的成片方案、时间线剪辑与基础合成。插件自包含：合成所需的 FFmpeg 与 FFprobe
-随插件分发，不依赖系统 `PATH`，也不依赖仓库内的其它技能源码。
+项目内的成片方案、时间线剪辑与基础合成。时间线实现完全归插件所有，不依赖仓库内的
+其他技能源码；FFmpeg 与 FFprobe 是用户安装的系统依赖，通过 `PATH` 发现，不随仓库分发。
 
 ## 目录
 
@@ -12,8 +12,8 @@ plugins/film-studio/
 ├── schemas.py                      时间线方案与阶段写入的校验模型
 ├── service.py                      方案、入选素材、队列、进度、预览、代理图与清理
 ├── render.py                       FFmpeg 时间线引擎（探测、标准化、转场、叠加、混音、校验）
-├── binaries/<平台>/                随插件分发的 ffmpeg、ffprobe
-├── licenses/                       GPL v3 全文、构建说明与来源校验值
+├── INSTALL.md                      FFmpeg、字幕模型与 ComfyUI 节点安装说明
+├── licenses/                       FFmpeg 第三方依赖与许可提示
 ├── tests/                          真实 FFmpeg 回归
 └── ui/                             时间线页面（FilmStudio.vue + Timeline.vue + plan.js）与素材扩展
 ```
@@ -42,7 +42,7 @@ plugins/film-studio/
 
 `film.render`（正式）与 `film.preview`（低画质快速预览）走同一条流水线：
 
-1. **素材检查**：用插件内 FFprobe 读取时长、视频轨、音频轨。没有视频轨、时长读不出、
+1. **素材检查**：用系统 FFprobe 读取时长、视频轨、音频轨。没有视频轨、时长读不出、
    裁剪起点已达素材末尾或裁剪终点超过实际时长的方案直接拒绝，且在排队前就返回错误。
 2. **逐段标准化**：按 `in`/`out` 裁剪，统一画幅与帧率；`fit=contain` 完整显示并补黑边，
    `fit=cover` 放大后居中裁切；逐段应用 `volume` 与 `fade_in`/`fade_out`。黑场片段用
@@ -81,13 +81,12 @@ plugins/film-studio/
 | `film.transcribe` | 一键识别整条时间线中的视频原声和独立音频轨 |
 | `film.delete` | 删除成片与其合成输出 |
 
-## 内置 FFmpeg
+## FFmpeg 运行依赖
 
-- 只使用 `binaries/<平台目录>/` 下的程序，平台目录由 `render.platform_tag()` 生成
-  （当前随包发布 `windows-x64`）。
-- 当前平台缺少配套程序时直接报错并说明放置位置，不会静默改用系统版本。
-- 来源、版本、许可证与 SHA-256 见 `licenses/FFMPEG-NOTICE.md`；`plugin.json` 的
-  `assets` 声明这些文件，发布自检会校验它们存在且不越出插件目录。
+- 插件通过系统 `PATH` 查找 `ffmpeg` 和 `ffprobe`，不提交或自动下载二进制。
+- 两个命令缺少任意一个都会在提交预览、导出、代理图或自动字幕前返回明确错误。
+- 安装入口、各平台命令和验证步骤见 [INSTALL.md](INSTALL.md)；许可边界见
+  [licenses/FFMPEG-NOTICE.md](licenses/FFMPEG-NOTICE.md)。
 
 ## 运行数据
 
@@ -115,17 +114,17 @@ data/projects/<项目>/.plugins/film-studio/
 python -m unittest discover -s plugins/film-studio/tests -p 'test_*.py'
 ```
 
-用插件自带的 FFmpeg 生成夹具并合成，覆盖混合规格、黑场、转场重叠与时长、叠加轨落点、
+用系统 PATH 中的 FFmpeg 生成夹具并合成；未安装时真实渲染用例会跳过。测试覆盖混合规格、黑场、转场重叠与时长、叠加轨落点、
 额外音轨延迟、逐段音量与淡入淡出、无音轨、原声开关、背景音乐循环与静音、contain/cover
 画幅、预览降质、片段缓存复用、中文与空格路径、越界裁剪、损坏素材、无声素材、取消中断、
 缺少内置程序、代理图缓存以及成功后的中间文件清理。
 
 ## 自动字幕
 
-`film.transcribe` 先由插件内 FFmpeg 按最终时间线混合所有启用的视频原声和独立音频轨，
+`film.transcribe` 先由系统 FFmpeg 按最终时间线混合所有启用的视频原声和独立音频轨，
 排除背景音乐，再通过 ComfyUI-Whisper 的 `LoadAudio`、`Apply Whisper` 与 rgthree 的
 `Display Any` 输出节点一次识别，默认使用 `large-v3-turbo`。返回时间戳天然对应整条成片，
-并替换方案的 `captions` 字段。字幕和普通文字在预览与正式导出时统一由插件内 FFmpeg
+并替换方案的 `captions` 字段。字幕和普通文字在预览与正式导出时统一由系统 FFmpeg
 烧录 ASS；产品不提供 SRT 导入、导出。ASR 适配、字幕模型和过程文件均不进入框架。
 
 ## 当前范围

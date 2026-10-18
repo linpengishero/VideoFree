@@ -2,7 +2,13 @@
 
 ## 模型
 
-工作流使用 `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign`、`Qwen/Qwen3-TTS-12Hz-1.7B-Base` 和 `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice`，来源为 [Qwen Hugging Face](https://huggingface.co/Qwen)。`Qwen3Loader` 可从 Hugging Face/ModelScope 自动下载到节点自己的模型缓存；若指定本地路径，遵守节点文档，不能放入插件源码目录。
+工作流使用以下仓库：
+
+- [`Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign`](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign)
+- [`Qwen/Qwen3-TTS-12Hz-1.7B-Base`](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base)
+- [`Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice`](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)
+
+`Qwen3Loader` 从 Hugging Face/ModelScope 自动下载到节点自己的模型缓存，因此没有固定的 ComfyUI `models/` 目录。离线部署必须遵循 [ComfyUI-Qwen3-TTS](https://github.com/DarioFT/ComfyUI-Qwen3-TTS) 的当前本地路径配置，不能放入插件源码目录。
 
 ## ComfyUI 节点
 

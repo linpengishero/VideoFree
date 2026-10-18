@@ -1,1 +1,1 @@
-"""Freedom Hand backend package."""
+"""VideoFree backend package."""

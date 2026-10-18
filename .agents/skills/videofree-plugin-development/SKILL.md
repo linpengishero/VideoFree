@@ -90,7 +90,7 @@ python -m unittest discover -s tests -p 'test_*.py'
 cd frontend
 npm run build
 cd ..
-cmd /c "启动VideoFree.cmd --check"
+cmd /c "videofree.bat --check"
 ```
 
 Run plugin-local tests separately when present. A plugin that loads is not necessarily usable: verify discovery output, input Schema, default values, automation visibility, project/category ownership, output publication, and understandable failure messages. Do not submit real paid or GPU-heavy generation unless the user requested it.

@@ -1,6 +1,6 @@
 {
   "../plugins/ace-step/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-CsoeFkSi.js",
+    "file": "assets/Collaboration-D_f8zXX6.js",
     "name": "Collaboration",
     "src": "../plugins/ace-step/ui/Collaboration.vue",
     "isDynamicEntry": true,
@@ -25,28 +25,28 @@
     ]
   },
   "../plugins/film-studio/ui/FilmSelection.vue": {
-    "file": "assets/FilmSelection-DVu-AvP9.js",
+    "file": "assets/FilmSelection-CCex2-0w.js",
     "name": "FilmSelection",
     "src": "../plugins/film-studio/ui/FilmSelection.vue",
     "isDynamicEntry": true,
     "imports": [
       "__plugin-vue_export-helper-BAHkH64h.js",
       "index.html",
-      "_api-CGIygzgu.js"
+      "_api-Oz8kiViB.js"
     ],
     "css": [
       "assets/FilmSelection-BKwFTerW.css"
     ]
   },
   "../plugins/film-studio/ui/FilmStudio.vue": {
-    "file": "assets/FilmStudio-eC3IXJuM.js",
+    "file": "assets/FilmStudio-4v1ELLWe.js",
     "name": "FilmStudio",
     "src": "../plugins/film-studio/ui/FilmStudio.vue",
     "isDynamicEntry": true,
     "imports": [
       "__plugin-vue_export-helper-BAHkH64h.js",
       "index.html",
-      "_api-CGIygzgu.js",
+      "_api-Oz8kiViB.js",
       "../plugins/film-studio/ui/Timeline.vue"
     ],
     "css": [
@@ -54,7 +54,7 @@
     ]
   },
   "../plugins/film-studio/ui/Timeline.vue": {
-    "file": "assets/Timeline-Ch_IeB98.js",
+    "file": "assets/Timeline-B7N_9WUp.js",
     "name": "Timeline",
     "src": "../plugins/film-studio/ui/Timeline.vue",
     "isDynamicEntry": true,
@@ -95,7 +95,7 @@
     "src": "../plugins/ltx-2.5/workflows/video/ltx2_5/first_last_frame.png"
   },
   "../plugins/minimax-h3/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-DqNs4dSY.js",
+    "file": "assets/Collaboration-CeZvQMva.js",
     "name": "Collaboration",
     "src": "../plugins/minimax-h3/ui/Collaboration.vue",
     "isDynamicEntry": true,
@@ -135,15 +135,15 @@
     "file": "assets/_plugin-vue_export-helper-BAHkH64h.js",
     "name": "_plugin-vue_export-helper"
   },
-  "_api-CGIygzgu.js": {
-    "file": "assets/api-CGIygzgu.js",
+  "_api-Oz8kiViB.js": {
+    "file": "assets/api-Oz8kiViB.js",
     "name": "api",
     "imports": [
       "index.html"
     ]
   },
   "index.html": {
-    "file": "assets/index-CuDtzXkW.js",
+    "file": "assets/index-CiD3njLQ.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -163,7 +163,7 @@
       "../plugins/qwen-image/ui/Collaboration.vue"
     ],
     "css": [
-      "assets/index-BnHDg-MX.css"
+      "assets/index-BNZHk-wO.css"
     ],
     "assets": [
       "assets/first_last_frame-B9IwCnTh.png"

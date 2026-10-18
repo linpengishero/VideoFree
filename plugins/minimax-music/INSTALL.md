@@ -2,11 +2,13 @@
 
 ## 模型
 
-模型与说明入口：[MiniMax-Music3](https://github.com/MiniMax-AI/MiniMax-Music3)。安装：
+模型与说明入口：[MiniMax-Music3](https://github.com/MiniMax-AI/MiniMax-Music3)。
 
-- `models/diffusion_models/minimax_music3_dit_int4_convrot.safetensors`
-- `models/text_encoders/minimax_music3_text_encoder_pruned_int8_convrot.safetensors`
-- `models/vae/minimax_music3_dav.safetensors`
+| 必需 | 文件 | 下载地址 | 安装到（相对 ComfyUI 根目录） |
+| --- | --- | --- | --- |
+| 是 | `minimax_music3_dit_int4_convrot.safetensors` | [MiniMax-Music3 官方项目](https://github.com/MiniMax-AI/MiniMax-Music3) | `models/diffusion_models/` |
+| 是 | `minimax_music3_text_encoder_pruned_int8_convrot.safetensors` | [MiniMax-Music3 官方项目](https://github.com/MiniMax-AI/MiniMax-Music3) | `models/text_encoders/` |
+| 是 | `minimax_music3_dav.safetensors` | [MiniMax-Music3 官方项目](https://github.com/MiniMax-AI/MiniMax-Music3) | `models/vae/` |
 
 ## ComfyUI 节点
 

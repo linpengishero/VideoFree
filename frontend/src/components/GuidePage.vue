@@ -26,8 +26,8 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
         <button type="button" :class="{ active: section === 'mcp' }" :aria-current="section === 'mcp' ? 'page' : undefined" @click="$emit('section', 'mcp')">02 MCP 安装</button>
         <button type="button" :class="{ active: section === 'skills' }" :aria-current="section === 'skills' ? 'page' : undefined" @click="$emit('section', 'skills')">03 全自动技能包</button>
         <button type="button" :class="{ active: section === 'plugin' }" :aria-current="section === 'plugin' ? 'page' : undefined" @click="$emit('section', 'plugin')">04 插件开发</button>
-        <a href="https://pan.quark.cn/s/306e83d5c2ce" target="_blank" rel="noopener noreferrer">配套网盘 <Icon icon="solar:arrow-right-up-linear" width="14" /></a>
-        <small>提取码：5vM9</small>
+        <a href="https://pan.quark.cn/s/2d145a999169" target="_blank" rel="noopener noreferrer">配套整合包 <Icon icon="solar:arrow-right-up-linear" width="14" /></a>
+        <small>夸克分享口令：2ca93bYCBE</small>
       </nav>
       <main :key="section" class="guide-content">
         <button class="installation-help" type="button" @click="contactOpen = true">
@@ -41,7 +41,7 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
           <p class="intro">ComfyUI 负责执行模型和节点，VideoFree 负责把复杂工作流变成可选择的插件能力，并统一管理提示词、任务和项目素材。两边都要启动，但使用内置能力时不需要再导入工作流或手工连接节点。</p>
           <section class="step">
             <h2><b>1</b>准备 ComfyUI、模型和插件</h2>
-            <p>打开<a href="https://pan.quark.cn/s/306e83d5c2ce" target="_blank" rel="noopener noreferrer">配套夸克网盘</a>，提取码 <strong>5vM9</strong>。里面提供项目需要的模型和插件。</p>
+            <p>打开<a href="https://pan.quark.cn/s/2d145a999169" target="_blank" rel="noopener noreferrer">配套 ComfyUI 整合包</a>；也可以把完整口令 <code>/~2ca93bYCBE~:/</code> 复制到夸克 APP。里面提供项目需要的 ComfyUI、模型和插件。</p>
             <p>VideoFree 插件已经保存工作流、参数界面和模型规则；ComfyUI 端只需要具备该插件声明的模型与节点。不要再把网上来源不明的工作流混进 VideoFree 插件目录。</p>
             <p><strong>已经有 ComfyUI：</strong>把网盘里的模型放到你自己的 <code>ComfyUI/models/</code>，插件放到 <code>ComfyUI/custom_nodes/</code>。按包里的目录结构放，不要把所有文件都倒进一个文件夹，也不要随便改模型名。</p>
             <p><strong>还没有 ComfyUI：</strong>如果网盘提供完整安装包，下载并解压到空间充足的目录，按包内说明启动；如果只有模型和插件，先从 <a href="https://www.comfy.org/download" target="_blank" rel="noopener noreferrer">ComfyUI 官网</a>安装，再复制配套文件。</p>
@@ -67,7 +67,8 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
           </section>
           <section class="step">
             <h2><b>5</b>启动 videofree，填连接地址</h2>
-            <p>解压完整 VideoFree 发布包，双击 <code>启动VideoFree.cmd</code>。打开首页，点右上角“进入工作台”，先创建并进入一个项目，再点左侧工具栏的齿轮设置按钮。</p>
+            <p>Windows 解压完整 VideoFree 发布包后双击 <code>videofree.bat</code>；Linux 源码部署先安装 <code>requirements.txt</code>，再运行 <code>chmod +x videofree.sh &amp;&amp; ./videofree.sh</code>。打开首页，点右上角“进入工作台”，先创建并进入一个项目，再点左侧工具栏的齿轮设置按钮。</p>
+            <p>使用剪辑插件还需自行安装 FFmpeg，并确保启动 VideoFree 的环境可以执行 <code>ffmpeg -version</code> 和 <code>ffprobe -version</code>。VideoFree 不随仓库分发这两个程序。</p>
             <p>在 <strong>ComfyUI / 网关地址</strong>填上刚才记下的 ComfyUI 地址，然后保存。两边在同一台电脑就用 <code>127.0.0.1</code>；不在同一台电脑，要填 ComfyUI 那台电脑的局域网 IP。</p>
             <figure><a href="/contact/guide-settings.png" target="_blank" rel="noopener noreferrer"><img :src="'/contact/guide-settings.png'" alt="工作台设置窗口，ComfyUI 接口地址位于顶部" loading="lazy" /></a><figcaption>设置界面示例：顶部填写 ComfyUI 地址，底部保存。点击图片查看大图。</figcaption></figure>
             <p class="note">ComfyUI 地址和 videofree 地址不是一回事。8189 是这里的 ComfyUI 示例端口，8765 是 videofree 默认端口；不要把 8765 填进 ComfyUI 接口地址。</p>
@@ -207,7 +208,7 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
           </section>
           <section class="step">
             <h2><b>4</b>按真实协议开发和验证</h2>
-            <p>详细字段、运行时接口和 UI 规则以仓库中的 <code>plugins/PLUGIN_DEVELOPMENT.md</code>、<code>docs/plugin-protocol.md</code>、<code>ARCHITECTURE.md</code> 为准。完成后至少验证插件扫描、相关测试、前端构建（有 UI 时）和 <code>启动VideoFree.cmd --check</code>。</p>
+            <p>详细字段、运行时接口和 UI 规则以仓库中的 <code>plugins/PLUGIN_DEVELOPMENT.md</code>、<code>docs/plugin-protocol.md</code>、<code>ARCHITECTURE.md</code> 为准。完成后至少验证插件扫描、相关测试、前端构建（有 UI 时）和 <code>videofree.bat --check</code>（Linux 使用 <code>./videofree.sh --check</code>）。</p>
             <p class="note">插件是可信本地代码，不是安全沙箱。安装或更新前先排空相关任务，更新后重启网关；插件不会自动替用户安装 ComfyUI 模型和节点。</p>
           </section>
           <button class="next-button" type="button" @click="$emit('enter')">进入工作台 <Icon icon="solar:arrow-right-linear" width="18" /></button>
