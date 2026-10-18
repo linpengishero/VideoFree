@@ -26,6 +26,25 @@ path; both `http://127.0.0.1:8765` and a value ending in `/api/v2` are accepted.
 
 ## Workflow
 
+Capabilities and main categories are plugin-registered, not a fixed model list.
+Use `plugins` for installed plugins/categories/errors; `capabilities --category ID`
+filters a main category (not a project's `category_id`). Each capability advertises
+`processing_modes` and typed `parameters`. Submit its exact ID through `create`,
+set `prompt_processing` to an advertised mode ID, and send plugin-specific values
+in `parameters`. Do not assume every plugin supports `compile` or `director`.
+`direct` returns a job; processing modes may return a clarification/confirmation
+session. Keep the existing explicit confirmation rule. MCP discovers the same
+catalog with `list_capabilities` and submits via `submit_generation`.
+
+Project categories are optional and one level deep. Query
+`GET /api/v2/projects/{project_id}/categories` (MCP: `list_project_categories`)
+to discover IDs. Pass `category_id` alongside `project_id` in generation,
+collaboration or speech requests to select a category. Omitted or empty
+`category_id` means the default category, not the category selected in the UI.
+Regeneration and post-processing inherit the source job's current category.
+Category management is available in the workbench; deleting a category moves
+its resources to the default category without deleting media.
+
 Before generation, run `projects` and either use the active project or create a
 dedicated project. `create-project` returns a `project_id` and does not change
 the workbench's active project. For AI isolation, keep that ID and include it
@@ -39,7 +58,7 @@ project is selected, the gateway uses `未归档项目`.
    post-processing, also run `capabilities --operation postprocess`. Never guess
    a model, mode, variant, input count, ratio, or resolution.
 2. Query the relevant presets before generation:
-   - tts: `voices` (capability filtering uses `--kind tts`, not `speech`). AI speech uses three dedicated operations: `POST /api/v2/tts/preset` with `preset_id`, `text`, and optional `speed` (server selects CosyVoice3); `POST /api/v2/tts/describe` with `voice_description`, `text`, and optional `speed` (server selects Qwen3-TTS); or `POST /api/v2/tts/clone` with an uploaded audio's `reference_upload_id`, `text`, and optional `speed` (server selects CosyVoice3). `speed` accepts `0.5-2.0`; normal Mandarin speech is roughly `4-5 Chinese characters per second`, so estimate duration as character count divided by `4.5 * speed`. Do not send model or workflow parameters; use a preset only when its `ready` field is true.
+   - tts: `voices` (capability filtering uses `--kind tts`, not `speech`). Discover plugin actions first. Execute `speech_preset`, `speech_describe`, or `speech_clone` through `POST /api/v2/plugin-actions/{action_id}/execute` with `project_id` and `inputs` matching its advertised schema. The CLI speech commands wrap these actions. `speed` accepts `0.5-2.0`; normal Mandarin is roughly `4-5 Chinese characters per second`, so estimate duration as character count divided by `4.5 * speed`. Do not send model or workflow parameters; use a preset only when `ready` is true.
    - music: `music styles`, `music singers`, and `music voice-textures`
    - images: `image-styles`
    For cloud GPT-Image, select one of the advertised `image.gpt_image.*`
@@ -72,7 +91,11 @@ project is selected, the gateway uses `未归档项目`.
    wait call accepts at most 120 seconds. A timeout means the job is still
    active, not failed; call `wait` again.
 7. Return every artifact. Use `actions` and `run-action` to process an existing
-   job artifact. To process an external file directly, upload it and call
+   job artifact. Actions are plugin-registered for images, videos, and audio;
+   use only returned action IDs. Pass action parameters with `run-action --options`
+   as JSON (`parameters` for plugin values; `width`, `height`, `upscaler` for
+   advertised latent refinement). New jobs inherit the source project/category.
+   To process an external file directly, upload it and call
    `create` with the advertised post-processing capability. For a four-panel
    grid image, use the gateway-native `image.split` with exactly one image input;
    it does not require a ComfyUI split node. Use `regenerate` to create a new
@@ -100,10 +123,12 @@ Every completed output is published into `images`, `videos`, `audio`, or
 `music`, including every output produced by four-panel and six-panel splitting.
 Do not scan or synchronize the ComfyUI output directory for project assets.
 
-For local Qwen or Krea2 `storyboard_4`, always send exactly four nonempty shot
-descriptions in `settings.shots`. A combined story in `prompt` does not replace
-that array. Collaboration confirmation carries agent-produced shots into the
-generation automatically.
+For Qwen `storyboard_4`, describe all four panels in `prompt`. Krea2 accepts
+either four nonempty descriptions in `settings.shots` or one `prompt` with
+shared context followed by `Shot 1:` through `Shot 4:` on separate lines.
+Explicit Krea2 shots take precedence. Without headings, Krea2 uses four
+successive story stages. Collaboration confirmation carries `optimized_shots`
+into generation when supplied by the selected processing mode.
 
 Job prompt fields have distinct meanings: `prompt` is the exact source prompt
 submitted by the caller, `prompt_zh` is the confirmed Chinese snapshot when one
@@ -133,3 +158,39 @@ ACE-Step background-score contract:
 
 Read [references/api.md](references/api.md) for request shapes and
 [references/modes.md](references/modes.md) when selecting media roles.
+
+## Project public assets
+
+Use MCP `list_public_assets(project_id)` or GET
+`/v1/projects/{project_id}/public-assets` to read named reusable asset records.
+Each record has `id`, `name`, `kind`, `description`, and `media` containing
+file IDs, roles, download URLs, and media types. Characters have one character
+sheet; scenes/props use images, music/sound use audio. Read textual settings
+for narrative consistency, but choose only capability-compatible references.
+Download the chosen media URL and upload through the normal reference flow;
+do not pass local filesystem paths as generation references. Public assets
+are project-wide and independent of episode categories. These MCP reads do
+not grant preset modification or automatic confirmation permissions.
+
+## Optional gateway film composition (application plugin)
+
+Completed videos are NOT automatically film candidates. After reviewing a
+video, discover the `film-studio` plugin actions. `film.add-clip` adds a
+reviewed video to a specific film and marks it as selected; alternatively use
+`film.select-source` with `job_id` and `selected:true` to select a candidate.
+New generations and regenerated takes default to unselected.
+Do not select all draft takes indiscriminately.
+
+Film CRUD, six-stage progress reports and asynchronous basic composition use
+the existing generic MCP action discovery/execution contract, documented in
+[the implemented composition design](../../../docs/film-composition-design.md).
+Use `list_plugin_actions`, `get_plugin_action`, and `run_plugin_action`
+with an explicit project_id. Do not invent film-specific MCP tools or legacy
+REST endpoints. `film.save` creates a plan, `film.progress` reports stages,
+`film.render` submits composition, and `film.get` queries actual render state.
+Report only large stages, not substages; composition progress
+belongs to the real gateway renderer, not the external AI. The action envelope
+`status:completed` means the command returned, NOT that rendering finished.
+Poll `film.get` until `result.render.status` succeeds, and retrieve
+the returned render URL. This does not replace the standalone OpenMontage
+skill's advanced editing workflow.

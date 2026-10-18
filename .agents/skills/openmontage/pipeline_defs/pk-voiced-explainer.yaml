@@ -2,7 +2,7 @@ name: pk-voiced-explainer
 version: "1.0"
 description: >
   生成式竖屏短视频（有配音版）：画面与 BGM 全生成，**旁白由本管线自己配音** ——
-  `zizai_tts` **一次性生成整段旁白（禁止分段）**，音色由专用 MCP 锁死为 cosyvoice3 + my_voice。
+  `zizai_tts` **一次性生成整段旁白（禁止分段）**，音色使用用户选择的可用预设，或使用用户提供的外部参考音频。
   视频素材必须经 H3 二采（h3_refine）定稿后才允许进入剪辑与合成；合成输出分辨率 = 素材原生尺寸，禁止本地放大。
   时长以**实测旁白音频**为准（audio-first）：画面按音频时长排，不做字幕轨。
 category: generated
@@ -96,7 +96,7 @@ stages:
         tools_available: [image_selector, video_selector, music_gen, video_compose, audio_mixer]
         review_focus:
           - "Sample represents the approved concept faithfully"
-          - "Sample carries the one-shot narration (cosyvoice3 + my_voice) over BGM — music ducked under voice"
+          - "Sample carries the one-shot narration using the selected voice preset or external reference audio over BGM — music ducked under voice"
 
   - name: script
     skill: pipelines/explainer/script-director
@@ -169,7 +169,7 @@ stages:
     checkpoint_required: true
     human_approval_default: true
     review_focus:
-      - "VOICE: call zizai_tts exactly ONCE with the entire narration as one block (no segmentation, no per-shot TTS). The dedicated MCP locks the voice to cosyvoice3 + my_voice — do not pass voice_id; do not call it twice"
+      - "VOICE: call zizai_tts exactly ONCE with the entire narration as one block (no segmentation, no per-shot TTS). Use a listed preset or the user's external reference audio; do not assume a built-in personal voice and do not call it twice"
       - "Two-stage video: 480P quick_preview drafts are scratch only — every clip MUST be finished with zizai_video_post(mode='h3_refine')"
       - "Vertical finalize size is fixed by the video-man dedicated MCP at 736x1312 (the proven 猫片/鸽子片 pixel size) — do NOT hand-fill width/height; the old 1312x736 landscape default no longer applies"
       - "Job ledger: every submitted video job must be appended to assets/jobs.jsonl as `shot, job_id, draft_path` the moment it is submitted; refine reads job ids from that file only"

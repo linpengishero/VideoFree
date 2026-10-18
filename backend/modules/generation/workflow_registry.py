@@ -3,47 +3,36 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from ...integrations.comfyui.workflow_loader import convert_workflow, workflow_from_png
+from .plugins import PluginCatalog
 
 
 class WorkflowRegistry:
     def __init__(
         self,
         workflows_path: Path,
-        registry_path: Path,
         node_definitions: Callable[[Iterable[str]], dict[str, Any]],
+        context=None,
     ) -> None:
         self.workflows_path = workflows_path
-        self.registry_path = registry_path
         self.node_definitions = node_definitions
+        self.context = context
 
     def all(self) -> dict[str, dict[str, Any]]:
-        try:
-            value = json.loads(self.registry_path.read_text(encoding="utf-8"))
-        except FileNotFoundError as exc:
-            raise RuntimeError("workflow registry is missing") from exc
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"workflow registry is invalid: {exc}") from exc
-        if not isinstance(value, dict):
-            raise RuntimeError("workflow registry must be an object")
-        return value
+        return PluginCatalog(self.workflows_path, self.context).capabilities()
 
-    def resolve(self, kind: str, mode: str, model: str = "", variant: str = "") -> dict[str, Any]:
-        registry = self.all()
-        config = registry.get(f"{kind}.{model}.{mode}") if model else None
-        config = config or registry.get(f"{kind}.{mode}")
-        if not isinstance(config, dict) or config.get("kind") != kind or config.get("mode") != mode:
-            raise ValueError(f"unsupported {kind} mode: {mode}")
-        # Post-processing has its own recipe; a parent's generation speed is irrelevant.
-        if kind == "video" and mode in {"upscale", "interpolate", "lms_enhance"}:
+    def capability(self, capability_id: str, variant: str = "") -> dict[str, Any]:
+        config = self.all().get(capability_id)
+        if config is None:
+            raise ValueError(f"Unsupported capability: {capability_id}")
+        if config.get("operation") == "postprocess":
             variant = ""
-        if variant:
+        if variant and (variant != "normal" or variant in config.get("variants", {})):
             selected = config.get("variants", {}).get(variant)
-            if not isinstance(selected, dict):
-                raise ValueError(f"unsupported {kind} variant: {variant}")
+            if selected is None:
+                raise ValueError(f"Unsupported variant: {variant}")
             config = {**config, **selected, "variant": variant}
-        if config.get("executor", "comfyui") != "comfyui":
-            return config
-        self._validated_path(kind, mode, str(config.get("file", "")))
+        if config.get("executor", "comfyui") == "comfyui":
+            self._validated_path(config["kind"], config["mode"], str(config.get("file", "")))
         return config
 
     def load(self, kind: str, filename: str | None) -> dict[str, Any]:

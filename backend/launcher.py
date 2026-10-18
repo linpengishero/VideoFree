@@ -22,7 +22,5 @@ def open_browser_when_ready() -> None:
 
 
 if __name__ == "__main__":
-    if context.config.host not in {"127.0.0.1", "localhost", "::1"} and not context.config.api_token:
-        print("[WARNING] Gateway is exposed beyond localhost without MEDIA_GATEWAY_TOKEN.")
     threading.Thread(target=open_browser_when_ready, daemon=True).start()
     uvicorn.run("backend.main:app", host=context.config.host, port=context.config.port)

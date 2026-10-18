@@ -3,9 +3,33 @@ import json
 from pathlib import Path
 
 
+def items(context):
+    import os
+    from ..generation.plugins import PluginCatalog
+    configured = os.getenv('MEDIA_STYLE_DIR')
+    if configured:
+        return catalog(configured)
+    result, errors = [], []
+    plugins, _ = PluginCatalog(context.paths.plugins, context).scan()
+    for plugin in plugins:
+        declaration = plugin.get('style_library')
+        if not declaration:
+            continue
+        rows, failures = catalog(context.comfyui_output_dir.parent / declaration['comfyui_directory'])
+        prefix = declaration.get('category_prefix', '')
+        for row in rows:
+            if prefix and row['category'].startswith(prefix):
+                row['category'] = row['category'][len(prefix):]
+        result.extend(rows)
+        errors.extend(failures)
+    return result, errors
+
+
 def catalog(root):
     root = Path(root).resolve()
     items, errors = [], []
+    if not root.is_dir():
+        return [], [f'风格资源目录不存在: {root}']
     for path in sorted(root.rglob('*.json')):
         try:
             rows = json.loads(path.read_text(encoding='utf-8-sig'))
@@ -27,20 +51,12 @@ def catalog(root):
                 items.append(item)
         except (OSError, ValueError) as exc:
             errors.append(f'{path.name}: {exc}')
+    if not items and not errors:
+        errors.append(f'风格资源目录中没有可用风格: {root}')
     return items, errors
 
 
-def apply_style(workflow, style, prompt):
-    # Resolve the exported style selectors to their original positive/negative
-    # input. The selected library template is applied once by the gateway.
-    selectors = {key: node for key, node in workflow.items() if node['class_type'] == 'easy stylesSelector'}
-    for node in workflow.values():
-        for key, value in list(node['inputs'].items()):
-            if isinstance(value, list) and len(value) == 2 and str(value[0]) in selectors:
-                source = selectors[str(value[0])]['inputs']
-                node['inputs'][key] = source.get('positive' if value[1] == 0 else 'negative', '')
-    for key in selectors:
-        del workflow[key]
+def apply_style(style, prompt):
     if style is None:
         return prompt
     return style['prompt'].replace('{prompt}', prompt) if '{prompt}' in style['prompt'] else prompt + '\n' + style['prompt']

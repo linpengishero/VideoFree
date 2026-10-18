@@ -1,0 +1,766 @@
+{
+  "schema_version": 1,
+  "id": "ltx-2.5",
+  "version": "1.0.0",
+  "name": "ltx-2.5",
+  "collaboration_ui": "ui/Collaboration.vue",
+  "categories": [
+    {
+      "id": "video",
+      "name": "视频生成",
+      "icon": "solar:clapperboard-play-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    },
+    {
+      "id": "director",
+      "handler": "collaboration/handler.py:director",
+      "name": "智能协作"
+    }
+  ],
+  "capabilities": {
+    "video.ltx2_5.text_to_video": {
+      "kind": "video",
+      "mode": "text_to_video",
+      "file": "workflows/video/ltx2_5/text_to_video.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "prompt_bindings": [
+        {
+          "node": "121",
+          "input": "text"
+        }
+      ],
+      "output_nodes": [
+        "187"
+      ],
+      "requirements": {
+        "models": [
+          "models/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+          "models/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+        ]
+      },
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "ltx2_5",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "duration": {
+        "max": 30,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 30,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "LTX 2.5 文生视频",
+      "model_id": "ltx-2.5",
+      "model_name": "LTX 2.5"
+    },
+    "video.ltx2_5.image_to_video": {
+      "kind": "video",
+      "mode": "image_to_video",
+      "file": "workflows/video/ltx2_5/image_to_video.json",
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "prompt_bindings": [
+        {
+          "node": "121",
+          "input": "text"
+        }
+      ],
+      "output_nodes": [
+        "209"
+      ],
+      "requirements": {
+        "models": [
+          "models/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+          "models/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+        ]
+      },
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "ltx2_5",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "duration": {
+        "max": 30,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 30,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {
+        "image": [
+          "first_frame"
+        ]
+      },
+      "name": "LTX 2.5 图生视频",
+      "model_id": "ltx-2.5",
+      "model_name": "LTX 2.5"
+    },
+    "video.ltx2_5.first_last_frame": {
+      "kind": "video",
+      "mode": "first_last_frame",
+      "file": "workflows/video/ltx2_5/first_last_frame.png",
+      "references": {
+        "image": {
+          "min": 2,
+          "max": 2
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "prompt_bindings": [
+        {
+          "node": "302",
+          "input": "prompt"
+        }
+      ],
+      "input_overrides": [
+        {
+          "node": "302",
+          "input": "clip_name",
+          "value": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"
+        }
+      ],
+      "media_bindings": {
+        "image": [
+          {
+            "node": "284",
+            "input": "input",
+            "connect": true
+          },
+          {
+            "node": "285",
+            "input": "input",
+            "connect": true
+          }
+        ]
+      },
+      "parameter_bindings": {
+        "width": [
+          {
+            "node": "284",
+            "input": "resize_type.width"
+          },
+          {
+            "node": "285",
+            "input": "resize_type.width"
+          }
+        ],
+        "height": [
+          {
+            "node": "284",
+            "input": "resize_type.height"
+          },
+          {
+            "node": "285",
+            "input": "resize_type.height"
+          }
+        ],
+        "duration": [
+          {
+            "node": "303",
+            "input": "value_02"
+          }
+        ],
+        "fps": [
+          {
+            "node": "268",
+            "input": "frame_rate"
+          },
+          {
+            "node": "272",
+            "input": "frame_rate"
+          },
+          {
+            "node": "300",
+            "input": "frame_rate"
+          },
+          {
+            "node": "303",
+            "input": "value_01"
+          }
+        ]
+      },
+      "output_nodes": [
+        "300"
+      ],
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "ltx2_5",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "duration": {
+        "max": 30,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 30,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {
+        "image": [
+          "first_frame",
+          "last_frame"
+        ]
+      },
+      "name": "LTX 2.5 首尾帧",
+      "model_id": "ltx-2.5",
+      "model_name": "LTX 2.5"
+    },
+    "video.ltx2_5.multi_reference": {
+      "kind": "video",
+      "mode": "multi_reference",
+      "file": "workflows/video/ltx2_5/multi_reference.json",
+      "references": {
+        "image": {
+          "min": 3,
+          "max": 3
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "prompt_bindings": [
+        {
+          "node": "101",
+          "input": "text"
+        }
+      ],
+      "media_bindings": {
+        "image": [
+          {
+            "node": "28",
+            "input": "image"
+          },
+          {
+            "node": "29",
+            "input": "image"
+          },
+          {
+            "node": "32",
+            "input": "image"
+          }
+        ]
+      },
+      "parameter_bindings": {
+        "duration": [
+          {
+            "node": "74",
+            "input": "value"
+          }
+        ],
+        "fps": [
+          {
+            "node": "72",
+            "input": "value"
+          }
+        ]
+      },
+      "output_nodes": [
+        "104"
+      ],
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "ltx2_5",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "duration": {
+        "max": 30,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 30,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {
+        "image": [
+          "subject_1",
+          "subject_2",
+          "subject_3"
+        ]
+      },
+      "name": "LTX 2.5 多主体参考",
+      "model_id": "ltx-2.5",
+      "model_name": "LTX 2.5"
+    }
+  },
+  "ui_models": [
+    {
+      "id": "ltx-2.5",
+      "name": "LTX 2.5",
+      "category": "video",
+      "selector_order": 20,
+      "functions": [
+        {
+          "capability_id": "video.ltx2_5.text_to_video",
+          "name": "文生视频"
+        },
+        {
+          "capability_id": "video.ltx2_5.image_to_video",
+          "name": "图生视频"
+        },
+        {
+          "capability_id": "video.ltx2_5.first_last_frame",
+          "name": "首尾帧"
+        },
+        {
+          "capability_id": "video.ltx2_5.multi_reference",
+          "name": "多主体参考"
+        }
+      ]
+    }
+  ]
+}

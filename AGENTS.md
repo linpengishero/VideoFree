@@ -22,16 +22,17 @@
 | generation、collaboration、settings、presets 等业务逻辑 | `backend/modules/<domain>/` |
 | HTTP schema、V1/V2 路由和协议转换 | `backend/interfaces/http/` |
 | 启动、恢复、worker 和优雅关闭 | `backend/bootstrap.py`、`backend/lifecycle.py` |
-| 前端组件、状态和样式源文件 | `frontend/src/` |
+| 框架前端组件、状态和样式源文件 | `frontend/src/` |
 | 前端静态源资源 | `frontend/public/` |
-| ComfyUI 工作流 | `workflows/img/`、`workflows/video/`、`workflows/sound/`、`workflows/post/` |
-| 工作流注册 | `workflows/registry.json` |
-| 导演与能力技能 | `.agents/skills/` 或现有 `agent_skills/` 对应域；沿用邻近文件的组织方式 |
+| 插件工作流、专用编译和协作技能 | `plugins/<plugin-id>/` |
+| 应用插件页面、业务逻辑与动作 | `plugins/<plugin-id>/ui/` 及同插件目录，由 `plugin.json.application/actions` 注册 |
+| 插件能力、主分类、处理模式注册 | `plugins/<plugin-id>/plugin.json`，唯一注册来源 |
+| 导演与能力技能 | `.agents/skills/` 或对应插件的 `collaboration/skills/`；沿用邻近文件的组织方式 |
 | 自动化测试与固定测试素材 | `tests/` |
 | 运行数据、缓存、任务和生成资源 | `data/`，不得作为源码提交或手工编辑 |
 | 前端构建结果 | `static/dist/`，仅由前端构建生成 |
 
-根目录只保留项目入口和仓库级文件，例如 `start_gateway.cmd`、`README.md`、
+根目录只保留项目入口和仓库级文件，例如 `启动VideoFree.cmd`、`README.md`、
 `ARCHITECTURE.md`、`AGENTS.md`、依赖清单和环境变量示例。无法明确归属的文件先不要创建。
 
 ## 依赖与实现边界
@@ -46,7 +47,7 @@ bootstrap / lifecycle -> application modules
 
 - `ApplicationContext` 是运行期可变状态的唯一容器，禁止新增模块级可变队列、锁或任务表。
 - HTTP handler 只负责协议校验、错误映射和调用业务服务。
-- 工作流必须先按类型归档并注册到 `workflows/registry.json`，路由不得解析节点或直接读取工作流文件。
+- 工作流必须放在对应插件目录并注册到该插件的 `plugin.json`，路由不得解析节点或直接读取工作流文件。协议见 `docs/plugin-protocol.md`。
 - 新导演技能通过技能文件和注册信息扩展；选择与编排属于 collaboration，不能侵入 generation。
 - 共享代码只有在至少两个业务域真实复用时才能抽取；单域帮助函数留在所属模块。
 - 优先复用仓库现有实现、Python/浏览器标准能力和已安装依赖，避免为小问题增加依赖。
@@ -68,7 +69,7 @@ bootstrap / lifecycle -> application modules
 ```powershell
 python -m compileall -q backend tests
 python -m unittest discover -s tests -p 'test_*.py'
-cmd /c start_gateway.cmd --check
+cmd /c "启动VideoFree.cmd --check"
 ```
 
 前端修改：

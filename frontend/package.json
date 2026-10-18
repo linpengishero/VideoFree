@@ -6,12 +6,16 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "dev:gateway": "vite --host 0.0.0.0 --port 5173"
+    "dev:gateway": "vite --host 0.0.0.0 --port 5173",
+    "test:ui": "node ../tests/test_film_studio_ui.cjs"
   },
   "dependencies": {
     "@iconify/vue": "4.3.0",
     "@vitejs/plugin-vue": "6.0.8",
     "vite": "8.2.2",
     "vue": "3.5.42"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
   }
 }

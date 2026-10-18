@@ -12,7 +12,8 @@ AGPL-3.0 的相应义务。
 - SLA、技术支持、优先修复或部署服务
 
 商业授权不自动覆盖第三方组件。ComfyUI、社区节点、模型、LoRA、字体、FFmpeg
-以及可选的 OpenMontage 技能均须分别遵守其各自的许可证和使用条件。
+以及 OpenMontage（独立技能及网关可选基础合成依赖）均须分别遵守其各自的许可证
+和使用条件；videofree 自有代码的商业授权不豁免 OpenMontage 的 AGPL-3.0 义务。
 
 ## 联系方式
 

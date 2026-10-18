@@ -13,10 +13,7 @@ if not exist "%PYTHON%" (
     exit /b 1
 )
 
-if /i "%~1"=="--check" (
-    "%PYTHON%" -B -s -c "from backend.main import app; print('Runtime check OK:', app.title, app.version)"
-    exit /b %errorlevel%
-)
+if /i "%~1"=="--check" goto check_installation
 
 if exist ".env" (
     for /f "usebackq eol=# tokens=1,* delims==" %%A in (".env") do (
@@ -43,3 +40,8 @@ if errorlevel 1 (
 )
 
 endlocal
+exit /b
+
+:check_installation
+"%PYTHON%" -B -s -c "from backend.main import app; from backend.bootstrap import check_installation; check_installation(); print('Runtime check OK:', app.title, app.version)"
+exit /b %errorlevel%

@@ -11,6 +11,10 @@ from ...integrations.comfyui import ComfyUIClient
 
 
 class SettingsService:
+    @staticmethod
+    def access_token(context: ApplicationContext) -> str:
+        return context.db.settings().get("gateway_token", context.config.api_token)
+
     def __init__(self, context: ApplicationContext, comfyui: ComfyUIClient):
         self.context = context
         self.comfyui = comfyui
@@ -18,6 +22,7 @@ class SettingsService:
 
     def read(self) -> dict[str, Any]:
         defaults = {
+            "gateway_token": self.access_token(self.context),
             "comfyui_url": self.context.comfyui_url,
             "comfyui_output_dir": str(self.context.comfyui_output_dir),
             "ai_provider": os.getenv("AI_PROVIDER", "openai"),
@@ -26,7 +31,7 @@ class SettingsService:
             "ai_model": os.getenv("AI_MODEL", "gpt-4.1-mini"),
             "ai_multimodal_video": os.getenv("AI_MULTIMODAL_VIDEO", "true"),
             "ai_thinking_mode": os.getenv("AI_THINKING_MODE", "medium"),
-            "grsai_api_key": os.getenv("GRSAI_API_KEY", ""),
+            "resource_directory": "",
         }
         stored = self.context.db.settings()
         if self.legacy_settings_path.exists():
@@ -39,7 +44,7 @@ class SettingsService:
                 self.legacy_settings_path.unlink()
             except (OSError, json.JSONDecodeError):
                 pass
-        defaults.update(stored)
+        defaults.update({key: stored[key] for key in defaults.keys() & stored.keys()})
         defaults["ai_multimodal_video"] = str(defaults.get("ai_multimodal_video", "true")).lower() in {
             "1", "true", "yes", "on",
         }
@@ -74,7 +79,21 @@ class SettingsService:
         try:
             argv = self.comfyui.request("/system_stats").get("system", {}).get("argv", [])
             main_file = Path(argv[0]).expanduser()
-            if "--output-directory" in argv:
+            if not main_file.is_absolute():
+                # Resolve relative launch arguments against ComfyUI, never the gateway cwd.
+                folders = self.comfyui.request("/internal/folder_paths")
+                candidates = {(Path(folder).parent / main_file).resolve()
+                              for folder in folders.get("custom_nodes", [])
+                              if Path(folder).is_absolute() and (Path(folder).parent / main_file).is_file()}
+                if len(candidates) != 1:
+                    return None
+                main_file = candidates.pop()
+            explicit = next((arg.split("=", 1)[1] for arg in argv if arg.startswith("--output-directory=")), None)
+            if explicit is not None:
+                directory = Path(explicit).expanduser()
+                if not directory.is_absolute():
+                    directory = main_file.parent / directory
+            elif "--output-directory" in argv:
                 directory = Path(argv[argv.index("--output-directory") + 1]).expanduser()
                 if not directory.is_absolute():
                     directory = main_file.parent / directory
@@ -92,6 +111,23 @@ class SettingsService:
 
     def apply(self, values: dict[str, str]) -> dict[str, Any]:
         settings = self.read()
+        directory = values.get("resource_directory")
+        if directory is not None and directory.strip() != settings.get("resource_directory", ""):
+            if (any(job.get("status") in {"queued", "running"} for job in getattr(self.context, "jobs", {}).values())
+                    or getattr(self.context, "executing_jobs", set()) or getattr(self.context, "application_tasks", {})):
+                raise ValueError("请等待生成和合成任务完成后再切换资源存储目录")
+            if directory.strip():
+                target = Path(directory.strip()).expanduser()
+                if not target.is_absolute():
+                    raise ValueError("资源存储目录必须是绝对路径")
+                try:
+                    target.mkdir(parents=True, exist_ok=True)
+                    import tempfile
+                    with tempfile.TemporaryFile(dir=target):
+                        pass
+                except OSError as exc:
+                    raise ValueError("资源存储目录无法创建或不可写") from exc
+                values["resource_directory"] = str(target.resolve())
         settings.update({
             key: value.strip() if isinstance(value, str) else value
             for key, value in values.items() if value is not None
@@ -100,29 +136,11 @@ class SettingsService:
             raise ValueError("comfyui_url is required")
         self.context.comfyui_url = settings["comfyui_url"].rstrip("/")
         self.comfyui.configure(self.context.comfyui_url)
+        getattr(self.context, "comfyui_output_locations", {}).clear()
         self.context.comfyui_output_dir = self.effective_output_directory(settings)
-        grsai_key = str(settings.get("grsai_api_key", "")).strip()
-        if grsai_key and not grsai_key.startswith("sk-"):
-            raise ValueError("GrisAI API Key 必须以 sk- 开头")
         self.context.db.save_settings(settings)
+        self.context.library_cache.update(directory="", created_at=0.0, items=[])
         return settings
-
-    def configured_grsai_key(self, settings: dict[str, Any] | None = None) -> str:
-        stored = self.context.db.settings() if settings is None else {}
-        values = settings or self.read()
-        if settings is None and "grsai_api_key" in stored:
-            return str(stored["grsai_api_key"]).strip()
-        direct = str(values.get("grsai_api_key") or os.getenv("GRSAI_API_KEY", "")).strip()
-        if direct:
-            return direct
-        env_path = self.effective_output_directory(values).parent / "custom_nodes" / "ComfyUI-GrsAI" / ".env"
-        try:
-            for line in env_path.read_text(encoding="utf-8").splitlines():
-                if line.strip().startswith("GRSAI_API_KEY="):
-                    return line.split("=", 1)[1].strip()
-        except OSError:
-            pass
-        return ""
 
     @staticmethod
     def fetch_ai_models(base_url: str, api_key: str = "") -> list[str]:

@@ -1,3 +1,1 @@
-from .catalog import MUSIC_PRESETS, MUSIC_PROMPT_SUFFIX
-
-__all__ = ["MUSIC_PRESETS", "MUSIC_PROMPT_SUFFIX"]
+"""Shared preset storage; model definitions are owned by plugins."""

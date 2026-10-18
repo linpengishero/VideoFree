@@ -12,11 +12,8 @@ class ProjectPaths:
     cache: Path
     tasks: Path
     collaborations: Path
-    voice_samples: Path
     uploads: Path
-    workflows: Path
-    workflow_registry: Path
-    agent_skills: Path
+    plugins: Path
     static_dist: Path
     legacy_settings: Path
 
@@ -25,7 +22,7 @@ class ProjectPaths:
         root = root.resolve()
         data = Path(os.getenv("MEDIA_GATEWAY_DATA", root / "data")).resolve()
         cache = data / "cache"
-        workflows = Path(os.getenv("MEDIA_GATEWAY_WORKFLOWS", root / "workflows")).resolve()
+        plugins = Path(os.getenv("MEDIA_GATEWAY_PLUGINS", root / "plugins")).resolve()
         return cls(
             root=root,
             data=data,
@@ -34,11 +31,8 @@ class ProjectPaths:
             cache=cache,
             tasks=data / "tasks",
             collaborations=data / "collaborations",
-            voice_samples=cache / "voice_samples",
             uploads=cache / "uploads",
-            workflows=workflows,
-            workflow_registry=workflows / "registry.json",
-            agent_skills=root / "agent_skills",
+            plugins=plugins,
             static_dist=root / "static" / "dist",
             legacy_settings=data / "settings.json",
         )
@@ -47,11 +41,10 @@ class ProjectPaths:
         for path in (
             self.artifacts,
             self.projects,
-            self.voice_samples,
             self.uploads,
             self.tasks,
             self.collaborations,
-            self.workflows,
+            self.plugins,
         ):
             path.mkdir(parents=True, exist_ok=True)
 

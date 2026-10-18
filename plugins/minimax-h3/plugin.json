@@ -1,0 +1,2468 @@
+{
+  "schema_version": 1,
+  "id": "minimax-h3",
+  "prompt_translation_action": "h3_translate",
+  "version": "1.0.0",
+  "resource_lifecycle": {
+    "completed": "checkpoints.py:completed",
+    "recover": "checkpoints.py:recover",
+    "delete": "checkpoints.py:delete"
+  },
+  "name": "minimax-h3",
+  "collaboration_ui": "ui/Collaboration.vue",
+  "categories": [
+    {
+      "id": "video",
+      "name": "视频生成",
+      "icon": "solar:clapperboard-play-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    },
+    {
+      "id": "compile",
+      "handler": "collaboration/handler.py:compile",
+      "name": "H3转换"
+    },
+    {
+      "id": "director",
+      "handler": "collaboration/handler.py:director",
+      "name": "导演协作"
+    }
+  ],
+  "capabilities": {
+    "video.reference": {
+      "kind": "video",
+      "mode": "reference",
+      "file": "workflows/video/minimax/generation/reference/reference_normal.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 9
+        },
+        "video": {
+          "min": 1,
+          "max": 3
+        },
+        "audio": {
+          "min": 0,
+          "max": 3
+        }
+      },
+      "prompt": {
+        "preserve_template": false
+      },
+      "output_prefix": "MediaGateway/video",
+      "public_variants": [
+        "normal",
+        "fast",
+        "quick_preview",
+        "preview"
+      ],
+      "variants": {
+        "normal": {
+          "file": "workflows/video/minimax/generation/reference/reference_normal.json",
+          "label": "普通",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "fast": {
+          "file": "workflows/video/minimax/generation/reference/reference_fast.json",
+          "label": "加速",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "quick_preview": {
+          "file": "workflows/video/minimax/generation/reference/reference_quick_preview_8step.json",
+          "label": "快速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 1
+          },
+          "h3_checkpoint_kind": "denoised_preview_latent",
+          "h3_resume_stage": "denoised_upscale_refine",
+          "h3_resume_step": 8,
+          "h3_total_steps": 12
+        },
+        "fast_refine": {
+          "file": "workflows/video/minimax/refine/reference/reference_fast_refine.json",
+          "label": "加速 + 二采",
+          "preserve_h3_dimension_links": true,
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "fast_checkpoint": {
+          "file": "workflows/video/minimax/generation/reference/reference_fast_checkpoint.json",
+          "label": "加速 + 可选二采",
+          "preserve_h3_dimension_links": true,
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ]
+          },
+          "output_nodes": [
+            "44",
+            "45"
+          ]
+        },
+        "fast_checkpoint_refine": {
+          "file": "workflows/video/minimax/refine/reference/reference_fast_checkpoint_refine.json",
+          "label": "H3 Latent 二采",
+          "preserve_h3_dimension_links": true,
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "latent_refine": {
+          "file": "workflows/video/minimax/refine/reference/reference_fast_checkpoint_refine.json",
+          "label": "H3 高清二采",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "preserve_h3_dimension_links": true,
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "staged_refine": {
+          "file": "workflows/video/minimax/refine/reference/reference_staged_refine.json",
+          "label": "H3 续采二采（剩余4步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "preserve_h3_dimension_links": true,
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "latent_ultra_refine": {
+          "file": "workflows/video/minimax/refine/shared/latent_ultra_refine.json",
+          "label": "LTX 2.5 超清二采",
+          "prompt": {
+            "preserve_all": true
+          },
+          "prompt_bindings": [
+            {
+              "node": "25",
+              "input": "text"
+            }
+          ],
+          "references": {
+            "image": {
+              "min": 0,
+              "max": 0
+            },
+            "video": {
+              "min": 0,
+              "max": 0
+            },
+            "audio": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "43",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "44",
+                "input": "value"
+              }
+            ],
+            "duration": [
+              {
+                "node": "50",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "52",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "52",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "42"
+          ],
+          "dimension_alignment": 64
+        },
+        "ultra_refine": {
+          "file": "workflows/video/minimax/refine/reference/reference_ultra_refine.json",
+          "label": "超清二采",
+          "preserve_h3_dimension_links": true,
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "43",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "44",
+                "input": "value"
+              }
+            ],
+            "duration": [
+              {
+                "node": "50",
+                "input": "value"
+              }
+            ]
+          },
+          "output_nodes": [
+            "42"
+          ]
+        },
+        "preview_refine_fast": {
+          "file": "workflows/video/minimax/refine/reference/reference_fast_checkpoint_refine_2step.json",
+          "label": "极速快速二采（2步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ],
+          "preserve_h3_dimension_links": true
+        },
+        "preview_refine_stable": {
+          "file": "workflows/video/minimax/refine/reference/reference_fast_checkpoint_refine.json",
+          "label": "极速稳定二采（3步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ],
+          "preserve_h3_dimension_links": true
+        },
+        "preview": {
+          "file": "workflows/video/minimax/generation/reference/reference_preview_4step.json",
+          "label": "极速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        }
+      },
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "minimax",
+      "processing_modes": [
+        "direct",
+        "compile",
+        "director"
+      ],
+      "skill_model": "minimax-h3",
+      "skill_mode": "ref2va",
+      "compiler_handler": "compiler.py:prepare",
+      "dimension_alignment": 32,
+      "duration": {
+        "max": 15,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.reference_video",
+            "component": "media",
+            "media": "video",
+            "label": "参考视频",
+            "section": "body"
+          },
+          {
+            "bind": "settings.reference_audio",
+            "component": "media",
+            "media": "audio",
+            "label": "参考声音",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "480P"
+          },
+          {
+            "bind": "settings.variant",
+            "label": "生成档位",
+            "section": "settings",
+            "default": "quick_preview",
+            "component": "select",
+            "options": [
+              {
+                "value": "normal",
+                "label": "普通"
+              },
+              {
+                "value": "fast",
+                "label": "加速"
+              },
+              {
+                "value": "quick_preview",
+                "label": "快速预览"
+              },
+              {
+                "value": "preview",
+                "label": "极速预览"
+              }
+            ]
+          },
+          {
+            "bind": "settings.h3_camera_lora",
+            "label": "运镜",
+            "section": "settings",
+            "options": [
+              {
+                "value": "auto",
+                "label": "自动"
+              },
+              {
+                "value": "crash_zoom",
+                "label": "冲击推近"
+              },
+              {
+                "value": "off",
+                "label": "关闭"
+              }
+            ],
+            "component": "select",
+            "default": "auto"
+          },
+          {
+            "bind": "settings.h3_style_lora",
+            "label": "视频风格",
+            "section": "settings",
+            "options": [
+              {
+                "value": "",
+                "label": "原始"
+              },
+              {
+                "value": "cinemagrade",
+                "label": "电影质感"
+              }
+            ],
+            "component": "select",
+            "default": ""
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 15,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "MiniMax H3 全能参考",
+      "model_id": "minimax-h3",
+      "model_name": "MiniMax H3"
+    },
+    "video.text_to_video": {
+      "kind": "video",
+      "mode": "text_to_video",
+      "file": "workflows/video/minimax/generation/base/fl2va_normal.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "public_variants": [
+        "normal",
+        "fast",
+        "quick_preview",
+        "preview"
+      ],
+      "variants": {
+        "normal": {
+          "file": "workflows/video/minimax/generation/base/fl2va_normal.json",
+          "label": "普通",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "fast": {
+          "file": "workflows/video/minimax/generation/base/fl2va_fast.json",
+          "label": "加速",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "quick_preview": {
+          "file": "workflows/video/minimax/generation/base/fl2va_quick_preview_8step.json",
+          "label": "快速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 1
+          },
+          "h3_checkpoint_kind": "denoised_preview_latent",
+          "h3_resume_stage": "denoised_upscale_refine",
+          "h3_resume_step": 8,
+          "h3_total_steps": 12
+        },
+        "fast_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_fast_refine.json",
+          "label": "加速 + 二采",
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "ultra_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_ultra_refine.json",
+          "label": "超清二采",
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ]
+          },
+          "output_nodes": [
+            "29"
+          ]
+        },
+        "latent_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine.json",
+          "label": "H3 高清二采",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "staged_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_staged_refine.json",
+          "label": "H3 续采二采（剩余4步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "latent_ultra_refine": {
+          "file": "workflows/video/minimax/refine/shared/latent_ultra_refine.json",
+          "label": "LTX 2.5 超清二采",
+          "prompt": {
+            "preserve_all": true
+          },
+          "prompt_bindings": [
+            {
+              "node": "25",
+              "input": "text"
+            }
+          ],
+          "references": {
+            "image": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "43",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "44",
+                "input": "value"
+              }
+            ],
+            "duration": [
+              {
+                "node": "50",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "52",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "52",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "42"
+          ],
+          "dimension_alignment": 64
+        },
+        "preview_refine_fast": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine_2step.json",
+          "label": "极速快速二采（2步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "preview_refine_stable": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine.json",
+          "label": "极速稳定二采（3步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "preview": {
+          "file": "workflows/video/minimax/generation/base/fl2va_preview_4step.json",
+          "label": "极速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        }
+      },
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "minimax",
+      "processing_modes": [
+        "direct",
+        "compile",
+        "director"
+      ],
+      "skill_model": "minimax-h3",
+      "skill_mode": "t2va",
+      "compiler_handler": "compiler.py:prepare",
+      "dimension_alignment": 32,
+      "duration": {
+        "max": 15,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "480P"
+          },
+          {
+            "bind": "settings.variant",
+            "label": "生成档位",
+            "section": "settings",
+            "default": "quick_preview",
+            "component": "select",
+            "options": [
+              {
+                "value": "normal",
+                "label": "普通"
+              },
+              {
+                "value": "fast",
+                "label": "加速"
+              },
+              {
+                "value": "quick_preview",
+                "label": "快速预览"
+              },
+              {
+                "value": "preview",
+                "label": "极速预览"
+              }
+            ]
+          },
+          {
+            "bind": "settings.h3_camera_lora",
+            "label": "运镜",
+            "section": "settings",
+            "options": [
+              {
+                "value": "auto",
+                "label": "自动"
+              },
+              {
+                "value": "crash_zoom",
+                "label": "冲击推近"
+              },
+              {
+                "value": "off",
+                "label": "关闭"
+              }
+            ],
+            "component": "select",
+            "default": "auto"
+          },
+          {
+            "bind": "settings.h3_style_lora",
+            "label": "视频风格",
+            "section": "settings",
+            "options": [
+              {
+                "value": "",
+                "label": "原始"
+              },
+              {
+                "value": "cinemagrade",
+                "label": "电影质感"
+              }
+            ],
+            "component": "select",
+            "default": ""
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 15,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "MiniMax H3 文生视频",
+      "model_id": "minimax-h3",
+      "model_name": "MiniMax H3"
+    },
+    "video.image_to_video": {
+      "kind": "video",
+      "mode": "image_to_video",
+      "file": "workflows/video/minimax/generation/base/fl2va_normal.json",
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "public_variants": [
+        "normal",
+        "fast",
+        "quick_preview",
+        "preview"
+      ],
+      "variants": {
+        "normal": {
+          "file": "workflows/video/minimax/generation/base/fl2va_normal.json",
+          "label": "普通",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "fast": {
+          "file": "workflows/video/minimax/generation/base/fl2va_fast.json",
+          "label": "加速",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "quick_preview": {
+          "file": "workflows/video/minimax/generation/base/fl2va_quick_preview_8step.json",
+          "label": "快速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 1
+          },
+          "h3_checkpoint_kind": "denoised_preview_latent",
+          "h3_resume_stage": "denoised_upscale_refine",
+          "h3_resume_step": 8,
+          "h3_total_steps": 12
+        },
+        "fast_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_fast_refine.json",
+          "label": "加速 + 二采",
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "ultra_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_ultra_refine.json",
+          "label": "超清二采",
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ]
+          },
+          "output_nodes": [
+            "29"
+          ]
+        },
+        "latent_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine.json",
+          "label": "H3 高清二采",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "staged_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_staged_refine.json",
+          "label": "H3 续采二采（剩余4步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "latent_ultra_refine": {
+          "file": "workflows/video/minimax/refine/shared/latent_ultra_refine.json",
+          "label": "LTX 2.5 超清二采",
+          "prompt": {
+            "preserve_all": true
+          },
+          "prompt_bindings": [
+            {
+              "node": "25",
+              "input": "text"
+            }
+          ],
+          "references": {
+            "image": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "43",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "44",
+                "input": "value"
+              }
+            ],
+            "duration": [
+              {
+                "node": "50",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "52",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "52",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "42"
+          ],
+          "dimension_alignment": 64
+        },
+        "preview_refine_fast": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine_2step.json",
+          "label": "极速快速二采（2步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "preview_refine_stable": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine.json",
+          "label": "极速稳定二采（3步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "preview": {
+          "file": "workflows/video/minimax/generation/base/fl2va_preview_4step.json",
+          "label": "极速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        }
+      },
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "minimax",
+      "processing_modes": [
+        "direct",
+        "compile",
+        "director"
+      ],
+      "skill_model": "minimax-h3",
+      "skill_mode": "i2va",
+      "compiler_handler": "compiler.py:prepare",
+      "dimension_alignment": 32,
+      "duration": {
+        "max": 15,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "480P"
+          },
+          {
+            "bind": "settings.variant",
+            "label": "生成档位",
+            "section": "settings",
+            "default": "quick_preview",
+            "component": "select",
+            "options": [
+              {
+                "value": "normal",
+                "label": "普通"
+              },
+              {
+                "value": "fast",
+                "label": "加速"
+              },
+              {
+                "value": "quick_preview",
+                "label": "快速预览"
+              },
+              {
+                "value": "preview",
+                "label": "极速预览"
+              }
+            ]
+          },
+          {
+            "bind": "settings.h3_camera_lora",
+            "label": "运镜",
+            "section": "settings",
+            "options": [
+              {
+                "value": "auto",
+                "label": "自动"
+              },
+              {
+                "value": "crash_zoom",
+                "label": "冲击推近"
+              },
+              {
+                "value": "off",
+                "label": "关闭"
+              }
+            ],
+            "component": "select",
+            "default": "auto"
+          },
+          {
+            "bind": "settings.h3_style_lora",
+            "label": "视频风格",
+            "section": "settings",
+            "options": [
+              {
+                "value": "",
+                "label": "原始"
+              },
+              {
+                "value": "cinemagrade",
+                "label": "电影质感"
+              }
+            ],
+            "component": "select",
+            "default": ""
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 15,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {
+        "image": [
+          "first_frame"
+        ]
+      },
+      "name": "MiniMax H3 图生视频",
+      "model_id": "minimax-h3",
+      "model_name": "MiniMax H3"
+    },
+    "video.first_last_frame": {
+      "kind": "video",
+      "mode": "first_last_frame",
+      "file": "workflows/video/minimax/generation/base/fl2va_normal.json",
+      "references": {
+        "image": {
+          "min": 2,
+          "max": 2
+        }
+      },
+      "public_variants": [
+        "normal",
+        "fast",
+        "quick_preview",
+        "preview"
+      ],
+      "variants": {
+        "normal": {
+          "file": "workflows/video/minimax/generation/base/fl2va_normal.json",
+          "label": "普通",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "fast": {
+          "file": "workflows/video/minimax/generation/base/fl2va_fast.json",
+          "label": "加速",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        },
+        "quick_preview": {
+          "file": "workflows/video/minimax/generation/base/fl2va_quick_preview_8step.json",
+          "label": "快速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 1
+          },
+          "h3_checkpoint_kind": "denoised_preview_latent",
+          "h3_resume_stage": "denoised_upscale_refine",
+          "h3_resume_step": 8,
+          "h3_total_steps": 12
+        },
+        "fast_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_fast_refine.json",
+          "label": "加速 + 二采",
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "ultra_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_ultra_refine.json",
+          "label": "超清二采",
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ]
+          },
+          "output_nodes": [
+            "29"
+          ]
+        },
+        "latent_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine.json",
+          "label": "H3 高清二采",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "staged_refine": {
+          "file": "workflows/video/minimax/refine/base/fl2va_staged_refine.json",
+          "label": "H3 续采二采（剩余4步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "latent_ultra_refine": {
+          "file": "workflows/video/minimax/refine/shared/latent_ultra_refine.json",
+          "label": "LTX 2.5 超清二采",
+          "prompt": {
+            "preserve_all": true
+          },
+          "prompt_bindings": [
+            {
+              "node": "25",
+              "input": "text"
+            }
+          ],
+          "references": {
+            "image": {
+              "min": 0,
+              "max": 0
+            }
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "43",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "44",
+                "input": "value"
+              }
+            ],
+            "duration": [
+              {
+                "node": "50",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "52",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "52",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "42"
+          ],
+          "dimension_alignment": 64
+        },
+        "preview_refine_fast": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine_2step.json",
+          "label": "极速快速二采（2步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "preview_refine_stable": {
+          "file": "workflows/video/minimax/refine/base/fl2va_latent_refine.json",
+          "label": "极速稳定二采（3步）",
+          "save_h3_latent": {
+            "node": "21",
+            "output": 0
+          },
+          "parameter_bindings": {
+            "seed": [
+              {
+                "node": "11",
+                "input": "noise_seed"
+              }
+            ],
+            "width": [
+              {
+                "node": "35",
+                "input": "value"
+              }
+            ],
+            "height": [
+              {
+                "node": "36",
+                "input": "value"
+              }
+            ],
+            "latent_checkpoint": [
+              {
+                "node": "41",
+                "input": "checkpoint_path", "default": ""
+              }
+            ],
+            "latent_sha256": [
+              {
+                "node": "41",
+                "input": "expected_file_sha256", "default": ""
+              }
+            ]
+          },
+          "output_nodes": [
+            "25"
+          ]
+        },
+        "preview": {
+          "file": "workflows/video/minimax/generation/base/fl2va_preview_4step.json",
+          "label": "极速预览",
+          "save_h3_latent": {
+            "node": "125",
+            "output": 0
+          }
+        }
+      },
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "minimax",
+      "processing_modes": [
+        "direct",
+        "compile",
+        "director"
+      ],
+      "skill_model": "minimax-h3",
+      "skill_mode": "fl2va",
+      "compiler_handler": "compiler.py:prepare",
+      "dimension_alignment": 32,
+      "duration": {
+        "max": 15,
+        "default": 5,
+        "min": 1
+      },
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "480P",
+                "label": "480P"
+              },
+              {
+                "value": "576P",
+                "label": "576P"
+              },
+              {
+                "value": "720P",
+                "label": "720P"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1080P",
+                "label": "1080P"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "480P"
+          },
+          {
+            "bind": "settings.variant",
+            "label": "生成档位",
+            "section": "settings",
+            "default": "quick_preview",
+            "component": "select",
+            "options": [
+              {
+                "value": "normal",
+                "label": "普通"
+              },
+              {
+                "value": "fast",
+                "label": "加速"
+              },
+              {
+                "value": "quick_preview",
+                "label": "快速预览"
+              },
+              {
+                "value": "preview",
+                "label": "极速预览"
+              }
+            ]
+          },
+          {
+            "bind": "settings.h3_camera_lora",
+            "label": "运镜",
+            "section": "settings",
+            "options": [
+              {
+                "value": "auto",
+                "label": "自动"
+              },
+              {
+                "value": "crash_zoom",
+                "label": "冲击推近"
+              },
+              {
+                "value": "off",
+                "label": "关闭"
+              }
+            ],
+            "component": "select",
+            "default": "auto"
+          },
+          {
+            "bind": "settings.h3_style_lora",
+            "label": "视频风格",
+            "section": "settings",
+            "options": [
+              {
+                "value": "",
+                "label": "原始"
+              },
+              {
+                "value": "cinemagrade",
+                "label": "电影质感"
+              }
+            ],
+            "component": "select",
+            "default": ""
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 15,
+            "step": 0.1,
+            "default": 5,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {
+        "image": [
+          "first_frame",
+          "last_frame"
+        ]
+      },
+      "name": "MiniMax H3 首尾帧",
+      "model_id": "minimax-h3",
+      "model_name": "MiniMax H3"
+    },
+    "video.lms_enhance": {
+      "kind": "video",
+      "mode": "lms_enhance",
+      "file": "workflows/video/minimax/generation/reference/reference_normal.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        },
+        "video": {
+          "min": 1,
+          "max": 1
+        },
+        "audio": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "prompt": {
+        "preserve_template": false
+      },
+      "output_nodes": [
+        "92"
+      ],
+      "output_prefix": "MediaGateway/video/lms_enhance",
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "minimax",
+      "processing_modes": [
+        "direct"
+      ],
+      "skill_model": "minimax-h3",
+      "compiler_handler": "compiler.py:prepare",
+      "dimension_alignment": 32,
+      "operation": "postprocess",
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "input_roles": {},
+      "name": "LMS 清晰度增强",
+      "model_id": "minimax-h3",
+      "model_name": "MiniMax H3",
+      "mode_name": "LMS 清晰度增强",
+      "duration": {
+        "min": 1,
+        "max": 15,
+        "default": 5
+      }
+    }
+  },
+  "ui_models": [
+    {
+      "id": "minimax-h3",
+      "name": "MiniMax H3",
+      "category": "video",
+      "selector_order": 10,
+      "default": true,
+      "functions": [
+        {
+          "capability_id": "video.reference",
+          "name": "全能参考"
+        },
+        {
+          "capability_id": "video.text_to_video",
+          "name": "文生视频"
+        },
+        {
+          "capability_id": "video.image_to_video",
+          "name": "图生视频"
+        },
+        {
+          "capability_id": "video.first_last_frame",
+          "name": "首尾帧"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "h3_translate",
+      "name": "H3 中文稿直接翻译",
+      "description": "忠实翻译中文执行稿，保留对白与参考标记，不重写提示词。",
+      "scope": "automation",
+      "automation": true,
+      "handler": "translation.py:translate",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {"type": "string", "minLength": 1, "maxLength": 20000},
+          "mode": {"type": "string", "default": "reference"}
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "h3_refine",
+      "name": "H3 高清二采",
+      "model_name": "MiniMax H3",
+      "description": "利用 H3 原生检查点继续采样，提升至 720P 或 768P 级。",
+      "source_types": [
+        "video"
+      ],
+      "availability_handler": "postprocess.py:availability",
+      "handler": "postprocess.py:prepare",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "target_size",
+            "component": "dimensions",
+            "label": "目标分辨率",
+            "section": "settings",
+            "alignment": 32,
+            "presets": [
+              {
+                "edge": 720,
+                "label": "720P 级"
+              },
+              {
+                "edge": 768,
+                "label": "768P 级"
+              }
+            ],
+            "required": true
+          }
+        ]
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "video.reference",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "width",
+          "height"
+        ]
+      }
+    },
+    {
+      "id": "ltx_ultra",
+      "name": "LTX 2.5 超清二采",
+      "model_name": "LTX 2.5",
+      "description": "使用 H3 原生检查点衔接 LTX 超清增强，可选择更高分辨率。",
+      "source_types": [
+        "video"
+      ],
+      "availability_handler": "postprocess.py:availability",
+      "handler": "postprocess.py:prepare",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "target_size",
+            "component": "dimensions",
+            "label": "目标分辨率",
+            "section": "settings",
+            "alignment": 64,
+            "presets": [
+              {
+                "edge": 1080,
+                "label": "1080P 级"
+              },
+              {
+                "edge": 1440,
+                "label": "1440P 级"
+              },
+              {
+                "edge": 2048,
+                "label": "2K",
+                "long_edge": true
+              }
+            ],
+            "required": true
+          }
+        ]
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "video.reference",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "width",
+          "height"
+        ]
+      }
+    },
+    {
+      "id": "lms_enhance",
+      "name": "LMS 清晰度增强",
+      "description": "使用视频作为引导重新采样，增强画面清晰度和细节。",
+      "source_types": [
+        "video"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "video.lms_enhance",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

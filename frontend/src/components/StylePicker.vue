@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref } from "vue";
 import { Icon } from "@iconify/vue";
+import PluginDialog from './PluginDialog.vue';
+import { gateway } from '../services/api';
 const props = defineProps({ modelValue: String });
 const emit = defineEmits(["update:modelValue"]);
 const open = ref(false),
@@ -33,12 +35,10 @@ async function show() {
   busy.value = true;
   error.value = "";
   try {
-    const r = await fetch("/v1/styles");
-    if (!r.ok) throw Error("风格库读取失败");
-    const data = await r.json();
-    items.value = data.items;
-    if (data.errors.length)
-      error.value = `有 ${data.errors.length} 个文件无法读取`;
+    const data = await gateway.styles();
+    items.value = data.items || [];
+    if (data.errors?.length)
+      error.value = data.errors.join("；");
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -56,18 +56,9 @@ function choose(id) {
       selected?.name || (modelValue ? "已选风格" : "不限定风格")
     }}</span>
   </button>
-  <Teleport to="body">
-    <div
-      v-if="open"
-      class="style-overlay"
-      @click.self="open = false"
-      @keydown.esc="open = false"
-    >
+  <PluginDialog :open="open" :framed="false" title="图片风格" @close="open = false">
       <section
         class="style-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="图片风格"
       >
         <header>
           <strong
@@ -103,7 +94,7 @@ function choose(id) {
                 page = 1;
               "
             >
-              {{ c.replace(/^krea2_397styles-/i, "") }}
+              {{ c }}
             </button>
           </nav>
           <div class="style-grid">
@@ -128,7 +119,7 @@ function choose(id) {
           </div>
         </div>
         <footer>
-          <span>{{ error || `${filtered.length} 种风格` }}</span
+          <span :role="error ? 'alert' : 'status'" :class="{'ui-feedback is-error': error}">{{ error || `${filtered.length} 种风格` }}</span
           ><button :disabled="page <= 1" aria-label="上一页" @click="page--">
             <Icon icon="solar:alt-arrow-left-linear" /></button
           ><span>{{ page }} / {{ pages }}</span
@@ -141,8 +132,7 @@ function choose(id) {
           </button>
         </footer>
       </section>
-    </div>
-  </Teleport>
+  </PluginDialog>
 </template>
 <style scoped>
 .style-trigger {
@@ -158,17 +148,8 @@ function choose(id) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.style-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: grid;
-  place-items: center;
-  background: #000a;
-  padding: 16px;
-}
 .style-panel {
-  width: min(1000px, 100%);
+  width: min(1000px, calc(100vw - 32px));
   height: min(760px, 90dvh);
   display: flex;
   flex-direction: column;

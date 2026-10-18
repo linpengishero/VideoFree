@@ -3,30 +3,33 @@ import mimetypes
 import os
 from pathlib import Path
 import subprocess
-import shutil
-import time
-import urllib.parse
-import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel, Field
 
 from ...bootstrap import ROOT, context, comfyui_client
 from ...modules.generation.service import (
-    configured_grsai_key, generation_runtime_health, run_tts, style_items, workflow_registry,
+    generation_runtime_health, style_items, workflow_registry,
 )
 from ...modules.settings import SettingsService
-from ...modules.shared.schemas import AIModelsRequest, SettingsRequest, TTSRequest
-from .dependencies import auth
+from ...modules.settings.plugins import PluginSettings
+from ...modules.presets.voices import VoicePresets
+from ...modules.projects import ProjectService
+from ...core.schemas import AIModelsRequest, SettingsRequest
+from .dependencies import auth, set_session
 
 
 router = APIRouter()
 settings_service = SettingsService(context, comfyui_client)
 DIST = context.paths.static_dist
-VOICE_SAMPLE_CACHE = context.paths.voice_samples
-WORKFLOWS = context.paths.workflows
+WORKFLOWS = context.paths.plugins
 SETTINGS_FILE = context.paths.legacy_settings
+
+
+@router.post("/v1/auth/session", dependencies=[Depends(auth)])
+async def browser_session(request: Request, response: Response):
+    set_session(response, request, SettingsService.access_token(context))
+    return {"authenticated": True}
 
 
 def read_settings():
@@ -56,7 +59,7 @@ async def index() -> str:
     page = DIST / "index.html"
     if page.exists():
         return page.read_text(encoding="utf-8")
-    return (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    raise HTTPException(503, "前端构建文件缺失，请在 frontend 目录运行 npm ci 和 npm run build，或下载完整发行包。")
 
 @router.get("/v1/health")
 async def health(_: None = Depends(auth)):
@@ -66,121 +69,18 @@ async def health(_: None = Depends(auth)):
     return {"status": status, "comfyui": context.comfyui_url, "comfyui_status": comfyui_status, **runtime}
 
 @router.get("/v1/voices")
-async def voices(_: None = Depends(auth)): return {"voices": context.db.presets()}
-
-@router.get("/v1/music-presets", dependencies=[Depends(auth)])
-async def music_presets():
-    return {
-        "styles": context.db.creative_presets("music", "style"),
-        "singers": context.db.creative_presets("music", "singer"),
-        "voice_textures": context.db.creative_presets("music", "voice_texture"),
-    }
-
-class VoicePresetRequest(BaseModel):
-    preset_key: str = Field(min_length=1, max_length=80)
-    display_name: str = Field(min_length=1, max_length=80)
-    instruction: str = Field(min_length=1, max_length=2000)
-    speaker: str = ""
-    language: str = "Chinese"
-    model: str = ""
-
-class VoicePreviewRequest(BaseModel):
-    draft_id: str = Field(min_length=1, max_length=80)
-    instruction: str = Field(min_length=1, max_length=2000)
-
-@router.post("/v1/voices", dependencies=[Depends(auth)])
-async def create_voice(request: VoicePresetRequest):
-    try: return {"voice": context.db.create_preset(request.model_dump())}
-    except Exception as exc: raise HTTPException(400, f"voice preset already exists or invalid: {exc}") from exc
-
-@router.put("/v1/voices/{preset_key}", dependencies=[Depends(auth)])
-async def update_voice(preset_key: str, request: VoicePresetRequest):
-    if request.preset_key != preset_key:
-        raise HTTPException(400, "preset key cannot be changed")
-    voice = context.db.update_preset(preset_key, request.model_dump())
-    if not voice:
-        raise HTTPException(404, "voice preset not found")
-    return {"voice": voice}
-
-VOICE_SAMPLE_TEXT = (
-    "你好，我是你的专属声音助手。今天也请放心地把想法交给我。"
-    "这段语音用于建立稳定的预设音色，包含自然的陈述、停顿和不同长短的句子。"
-    "无论是讲述故事、解释信息，还是提醒重要事项，我都会保持清楚、平稳、自然的表达。"
-    "请听清每一个字，也注意语气中温度、力度和节奏的变化。"
-    "当内容需要强调时，我会适当加重重点；当内容需要安静时，我会放慢语速并保留自然呼吸。"
-    "这是一段用于音色参考的标准样本，后续生成会尽量保持相同的声音特征。"
-)
-
-def safe_sample_name(value: str) -> str:
-    return "".join(char for char in value if char.isalnum() or char in "_-")[:80] or "voice"
-
-def cache_voice_sample(sample_id: str, instruction: str) -> Path:
-    job_id = f"voice-sample-{safe_sample_name(sample_id)}-{uuid.uuid4().hex[:8]}"
-    context.jobs[job_id] = {
-        "id": job_id,
-        "kind": "tts",
-        "status": "queued",
-        "request": {},
-        "created_at": time.time(),
-    }
-    try:
-        target = VOICE_SAMPLE_CACHE / f"{safe_sample_name(sample_id)}.mp3"
-        temporary = run_tts(job_id, TTSRequest(text=VOICE_SAMPLE_TEXT, mode="describe", instruction=instruction))
-        ffmpeg = shutil.which("ffmpeg")
-        if ffmpeg:
-            cropped = VOICE_SAMPLE_CACHE / f".{safe_sample_name(sample_id)}-{uuid.uuid4().hex}.mp3"
-            try:
-                subprocess.run(
-                    [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(temporary),
-                     "-t", "25", "-map_metadata", "0", "-c:a", "libmp3lame", "-q:a", "2", str(cropped)],
-                    check=True,
-                    timeout=120,
-                )
-                cropped.replace(target)
-            finally:
-                cropped.unlink(missing_ok=True)
-        else:
-            temporary.replace(target)
-        return target
-    finally:
-        context.jobs.pop(job_id, None)
-
-@router.post("/v1/voices/{preset_key}/sample", dependencies=[Depends(auth)])
-async def generate_voice_sample(preset_key: str):
-    voice = context.db.preset(preset_key)
-    if not voice:
-        raise HTTPException(404, "voice preset not found")
-    try:
-        path = await asyncio.to_thread(cache_voice_sample, preset_key, voice["instruction"])
-        voice = context.db.update_sample(preset_key, path.name)
-        return {"voice": voice}
-    except Exception as exc:
-        raise HTTPException(502, f"预设试听生成失败: {exc}") from exc
+async def voices(_: None = Depends(auth)): return {"voices": VoicePresets(context).items()}
 
 @router.get("/v1/voices/{preset_key}/sample", dependencies=[Depends(auth)])
 async def voice_sample(preset_key: str):
-    voice = context.db.preset(preset_key)
+    voice = VoicePresets(context).get(preset_key)
     if not voice or not voice.get("sample_audio_name"):
         raise HTTPException(404, "voice sample not found")
-    path = VOICE_SAMPLE_CACHE / Path(voice["sample_audio_name"]).name
+    path = VoicePresets(context).sample_path(voice)
     if not path.is_file():
         raise HTTPException(404, "voice sample not found")
     return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "audio/mpeg")
 
-@router.post("/v1/voices/preview", dependencies=[Depends(auth)])
-async def preview_voice(request: VoicePreviewRequest):
-    try:
-        path = await asyncio.to_thread(cache_voice_sample, f"draft_{request.draft_id}", request.instruction)
-        return {"audio_url": f"/v1/voice-previews/{urllib.parse.quote(path.name)}"}
-    except Exception as exc:
-        raise HTTPException(502, f"预生成试听失败: {exc}") from exc
-
-@router.get("/v1/voice-previews/{name}", dependencies=[Depends(auth)])
-async def voice_preview(name: str):
-    path = VOICE_SAMPLE_CACHE / Path(name).name
-    if not path.is_file() or not path.name.startswith("draft_"):
-        raise HTTPException(404, "voice preview not found")
-    return FileResponse(path, media_type=mimetypes.guess_type(path.name)[0] or "audio/mpeg")
 
 @router.get("/v1/models")
 async def models(_: None = Depends(auth)):
@@ -212,42 +112,41 @@ async def workflows(_: None = Depends(auth)):
 async def settings(reveal_secrets: bool = False):
     values = read_settings()
     values["comfyui_output_dir"] = context.db.settings().get("comfyui_output_dir", "")
-    grsai_key = configured_grsai_key()
     if not reveal_secrets:
         values["ai_api_key"] = "********" if values.get("ai_api_key") else ""
-        grsai_key = "********" if grsai_key else ""
-    values["grsai_api_key"] = grsai_key
+        values["gateway_token"] = "********" if values.get("gateway_token") else ""
     return values
+
+
+@router.get("/v1/settings/plugins", dependencies=[Depends(auth)])
+async def plugin_settings_catalog():
+    return {"items": PluginSettings(context).catalog()}
+
+
+@router.get("/v1/settings/plugins/{plugin_id}", dependencies=[Depends(auth)])
+async def read_plugin_settings(plugin_id: str):
+    try:
+        return {"values": PluginSettings(context).read(plugin_id)}
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.put("/v1/settings/plugins/{plugin_id}", dependencies=[Depends(auth)])
+async def update_plugin_settings(plugin_id: str, values: dict):
+    try:
+        return {"values": PluginSettings(context).save(plugin_id, values)}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 @router.get("/v1/settings/status", dependencies=[Depends(auth)])
 async def settings_status(runtime: bool = False):
     stored = context.db.settings()
     values = read_settings()
-    configured_directory = str(stored.get("comfyui_output_dir", "")).strip()
-    acceleration = {"available": False, "sage_attention": False, "connected": False}
-    if runtime:
-        # These probes have different meanings. A missing optional node must
-        # not make a reachable ComfyUI instance look offline.
-        acceleration["connected"] = await asyncio.to_thread(comfyui_client.is_available)
-        try:
-            stats = await asyncio.to_thread(comfy, "/system_stats")
-            argv = stats.get("system", {}).get("argv", [])
-            acceleration["sage_attention"] = "--use-sage-attention" in argv
-        except Exception:
-            pass
-        if acceleration["connected"]:
-            try:
-                node = await asyncio.to_thread(comfy, "/object_info/SolAttnPatch")
-                acceleration["available"] = "SolAttnPatch" in node
-            except Exception:
-                acceleration["available"] = False
+    configured_directory = str(stored.get("resource_directory", "")).strip()
     return {
-        "resource_directory": {
-            "configured": bool(configured_directory),
-            "exists": bool(configured_directory and Path(configured_directory).expanduser().is_dir()),
-        },
+        "resource_directory": {"configured": bool(configured_directory),
+                               "exists": ProjectService(context).projects_root.is_dir()},
         "ai": {"configured": ai_is_configured(values)},
-        "minimax_acceleration": acceleration,
     }
 
 @router.post("/v1/settings/select-directory", dependencies=[Depends(auth)])
@@ -260,7 +159,7 @@ async def select_settings_directory():
 $OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::new()
 Add-Type -AssemblyName System.Windows.Forms
 $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$dialog.Description = '选择 ComfyUI 输出资源目录'
+$dialog.Description = '选择 videofree 本地资源存储目录'
 if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     [Console]::Write($dialog.SelectedPath)
 }
@@ -284,22 +183,23 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         raise HTTPException(500, str(exc)) from exc
 
 @router.put("/v1/settings", dependencies=[Depends(auth)])
-async def update_settings(request: SettingsRequest):
+async def update_settings(request: SettingsRequest, http_request: Request, response: Response):
     values = request.model_dump(exclude_none=True)
     current = read_settings()
     if values.get("ai_api_key") == "********": values["ai_api_key"] = current.get("ai_api_key", "")
-    if values.get("grsai_api_key") == "********": values.pop("grsai_api_key")
+    if values.get("gateway_token") == "********": values["gateway_token"] = current.get("gateway_token", "")
     try:
         saved = apply_settings(values)
+        set_session(response, http_request, saved.get("gateway_token", ""))
         saved["ai_api_key"] = "********" if saved.get("ai_api_key") else ""
-        saved["grsai_api_key"] = "********" if configured_grsai_key() else ""
+        saved["gateway_token"] = "********" if saved.get("gateway_token") else ""
         return saved
     except ValueError as exc: raise HTTPException(400, str(exc)) from exc
 
 @router.post("/v1/settings/clear-secrets", dependencies=[Depends(auth)])
 async def clear_sensitive_settings():
-    context.db.save_settings({"ai_api_key": "", "grsai_api_key": ""})
-    return {"cleared": ["ai_api_key", "grsai_api_key"]}
+    context.db.save_settings({"ai_api_key": ""})
+    return {"cleared": ["ai_api_key"]}
 
 @router.post("/v1/settings/ai-models", dependencies=[Depends(auth)])
 async def list_ai_models(request: AIModelsRequest):

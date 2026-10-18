@@ -43,12 +43,39 @@ class Database:
                 description TEXT NOT NULL DEFAULT '',
                 content_summary TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'active',
+                ai_created INTEGER NOT NULL DEFAULT 0,
                 created_at REAL NOT NULL, updated_at REAL NOT NULL
             );
-            CREATE TABLE IF NOT EXISTS workspace_projects (
-                workspace_id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
-                updated_at REAL NOT NULL,
-                FOREIGN KEY(project_id) REFERENCES projects(id)
+            CREATE TABLE IF NOT EXISTS project_categories (
+                id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL,
+                UNIQUE(project_id, name),
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS project_assets (
+                id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+                name TEXT NOT NULL, kind TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+                media_json TEXT NOT NULL DEFAULT '[]',
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS project_asset_types (
+                id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+                name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+                created_at REAL NOT NULL, updated_at REAL NOT NULL,
+                UNIQUE(project_id, name),
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS plugin_documents (
+                plugin_id TEXT NOT NULL, id TEXT NOT NULL, project_id TEXT NOT NULL,
+                category_id TEXT NOT NULL DEFAULT '',
+                document_json TEXT NOT NULL, references_json TEXT NOT NULL DEFAULT '[]',
+                active INTEGER NOT NULL DEFAULT 0, updated_at REAL NOT NULL,
+                PRIMARY KEY(plugin_id, project_id, category_id, id),
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS plugin_job_marks (
+                plugin_id TEXT NOT NULL, job_id TEXT NOT NULL,
+                PRIMARY KEY(plugin_id, job_id),
+                FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
             );
             CREATE TABLE IF NOT EXISTS artifacts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
@@ -74,7 +101,8 @@ class Database:
                 UNIQUE(domain, category, name)
             );
             CREATE TABLE IF NOT EXISTS api_idempotency (
-                key TEXT PRIMARY KEY, job_id TEXT NOT NULL, created_at REAL NOT NULL
+                key TEXT PRIMARY KEY, job_id TEXT NOT NULL, created_at REAL NOT NULL,
+                fingerprint TEXT NOT NULL DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS collaborations (
                 id TEXT PRIMARY KEY, capability_id TEXT NOT NULL,
@@ -105,6 +133,38 @@ class Database:
                 FOREIGN KEY(collaboration_id) REFERENCES collaborations(id) ON DELETE CASCADE
             );
             """)
+            plugin_document_columns = {row['name'] for row in db.execute('PRAGMA table_info(plugin_documents)').fetchall()}
+            if 'category_id' not in plugin_document_columns:
+                db.executescript("""
+                ALTER TABLE plugin_documents RENAME TO plugin_documents_legacy;
+                CREATE TABLE plugin_documents (
+                    plugin_id TEXT NOT NULL, id TEXT NOT NULL, project_id TEXT NOT NULL,
+                    category_id TEXT NOT NULL DEFAULT '', document_json TEXT NOT NULL,
+                    references_json TEXT NOT NULL DEFAULT '[]', active INTEGER NOT NULL DEFAULT 0,
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY(plugin_id, project_id, category_id, id),
+                    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+                );
+                INSERT INTO plugin_documents
+                    (plugin_id, id, project_id, category_id, document_json, references_json, active, updated_at)
+                    SELECT plugin_id, id, project_id, '', document_json, references_json, active, updated_at
+                    FROM plugin_documents_legacy;
+                DROP TABLE plugin_documents_legacy;
+                """)
+            # One-way migration of the former built-in film store; no duplicate writer.
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='films'").fetchone():
+                for row in db.execute('SELECT * FROM films').fetchall():
+                    film = json.loads(row['document_json'])
+                    references = [c['job_id'] for c in film.get('clips', [])]
+                    if film.get('bgm_job_id'):
+                        references.append(film['bgm_job_id'])
+                    db.execute('INSERT OR IGNORE INTO plugin_documents (plugin_id, id, project_id, category_id, document_json, references_json, active, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        ('film-studio', row['id'], row['project_id'], '', row['document_json'],
+                         json.dumps(references), int(film.get('render', {}).get('status') in {'queued', 'running'}), row['updated_at']))
+                db.execute('DROP TABLE films')
+            if 'film_selected' in {row['name'] for row in db.execute('PRAGMA table_info(jobs)')}:
+                db.execute("INSERT OR IGNORE INTO plugin_job_marks SELECT 'film-studio', id FROM jobs WHERE film_selected=1")
+                db.execute('UPDATE jobs SET film_selected=0 WHERE film_selected=1')
             preset_schema = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='creative_presets'").fetchone()["sql"]
             if "id TEXT PRIMARY KEY" in preset_schema:
                 db.executescript("""
@@ -119,6 +179,8 @@ class Database:
                 INSERT INTO creative_presets SELECT * FROM creative_presets_legacy;
                 DROP TABLE creative_presets_legacy;
                 """)
+            if 'fingerprint' not in {row['name'] for row in db.execute('PRAGMA table_info(api_idempotency)')}:
+                db.execute("ALTER TABLE api_idempotency ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ''")
             columns = {row["name"] for row in db.execute("PRAGMA table_info(voice_presets)").fetchall()}
             if "sample_audio_name" not in columns:
                 db.execute("ALTER TABLE voice_presets ADD COLUMN sample_audio_name TEXT")
@@ -127,6 +189,9 @@ class Database:
             if "profile_version" not in columns:
                 db.execute("ALTER TABLE voice_presets ADD COLUMN profile_version INTEGER DEFAULT 1")
             job_columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
+            project_columns = {row["name"] for row in db.execute("PRAGMA table_info(projects)").fetchall()}
+            if "ai_created" not in project_columns:
+                db.execute("ALTER TABLE projects ADD COLUMN ai_created INTEGER NOT NULL DEFAULT 0")
             for name, definition in {
                 "elapsed_seconds": "REAL",
                 "width": "INTEGER",
@@ -141,15 +206,27 @@ class Database:
                 "revision": "INTEGER DEFAULT 1",
                 "comfy_prompt_id": "TEXT",
                 "project_id": "TEXT",
+                "category_id": "TEXT NOT NULL DEFAULT ''",
             }.items():
                 if name not in job_columns:
                     db.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
-            unassigned_id = "project-unassigned"
-            now = time.time()
-            db.execute(
-                "INSERT OR IGNORE INTO projects (id, name, output_subdir, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)",
-                (unassigned_id, "未归档项目", "_unassigned", now, now),
-            )
+            # The implicit unassigned project was removed from the product.
+            # Purge remnants during startup so it cannot reappear after upgrade.
+            legacy_jobs = [row["id"] for row in db.execute(
+                "SELECT id FROM jobs WHERE project_id='project-unassigned'"
+            ).fetchall()]
+            if legacy_jobs:
+                placeholders = ",".join("?" for _ in legacy_jobs)
+                db.execute(f"DELETE FROM artifacts WHERE job_id IN ({placeholders})", legacy_jobs)
+                db.execute(f"DELETE FROM api_idempotency WHERE job_id IN ({placeholders})", legacy_jobs)
+                db.execute(f"DELETE FROM plugin_job_marks WHERE job_id IN ({placeholders})", legacy_jobs)
+                db.execute(f"DELETE FROM jobs WHERE id IN ({placeholders})", legacy_jobs)
+            db.execute("DELETE FROM project_assets WHERE project_id='project-unassigned'")
+            db.execute("DELETE FROM project_asset_types WHERE project_id='project-unassigned'")
+            db.execute("DELETE FROM project_categories WHERE project_id='project-unassigned'")
+            db.execute("DELETE FROM plugin_documents WHERE project_id='project-unassigned'")
+            db.execute("DELETE FROM collaborations WHERE project_id='project-unassigned'")
+            db.execute("DELETE FROM projects WHERE id='project-unassigned'")
             collaboration_columns = {row["name"] for row in db.execute("PRAGMA table_info(collaborations)").fetchall()}
             for name, definition in {
                 "progress_json": "TEXT DEFAULT '{}'",
@@ -224,7 +301,7 @@ class Database:
 
     def jobs(self, limit: int | None = 500, project_id: str | None = None) -> list[dict[str, Any]]:
         with self.connect() as db:
-            query = "SELECT * FROM jobs"
+            query = "SELECT jobs.*, (SELECT json_group_array(plugin_id) FROM plugin_job_marks WHERE job_id=jobs.id) AS application_marks_json FROM jobs"
             values: list[Any] = []
             if project_id:
                 query += " WHERE project_id=?"
@@ -245,16 +322,17 @@ class Database:
 
     def job(self, job_id: str) -> dict[str, Any] | None:
         with self.connect() as db:
-            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+            row = db.execute("SELECT jobs.*, (SELECT json_group_array(plugin_id) FROM plugin_job_marks WHERE job_id=jobs.id) AS application_marks_json FROM jobs WHERE id=?", (job_id,)).fetchone()
         return self._job(row) if row else None
 
     def insert_job(self, job: dict[str, Any]) -> None:
         with self.connect() as db:
-            db.execute("""INSERT INTO jobs (id, kind, status, request_json, created_at, updated_at, width, height, duration_seconds, task_dir, manifest_path, parent_job_id, revision, project_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (
+            db.execute("""INSERT INTO jobs (id, kind, status, request_json, created_at, updated_at, width, height, duration_seconds, task_dir, manifest_path, parent_job_id, revision, project_id, category_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (
                 job["id"], job["kind"], job["status"], json.dumps(job["request"], ensure_ascii=False),
                 job["created_at"], job["created_at"], job.get("width"), job.get("height"), job.get("duration_seconds"),
-                job.get("task_dir"), job.get("manifest_path"), job.get("parent_job_id"), job.get("revision", 1), job.get("project_id", "project-unassigned"),
+                job.get("task_dir"), job.get("manifest_path"), job.get("parent_job_id"), job.get("revision", 1), job.get("project_id"),
+                job.get("category_id", ""),
             ))
 
     def update_job(self, job_id: str, values: dict[str, Any]) -> None:
@@ -272,6 +350,72 @@ class Database:
                 "UPDATE jobs SET request_json=?, updated_at=? WHERE id=?",
                 (json.dumps(request, ensure_ascii=False), time.time(), job_id),
             )
+
+    def mark_plugin_job(self, plugin_id: str, job_id: str, selected: bool) -> None:
+        with self.connect() as db:
+            if selected:
+                db.execute('INSERT OR IGNORE INTO plugin_job_marks VALUES (?, ?)', (plugin_id, job_id))
+            else:
+                db.execute('DELETE FROM plugin_job_marks WHERE plugin_id=? AND job_id=?', (plugin_id, job_id))
+
+    def plugin_job_marks(self, plugin_id: str) -> set[str]:
+        with self.connect() as db:
+            return {row[0] for row in db.execute('SELECT job_id FROM plugin_job_marks WHERE plugin_id=?', (plugin_id,))}
+
+    def plugin_documents(self, plugin_id: str, project_id: str, category_id: str | None = None) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            query = 'SELECT document_json FROM plugin_documents WHERE plugin_id=? AND project_id=?'
+            params: list[Any] = [plugin_id, project_id]
+            if category_id is not None:
+                query += ' AND category_id=?'
+                params.append(category_id)
+            query += ' ORDER BY updated_at DESC'
+            rows = db.execute(query, params).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def plugin_document(self, plugin_id: str, project_id: str, document_id: str, category_id: str | None = None) -> dict[str, Any] | None:
+        with self.connect() as db:
+            query = 'SELECT document_json FROM plugin_documents WHERE plugin_id=? AND project_id=? AND id=?'
+            params: list[Any] = [plugin_id, project_id, document_id]
+            if category_id is not None:
+                query += ' AND category_id=?'
+                params.append(category_id)
+            row = db.execute(query, params).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def save_plugin_document(self, plugin_id: str, document: dict[str, Any], references: list[str],
+                             active: bool = False, selected_job_id: str | None = None) -> None:
+        with self.connect() as db:
+            if selected_job_id:
+                if not db.execute('SELECT 1 FROM jobs WHERE id=? AND project_id=?', (selected_job_id, document['project_id'])).fetchone():
+                    raise ValueError('素材不属于当前项目')
+                db.execute('INSERT OR IGNORE INTO plugin_job_marks VALUES (?, ?)', (plugin_id, selected_job_id))
+            category_id = document.get('category_id') or ''
+            db.execute('INSERT INTO plugin_documents (plugin_id, id, project_id, category_id, document_json, references_json, active, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) '
+                       'ON CONFLICT(plugin_id, project_id, category_id, id) DO UPDATE SET document_json=excluded.document_json, '
+                       'references_json=excluded.references_json, active=excluded.active, updated_at=excluded.updated_at',
+                       (plugin_id, document['id'], document['project_id'], category_id, json.dumps(document, ensure_ascii=False),
+                        json.dumps(references), int(active), time.time()))
+
+    def delete_plugin_document(self, plugin_id: str, project_id: str, document_id: str, category_id: str | None = None) -> None:
+        with self.connect() as db:
+            query = 'DELETE FROM plugin_documents WHERE plugin_id=? AND project_id=? AND id=?'
+            params: list[Any] = [plugin_id, project_id, document_id]
+            if category_id is not None:
+                query += ' AND category_id=?'
+                params.append(category_id)
+            db.execute(query, params)
+
+    def check_plugin_references(self, project_id: str, job_ids: set[str] | None = None) -> None:
+        with self.connect() as db:
+            rows = db.execute('SELECT references_json FROM plugin_documents WHERE project_id=? AND active=1', (project_id,)).fetchall()
+        if any(job_ids is None or set(json.loads(row[0])) & job_ids for row in rows):
+            raise RuntimeError('项目或素材正在被应用任务使用，请等待任务完成')
+
+    def reset_application_activity(self) -> None:
+        """Process-local tasks cannot survive restart, including disabled plugins."""
+        with self.connect() as db:
+            db.execute('UPDATE plugin_documents SET active=0 WHERE active=1')
 
     def add_artifact(self, job_id: str, path: Path, media_type: str) -> None:
         with self.connect() as db:
@@ -293,7 +437,7 @@ class Database:
                 "FROM projects p LEFT JOIN jobs j ON j.project_id=p.id LEFT JOIN artifacts a ON a.job_id=j.id"
         if not include_archived:
             query += " WHERE p.status='active'"
-        query += " GROUP BY p.id ORDER BY CASE WHEN p.id='project-unassigned' THEN 1 ELSE 0 END, p.updated_at DESC"
+        query += " GROUP BY p.id ORDER BY p.updated_at DESC"
         with self.connect() as db:
             return [dict(row) for row in db.execute(query).fetchall()]
 
@@ -302,19 +446,63 @@ class Database:
             row = db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
         return dict(row) if row else None
 
+    def project_assets(self, project_id: str) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            rows = db.execute("SELECT * FROM project_assets WHERE project_id=? ORDER BY rowid DESC", (project_id,)).fetchall()
+        result = []
+        for row in rows:
+            asset = dict(row)
+            asset["media"] = json.loads(asset.pop("media_json"))
+            result.append(asset)
+        return result
+
+    def save_project_asset(self, asset: dict[str, Any]) -> None:
+        with self.connect() as db:
+            db.execute("INSERT INTO project_assets (id, project_id, name, kind, description, media_json) VALUES (?, ?, ?, ?, ?, ?) "
+                       "ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, description=excluded.description, media_json=excluded.media_json",
+                       (asset["id"], asset["project_id"], asset["name"], asset["kind"], asset["description"], json.dumps(asset["media"], ensure_ascii=False)))
+
+    def delete_project_asset(self, project_id: str, asset_id: str) -> None:
+        with self.connect() as db:
+            db.execute("DELETE FROM project_assets WHERE project_id=? AND id=?", (project_id, asset_id))
+
+    def project_asset_types(self, project_id: str) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            return [dict(row) for row in db.execute("SELECT id, project_id, name, description FROM project_asset_types WHERE project_id=? ORDER BY rowid", (project_id,))]
+
+    def save_project_asset_type(self, value: dict[str, Any], create: bool = False) -> None:
+        now = time.time()
+        with self.connect() as db:
+            if create:
+                db.execute("INSERT INTO project_asset_types (id, project_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (value["id"], value["project_id"], value["name"], value.get("description", ""), now, now))
+            else:
+                db.execute("UPDATE project_asset_types SET name=?, description=?, updated_at=? WHERE id=? AND project_id=?", (value["name"], value.get("description", ""), now, value["id"], value["project_id"]))
+
+    def project_categories(self, project_id: str) -> list[dict[str, Any]]:
+        with self.connect() as db:
+            return [dict(row) for row in db.execute("SELECT * FROM project_categories WHERE project_id=? ORDER BY rowid", (project_id,))]
+
+    def save_category(self, project_id: str, category_id: str, name: str, create: bool = False) -> None:
+        with self.connect() as db:
+            if create:
+                db.execute("INSERT INTO project_categories (id, project_id, name) VALUES (?, ?, ?)", (category_id, project_id, name))
+            else:
+                db.execute("UPDATE project_categories SET name=? WHERE id=? AND project_id=?", (name, category_id, project_id))
+
+    def delete_category(self, project_id: str, category_id: str) -> None:
+        with self.connect() as db:
+            db.execute("UPDATE jobs SET category_id='' WHERE project_id=? AND category_id=?", (project_id, category_id))
+            db.execute("DELETE FROM plugin_documents WHERE project_id=? AND category_id=?", (project_id, category_id))
+            db.execute("DELETE FROM project_categories WHERE project_id=? AND id=?", (project_id, category_id))
+
     def create_project(self, value: dict[str, Any]) -> dict[str, Any]:
         now = time.time()
         with self.connect() as db:
             db.execute(
-                "INSERT INTO projects (id, name, output_subdir, description, content_summary, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?)",
-                (value["id"], value["name"], value["output_subdir"], value.get("description", ""), value.get("content_summary", ""), now, now),
+                "INSERT INTO projects (id, name, output_subdir, description, content_summary, status, ai_created, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)",
+                (value["id"], value["name"], value["output_subdir"], value.get("description", ""), value.get("content_summary", ""), int(bool(value.get("ai_created", False))), now, now),
             )
         return self.project(value["id"]) or value
-
-    def archive_project(self, project_id: str) -> dict[str, Any] | None:
-        with self.connect() as db:
-            db.execute("UPDATE projects SET status='archived', updated_at=? WHERE id=?", (time.time(), project_id))
-        return self.project(project_id)
 
     def update_project(self, project_id: str, values: dict[str, Any]) -> dict[str, Any] | None:
         allowed = {key: values[key] for key in ("name", "description", "content_summary") if key in values}
@@ -328,29 +516,24 @@ class Database:
 
     def delete_project(self, project_id: str) -> None:
         with self.connect() as db:
-            db.execute("DELETE FROM workspace_projects WHERE project_id=?", (project_id,))
+            db.execute("DELETE FROM settings WHERE key='current_project_id' AND value=?", (project_id,))
             db.execute("DELETE FROM api_idempotency WHERE job_id IN (SELECT id FROM jobs WHERE project_id=?)", (project_id,))
             db.execute("DELETE FROM artifacts WHERE job_id IN (SELECT id FROM jobs WHERE project_id=?)", (project_id,))
             db.execute("DELETE FROM jobs WHERE project_id=?", (project_id,))
             db.execute("DELETE FROM projects WHERE id=?", (project_id,))
 
-    def current_project(self, workspace_id: str) -> dict[str, Any] | None:
+    def current_project(self) -> dict[str, Any] | None:
         with self.connect() as db:
             row = db.execute(
-                "SELECT p.* FROM workspace_projects w JOIN projects p ON p.id=w.project_id WHERE w.workspace_id=?",
-                (workspace_id,),
+                "SELECT p.* FROM projects p JOIN settings s ON s.key='current_project_id' AND s.value=p.id",
             ).fetchone()
         return dict(row) if row else None
 
-    def set_current_project(self, workspace_id: str, project_id: str) -> dict[str, Any] | None:
+    def set_current_project(self, project_id: str) -> dict[str, Any] | None:
         now = time.time()
         with self.connect() as db:
-            db.execute(
-                "INSERT INTO workspace_projects (workspace_id, project_id, updated_at) VALUES (?, ?, ?) "
-                "ON CONFLICT(workspace_id) DO UPDATE SET project_id=excluded.project_id, updated_at=excluded.updated_at",
-                (workspace_id, project_id, now),
-            )
-        return self.current_project(workspace_id)
+            db.execute("INSERT INTO settings(key,value,updated_at) VALUES ('current_project_id',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at", (project_id, now))
+        return self.current_project()
 
     def presets(self) -> list[dict[str, Any]]:
         with self.connect() as db:
@@ -393,6 +576,10 @@ class Database:
             db.execute("UPDATE voice_presets SET sample_audio_name=?, sample_audio_url=?, updated_at=? WHERE preset_key=? AND enabled=1", (filename, f"/v1/voices/{preset_key}/sample", time.time(), preset_key))
             row = db.execute("SELECT * FROM voice_presets WHERE preset_key=? AND enabled=1", (preset_key,)).fetchone()
         return dict(row) if row else None
+
+    def delete_voice_preset(self, preset_key: str) -> None:
+        with self.connect() as db:
+            db.execute("DELETE FROM voice_presets WHERE preset_key=?", (preset_key,))
 
     def disable_preset(self, preset_key: str) -> bool:
         with self.connect() as db:
@@ -442,16 +629,18 @@ class Database:
             cursor = db.execute("UPDATE creative_presets SET enabled=0, updated_at=? WHERE domain=? AND category=? AND id=? AND enabled=1", (time.time(), domain, category, preset_id))
         return cursor.rowcount > 0
 
-    def idempotent_job(self, key: str) -> str | None:
+    def idempotent_job(self, key: str, fingerprint: str | None = None) -> str | None:
         with self.connect() as db:
-            row = db.execute("SELECT job_id FROM api_idempotency WHERE key=?", (key,)).fetchone()
+            row = db.execute("SELECT job_id, fingerprint FROM api_idempotency WHERE key=?", (key,)).fetchone()
+        if row and fingerprint is not None and row['fingerprint'] != fingerprint:
+            raise ValueError("同一 Idempotency-Key 不能用于不同的生成请求")
         return row["job_id"] if row else None
 
-    def save_idempotent_job(self, key: str, job_id: str) -> None:
+    def save_idempotent_job(self, key: str, job_id: str, fingerprint: str = '') -> None:
         with self.connect() as db:
-            db.execute("""INSERT INTO api_idempotency (key, job_id, created_at) VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET job_id=excluded.job_id, created_at=excluded.created_at""",
-                (key, job_id, time.time()))
+            db.execute("""INSERT INTO api_idempotency (key, job_id, created_at, fingerprint) VALUES (?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET job_id=excluded.job_id, created_at=excluded.created_at,
+                    fingerprint=excluded.fingerprint""", (key, job_id, time.time(), fingerprint))
 
     def create_collaboration(self, value: dict[str, Any], *, idempotency_key: str | None = None,
                              fingerprint: str = "") -> dict[str, Any]:
@@ -506,14 +695,22 @@ class Database:
             db.execute("INSERT OR IGNORE INTO collaboration_requests (request_id, collaboration_id, created_at) VALUES (?, ?, ?)",
                        (request_id, collaboration_id, time.time()))
 
-    def collaborations(self, statuses: tuple[str, ...] | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    def collaborations(self, statuses: tuple[str, ...] | None = None, limit: int | None = 50, *, project_id: str | None = None) -> list[dict[str, Any]]:
         query = "SELECT * FROM collaborations"
         values: list[Any] = []
+        conditions = []
         if statuses:
-            query += f" WHERE status IN ({','.join('?' for _ in statuses)})"
+            conditions.append(f"status IN ({','.join('?' for _ in statuses)})")
             values.extend(statuses)
-        query += " ORDER BY updated_at DESC LIMIT ?"
-        values.append(limit)
+        if project_id is not None:
+            conditions.append("project_id = ?")
+            values.append(project_id)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " ORDER BY updated_at DESC"
+        if limit is not None:
+            query += " LIMIT ?"
+            values.append(limit)
         with self.connect() as db:
             rows = db.execute(query, values).fetchall()
         return [self._collaboration(row) for row in rows]
@@ -594,9 +791,17 @@ class Database:
             for key, value in values.items():
                 db.execute("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at", (key, str(value), now))
 
+    def delete_settings(self, keys: list[str]) -> None:
+        if not keys:
+            return
+        with self.connect() as db:
+            db.executemany("DELETE FROM settings WHERE key = ?", ((key,) for key in keys))
+
     @staticmethod
     def _job(row: sqlite3.Row) -> dict[str, Any]:
         item = dict(row)
+        item.pop('film_selected', None)
+        item['application_marks'] = json.loads(item.pop('application_marks_json', '[]'))
         item["request"] = json.loads(item.pop("request_json"))
         raw_artifacts = item.pop("artifacts_json", None)
         if raw_artifacts:

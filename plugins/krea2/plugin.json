@@ -1,0 +1,804 @@
+{
+  "schema_version": 1,
+  "id": "krea2",
+  "version": "1.0.0",
+  "name": "krea2",
+  "collaboration_ui": "ui/Collaboration.vue",
+  "style_library": {
+    "comfyui_directory": "custom_nodes/ComfyUI-Easy-Use/styles",
+    "category_prefix": "krea2_397styles-"
+  },
+  "categories": [
+    {
+      "id": "image",
+      "name": "图片生成",
+      "icon": "solar:gallery-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    },
+    {
+      "id": "director",
+      "handler": "collaboration/handler.py:director",
+      "name": "智能协作"
+    }
+  ],
+  "capabilities": {
+    "image.krea2.text_to_image": {
+      "kind": "image",
+      "mode": "text_to_image",
+      "file": "workflows/img/krea2/image.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "prompt": {
+        "preserve_template": false
+      },
+      "output_prefix": "MediaGateway/image",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "krea2",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "confirmation_handler": "collaboration/confirmation.py:confirm",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "Krea2 文生图",
+      "model_id": "krea2",
+      "model_name": "Krea2"
+    },
+    "image.krea2.image_to_image": {
+      "kind": "image",
+      "mode": "image_to_image",
+      "file": "workflows/img/krea2/image_i2i.json",
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "prompt": {
+        "preserve_template": false
+      },
+      "output_prefix": "MediaGateway/image",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "krea2",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "confirmation_handler": "collaboration/confirmation.py:confirm",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "Krea2 图生图",
+      "model_id": "krea2",
+      "model_name": "Krea2"
+    },
+    "image.krea2.character": {
+      "kind": "image",
+      "mode": "character",
+      "file": "workflows/img/krea2/image_character_four_views_krea2_ref.json",
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "prompt": {
+        "preserve_template": true
+      },
+      "output_prefix": "MediaGateway/character",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "krea2",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "confirmation_handler": "collaboration/confirmation.py:confirm",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "Krea2 角色多视图",
+      "model_id": "krea2",
+      "model_name": "Krea2"
+    },
+    "image.krea2.scene": {
+      "kind": "image",
+      "mode": "scene",
+      "file": "workflows/img/krea2/image.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "prompt": {
+        "preserve_template": false
+      },
+      "task_instruction": "Create one detailed cinematic scene concept image from the user's description. Establish coherent geography, architecture, lighting, atmosphere and visual landmarks. No collage, labels or watermark.",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "krea2",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "confirmation_handler": "collaboration/confirmation.py:confirm",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "场景图",
+      "model_id": "krea2",
+      "model_name": "Krea2"
+    },
+    "image.krea2.storyboard_4": {
+      "kind": "image",
+      "mode": "storyboard_4",
+      "file": "workflows/img/krea2/storyboard_4_api.json",
+      "references": {
+        "image": {
+          "min": 2,
+          "max": 2
+        }
+      },
+      "input_roles": {
+        "image": [
+          "scene",
+          "character_a",
+          "character_b"
+        ]
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "shot_nodes": [
+        "20",
+        "21",
+        "22",
+        "23"
+      ],
+      "shot_instruction": "Generate one cinematic storyboard frame. Image1 is the context, scene, or first subject reference. Image2 is the primary subject reference. Preserve recognizable identity, clothing, materials, colors, and important scene geometry. Produce one clean full-frame image only, not a collage, grid, contact sheet, or text layout.",
+      "storyboard_grid": {
+        "canvas_node": "40",
+        "gap": 8,
+        "placements": [
+          {
+            "node": "41",
+            "column": 0,
+            "row": 0
+          },
+          {
+            "node": "42",
+            "column": 1,
+            "row": 0
+          },
+          {
+            "node": "43",
+            "column": 0,
+            "row": 1
+          },
+          {
+            "node": "44",
+            "column": 1,
+            "row": 1
+          }
+        ]
+      },
+      "output_nodes": [
+        "32",
+        "34",
+        "36",
+        "38",
+        "45"
+      ],
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "krea2",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "confirmation_handler": "collaboration/confirmation.py:confirm",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          }
+        ]
+      },
+      "name": "Krea2 四宫格分镜",
+      "model_id": "krea2",
+      "model_name": "Krea2"
+    },
+    "image.krea2_upscale": {
+      "kind": "image",
+      "mode": "krea2_upscale",
+      "file": "workflows/post/image/krea2_upscale.json",
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "media_bindings": {
+        "image": [
+          {
+            "node": "2",
+            "input": "image",
+            "connect": true,
+            "source_index": 0
+          },
+          {
+            "node": "21",
+            "input": "image_ref",
+            "connect": true,
+            "source_index": 0
+          },
+          {
+            "node": "14",
+            "input": "image",
+            "connect": true,
+            "source_index": 0
+          }
+        ]
+      },
+      "output_nodes": [
+        "23"
+      ],
+      "prune_to_outputs": true,
+      "input_overrides": [
+        {
+          "node": "2",
+          "input": "denoise",
+          "value": 0
+        },
+        {
+          "node": "13",
+          "input": "strength_model",
+          "value": 0
+        },
+        {
+          "node": "29",
+          "input": "text",
+          "value": "High-quality image restoration and faithful detail enhancement. Preserve the exact identity, facial proportions, expression, pose, composition, colors, lighting, clothing, materials, background, and all original content. Restore natural fine texture and clean edges only. Do not redesign, beautify, reshape, restyle, add, or remove anything."
+        },
+        {
+          "node": "23",
+          "input": "images",
+          "value": [
+            "2",
+            0
+          ]
+        }
+      ],
+      "output_prefix": "MediaGateway/krea2_upscale",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "krea2",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "operation": "postprocess",
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "input_roles": {},
+      "name": "Krea2 高清增强",
+      "model_id": "krea2",
+      "model_name": "Krea2",
+      "mode_name": "高清增强"
+    }
+  },
+  "ui_models": [
+    {
+      "id": "krea2",
+      "name": "Krea2",
+      "category": "image",
+      "selector_order": 30,
+      "functions": [
+        {
+          "capability_id": "image.krea2.text_to_image",
+          "name": "文生图"
+        },
+        {
+          "capability_id": "image.krea2.image_to_image",
+          "name": "图生图"
+        },
+        {
+          "capability_id": "image.krea2.character",
+          "name": "角色版"
+        },
+        {
+          "capability_id": "image.krea2.storyboard_4",
+          "name": "四宫格分镜"
+        },
+        {
+          "capability_id": "image.krea2.scene",
+          "name": "场景图"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "krea2_upscale",
+      "name": "Krea2 高清增强",
+      "description": "增强原图细节与清晰度，尽量保持原有内容和构图。",
+      "source_types": [
+        "image"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "image.krea2_upscale",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

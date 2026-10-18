@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  release-check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Lint and compile
+        run: |
+          ruff check backend tests plugins
+          python -m compileall -q backend tests plugins
+      - name: Test backend and plugins
+        run: |
+          python -m unittest discover -s tests -p "test_*.py"
+          python -m unittest discover -s plugins/film-studio/tests -p "test_composition_engine.py"
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Verify release package
+        run: python -c "from backend.bootstrap import check_installation; check_installation()"

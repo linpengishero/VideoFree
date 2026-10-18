@@ -35,6 +35,18 @@ class SettingsOutputDirectoryTests(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    def test_relative_entry_resolves_against_comfyui_not_gateway(self):
+        root = self.context.paths.data / 'ComfyUI'
+        (root / 'output').mkdir(parents=True)
+        (root / 'main.py').write_text('', encoding='utf-8')
+        self.comfyui.request.side_effect = [
+            {'system': {'argv': ['main.py']}}, {'custom_nodes': [str(root / 'custom_nodes')]}]
+        self.assertEqual(self.service.local_comfyui_output_directory({}), root / 'output')
+
+    def test_relative_entry_without_reliable_root_does_not_guess(self):
+        self.comfyui.request.side_effect = [{'system': {'argv': ['main.py']}}, {}]
+        self.assertIsNone(self.service.local_comfyui_output_directory({}))
+
 
 if __name__ == "__main__":
     unittest.main()

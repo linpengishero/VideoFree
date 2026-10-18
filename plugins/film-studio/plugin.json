@@ -1,0 +1,909 @@
+{
+  "schema_version": 1,
+  "id": "film-studio",
+  "version": "1.4.0",
+  "name": "剪辑",
+  "description": "项目成片管理、时间线剪辑、自动字幕与插件内置 FFmpeg 合成。",
+  "assets": [
+    "binaries/windows-x64/ffmpeg.exe",
+    "binaries/windows-x64/ffprobe.exe",
+    "licenses/FFMPEG-NOTICE.md",
+    "licenses/LICENSE.txt",
+    "licenses/README.txt",
+    "ui/icon.png"
+  ],
+  "categories": [],
+  "capabilities": {},
+  "application": {
+    "name": "剪辑",
+    "icon": "ui/icon.png",
+    "entry": "ui/FilmStudio.vue",
+    "resource_entry": "ui/FilmSelection.vue",
+    "source_types": [
+      "video",
+      "audio",
+      "music"
+    ],
+    "selection_label": "已入选成片",
+    "library_outputs": {
+      "directory": "films",
+      "filenames": [
+        "final.mp4"
+      ]
+    },
+    "startup": "actions.py:startup"
+  },
+  "actions": [
+    {
+      "id": "film.list",
+      "name": "查询项目成片",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.sources",
+      "name": "查询入选视频",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.assets",
+      "name": "查询成片导入素材",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+    },
+    {
+      "id": "film.get",
+      "name": "查询成片详情与进度",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          }
+        },
+        "required": [
+          "film_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.save",
+      "name": "创建或保存成片方案",
+      "description": "不传film_id创建；传film_id时部分更新方案，省略字段保留原值，显式传空数组或null才清空。clips是主轨（顺序即时间，kind=blank为黑场），overlay_clips为叠加轨、audio_clips为额外音轨，用start绝对落点。视频须先入选，或使用film.add-clip追加并自动入选。",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "更新现有方案时传入最后读取的 revision，防止覆盖并发编辑"
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "clips": {
+                "type": "array",
+                "maxItems": 200,
+                "default": [],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "clip",
+                        "blank"
+                      ],
+                      "default": "clip"
+                    },
+                    "job_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "library_path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 1000,
+                      "description": "当前项目资源库中的项目相对路径"
+                    },
+                    "artifact_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "default": 0
+                    },
+                    "in": {
+                      "type": "number",
+                      "minimum": 0,
+                      "default": 0
+                    },
+                    "out": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 86400
+                    },
+                    "original": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "volume": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100,
+                      "default": 100
+                    },
+                    "fade_in": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10,
+                      "default": 0
+                    },
+                    "fade_out": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10,
+                      "default": 0
+                    },
+                    "transition": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "fade",
+                            "wipeleft",
+                            "wiperight",
+                            "slideleft",
+                            "slideright",
+                            "slideup",
+                            "slidedown",
+                            "circleopen",
+                            "circleclose"
+                          ]
+                        },
+                        "duration": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 3,
+                          "default": 0.5
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "out"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "bgm_job_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "volume": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+                "default": 18
+              },
+              "width": {
+                "enum": [
+                  720,
+                  1080,
+                  1280,
+                  1440,
+                  1920
+                ],
+                "default": 1920
+              },
+              "height": {
+                "enum": [
+                  720,
+                  1080,
+                  1280,
+                  1440,
+                  1920
+                ],
+                "default": 1080
+              },
+              "fps": {
+                "enum": [
+                  24,
+                  25,
+                  30,
+                  60
+                ],
+                "default": 30
+              },
+              "fit": {
+                "enum": [
+                  "contain",
+                  "cover"
+                ],
+                "default": "contain"
+              },
+              "overlay_clips": {
+                "type": "array",
+                "maxItems": 50,
+                "default": [],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": ["clip"],
+                      "default": "clip"
+                    },
+                    "job_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "library_path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 1000,
+                      "description": "当前项目资源库中的项目相对路径"
+                    },
+                    "artifact_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "default": 0
+                    },
+                    "in": {
+                      "type": "number",
+                      "minimum": 0,
+                      "default": 0
+                    },
+                    "out": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 86400
+                    },
+                    "original": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "volume": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100,
+                      "default": 100
+                    },
+                    "fade_in": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10,
+                      "default": 0
+                    },
+                    "fade_out": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10,
+                      "default": 0
+                    },
+                    "transition": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "fade",
+                            "wipeleft",
+                            "wiperight",
+                            "slideleft",
+                            "slideright",
+                            "slideup",
+                            "slidedown",
+                            "circleopen",
+                            "circleclose"
+                          ]
+                        },
+                        "duration": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 3,
+                          "default": 0.5
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "start": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 86400,
+                      "default": 0
+                    },
+                    "rect": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "x": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "default": 0
+                        },
+                        "y": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "default": 0
+                        },
+                        "w": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 8192
+                        },
+                        "h": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 8192
+                        },
+                        "opacity": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100,
+                          "default": 100
+                        }
+                      },
+                      "required": [
+                        "w",
+                        "h"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "out"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "audio_clips": {
+                "type": "array",
+                "maxItems": 100,
+                "default": [],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": ["clip"],
+                      "default": "clip"
+                    },
+                    "job_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "library_path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1,
+                      "maxLength": 1000,
+                      "description": "当前项目资源库中的项目相对路径"
+                    },
+                    "artifact_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "default": 0
+                    },
+                    "in": {
+                      "type": "number",
+                      "minimum": 0,
+                      "default": 0
+                    },
+                    "out": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 86400
+                    },
+                    "original": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "volume": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100,
+                      "default": 100
+                    },
+                    "fade_in": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10,
+                      "default": 0
+                    },
+                    "fade_out": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10,
+                      "default": 0
+                    },
+                    "transition": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "fade",
+                            "wipeleft",
+                            "wiperight",
+                            "slideleft",
+                            "slideright",
+                            "slideup",
+                            "slidedown",
+                            "circleopen",
+                            "circleclose"
+                          ]
+                        },
+                        "duration": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 3,
+                          "default": 0.5
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "start": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 86400,
+                      "default": 0
+                    }
+                  },
+                  "required": [
+                    "out"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "captions": {
+                "type": "array",
+                "maxItems": 1000,
+                "default": [],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {"type": "string", "minLength": 1, "maxLength": 2000},
+                    "start": {"type": "number", "minimum": 0, "maximum": 86400},
+                    "end": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400}
+                  },
+                  "required": ["text", "start", "end"],
+                  "additionalProperties": false
+                }
+              },
+              "texts": {
+                "type": "array",
+                "maxItems": 200,
+                "default": [],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {"type": "string", "minLength": 1, "maxLength": 2000},
+                    "start": {"type": "number", "minimum": 0, "maximum": 86400},
+                    "end": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
+                    "x": {"type": "integer", "minimum": 0, "maximum": 8192},
+                    "y": {"type": "integer", "minimum": 0, "maximum": 8192},
+                    "font_size": {"type": "integer", "minimum": 12, "maximum": 300, "default": 64},
+                    "color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "default": "#FFFFFF"}
+                  },
+                  "required": ["text", "start", "end", "x", "y"],
+                  "additionalProperties": false
+                }
+              },
+              "timeline_version": {
+                "enum": [
+                  1,
+                  2
+                ],
+                "default": 2
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.add-clip",
+      "name": "将视频加入指定成片",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          },
+          "clip": {
+            "type": "object",
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "library_path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "description": "当前项目资源库中的项目相对路径"
+              },
+              "artifact_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "in": {
+                "type": "number",
+                "minimum": 0
+              },
+              "out": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "original": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "out"
+            ],
+            "anyOf": [
+              {"required": ["job_id"]},
+              {"required": ["library_path"]}
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "film_id",
+          "clip"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.select-source",
+      "name": "设置成片入选视频",
+      "scope": "workspace",
+      "automation": false,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "job_id",
+          "selected"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.import-asset",
+      "name": "导入本地素材到成片素材区",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{32}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.delete-asset",
+      "name": "删除成片导入素材",
+      "description": "仅删除当前项目中由成片插件导入、且没有被任何成片方案引用的素材。",
+      "scope": "workspace",
+      "automation": false,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "library_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": ["library_path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.progress",
+      "name": "填写成片制作阶段进度",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "stage": {
+                "enum": [
+                  "writing",
+                  "assets",
+                  "generation",
+                  "review",
+                  "acceptance"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "pending",
+                  "running",
+                  "completed",
+                  "failed",
+                  "blocked"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "stage",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "film_id",
+          "progress"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.render",
+      "name": "提交基础剪辑合成",
+      "description": "使用插件内置 FFmpeg 异步合成，返回成片详情；用 film.get 查询 render.status 和 progress，composition 阶段由系统维护。",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          }
+        },
+        "required": [
+          "film_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.validate",
+      "name": "校验成片方案",
+      "description": "在预览或正式导出前只读检查素材文件、裁剪范围、音视频轨、字幕和输出参数，不创建渲染任务。valid=false 时按 issues 修正方案后重新校验。",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          }
+        },
+        "required": ["film_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.delete",
+      "name": "删除成片及合成输出",
+      "scope": "workspace",
+      "automation": false,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          }
+        },
+        "required": [
+          "film_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.preview",
+      "name": "生成时间线预览",
+      "description": "用插件内置 FFmpeg 以低画质快速合成预览，用于剪辑确认；结果在 preview.url，不影响正式成片。用 film.get 查询 preview.status 和 progress。",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          }
+        },
+        "required": [
+          "film_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.cancel",
+      "name": "取消成片合成",
+      "description": "取消当前成片的正式合成或预览任务；不会删除已完成的历史版本。",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {"type": "string", "pattern": "^film-[a-f0-9]{12}$"},
+          "quality": {"type": "string", "enum": ["final", "preview"], "default": "final"}
+        },
+        "required": ["film_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.transcribe",
+      "name": "识别全时间线生成字幕",
+      "description": "提取并混合时间线上所有启用的主轨视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper 一次生成全片字幕。",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "film_id": {"type": "string", "pattern": "^film-[a-f0-9]{12}$"},
+          "language": {"type": "string", "default": "auto", "maxLength": 40},
+          "model": {"type": "string", "enum": ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"], "default": "large-v3-turbo"}
+        },
+        "required": ["film_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "film.proxies",
+      "name": "生成时间线缩略图与波形",
+      "description": "为视频生成缩略图条与波形、为音频生成波形，返回图片地址与素材时长；同一素材重复调用直接复用缓存。",
+      "scope": "workspace",
+      "automation": false,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "library_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "当前项目资源库中的项目相对路径"
+          },
+          "artifact_index": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          }
+        },
+        "anyOf": [{"required": ["job_id"]}, {"required": ["library_path"]}],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,388 @@
+{
+  "schema_version": 1,
+  "id": "minimax-music",
+  "version": "1.0.0",
+  "name": "minimax-music",
+  "collaboration_ui": "ui/Collaboration.vue",
+  "categories": [
+    {
+      "id": "music",
+      "name": "音乐生成",
+      "icon": "solar:vinyl-record-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    },
+    {
+      "id": "director",
+      "handler": "collaboration/handler.py:director",
+      "name": "智能协作"
+    }
+  ],
+  "capabilities": {
+    "music.create": {
+      "kind": "music",
+      "mode": "create",
+      "file": "workflows/sound/minimax_music3_api.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        },
+        "video": {
+          "min": 0,
+          "max": 0
+        },
+        "audio": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "prompt_bindings": [
+        {
+          "node": "4",
+          "input": "caption",
+          "source": "prompt"
+        },
+        {
+          "node": "4",
+          "input": "lyrics",
+          "source": "lyrics"
+        }
+      ],
+      "output_nodes": [
+        "9"
+      ],
+      "requirements": {
+        "nodes": [
+          "UNETLoader",
+          "CLIPLoader",
+          "MiniMaxMusic3TextEncode",
+          "EmptyMiniMaxMusic3LatentAudio",
+          "VAEDecodeAudioTiled",
+          "SaveAudio"
+        ],
+        "models": [
+          "models/diffusion_models/minimax_music3_dit_int4_convrot.safetensors",
+          "models/text_encoders/minimax_music3_text_encoder_pruned_int8_convrot.safetensors",
+          "models/vae/minimax_music3_dav.safetensors"
+        ]
+      },
+      "category": "music",
+      "compiler": "builtin",
+      "model_family": "minimax_music3",
+      "model_aliases": ["music3"],
+      "mode_aliases": ["creative"],
+      "skill_mode": "creative",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "skill_mode": "creative",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "lyrics",
+            "component": "textarea",
+            "label": "歌词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 360,
+            "step": 0.1,
+            "default": 30,
+            "component": "number",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "MiniMax Music 歌曲创作",
+      "model_id": "minimax-music3",
+      "model_name": "MiniMax Music 3",
+      "duration": {
+        "min": 1,
+        "max": 360,
+        "default": 5
+      }
+    },
+    "music.preset": {
+      "kind": "music",
+      "mode": "create",
+      "file": "workflows/sound/minimax_music3_api.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        },
+        "video": {
+          "min": 0,
+          "max": 0
+        },
+        "audio": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "prompt_bindings": [
+        {
+          "node": "4",
+          "input": "caption",
+          "source": "prompt"
+        },
+        {
+          "node": "4",
+          "input": "lyrics",
+          "source": "lyrics"
+        }
+      ],
+      "output_nodes": [
+        "9"
+      ],
+      "requirements": {
+        "nodes": [
+          "UNETLoader",
+          "CLIPLoader",
+          "MiniMaxMusic3TextEncode",
+          "EmptyMiniMaxMusic3LatentAudio",
+          "VAEDecodeAudioTiled",
+          "SaveAudio"
+        ],
+        "models": [
+          "models/diffusion_models/minimax_music3_dit_int4_convrot.safetensors",
+          "models/text_encoders/minimax_music3_text_encoder_pruned_int8_convrot.safetensors",
+          "models/vae/minimax_music3_dav.safetensors"
+        ]
+      },
+      "category": "music",
+      "compiler": "builtin",
+      "model_family": "minimax_music3",
+      "model_aliases": ["music3"],
+      "mode_aliases": ["preset"],
+      "skill_mode": "preset",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "skill_mode": "preset",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "lyrics",
+            "component": "textarea",
+            "label": "歌词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 360,
+            "step": 0.1,
+            "default": 30,
+            "component": "number",
+            "required": true
+          },
+          {
+            "bind": "settings.music_style_id",
+            "label": "音乐风格",
+            "section": "settings",
+            "component": "select",
+            "options": [
+              {
+                "value": "pop",
+                "label": "流行",
+                "prompt": "Contemporary pop with a memorable chorus, polished production, balanced verse-chorus structure, and clear emotional progression."
+              },
+              {
+                "value": "chinese",
+                "label": "国风",
+                "prompt": "Modern Chinese-style pop blending guzheng, bamboo flute, and cinematic strings with an elegant pentatonic melody."
+              },
+              {
+                "value": "rock",
+                "label": "摇滚",
+                "prompt": "Modern rock with driving live drums, energetic electric guitars, strong dynamics, and an anthemic chorus."
+              },
+              {
+                "value": "folk",
+                "label": "民谣",
+                "prompt": "Intimate acoustic folk with natural guitar, restrained percussion, warm storytelling, and an organic live-room feel."
+              },
+              {
+                "value": "rnb",
+                "label": "R&B",
+                "prompt": "Contemporary R&B with a smooth groove, expressive melodic phrasing, rich harmony, and tasteful atmospheric production."
+              },
+              {
+                "value": "electronic",
+                "label": "电子",
+                "prompt": "Modern electronic pop with precise synth layers, a controlled dance pulse, evolving texture, and a powerful hook."
+              },
+              {
+                "value": "rap",
+                "label": "说唱",
+                "prompt": "Modern hip-hop with a confident rhythmic flow, punchy drums, deep bass, clear lyrical delivery, and a strong recurring hook."
+              },
+              {
+                "value": "jazz",
+                "label": "爵士",
+                "prompt": "Contemporary jazz with expressive piano, upright bass, brushed drums, sophisticated harmony, and relaxed live interplay."
+              },
+              {
+                "value": "cinematic",
+                "label": "电影感",
+                "prompt": "Cinematic song arrangement with evolving orchestration, emotional strings, deep percussion, and a dramatic narrative arc."
+              },
+              {
+                "value": "healing",
+                "label": "治愈",
+                "prompt": "Gentle healing pop with soft piano, acoustic textures, subtle percussion, and a calm uplifting emotional tone."
+              }
+            ],
+            "default": "pop"
+          },
+          {
+            "bind": "settings.singer_id",
+            "label": "歌手",
+            "section": "settings",
+            "component": "select",
+            "options": [
+              {
+                "value": "female",
+                "label": "女声",
+                "prompt": "Lead vocal: adult female singer with controlled expression, natural pronunciation, and stable pitch."
+              },
+              {
+                "value": "male",
+                "label": "男声",
+                "prompt": "Lead vocal: adult male singer with controlled expression, natural pronunciation, and stable pitch."
+              }
+            ],
+            "default": "female"
+          },
+          {
+            "bind": "settings.voice_texture_id",
+            "label": "音色质感",
+            "section": "settings",
+            "component": "select",
+            "options": [
+              {
+                "value": "natural",
+                "label": "自然",
+                "prompt": "Natural, balanced vocal timbre with minimal affectation and clear diction."
+              },
+              {
+                "value": "smoky",
+                "label": "烟嗓",
+                "prompt": "A textured smoky voice with tasteful rasp, emotional weight, and clear intelligibility; never harsh or damaged."
+              },
+              {
+                "value": "clear",
+                "label": "清亮",
+                "prompt": "A bright, clear vocal timbre with clean upper harmonics, agile phrasing, and crisp diction."
+              },
+              {
+                "value": "magnetic",
+                "label": "磁性",
+                "prompt": "A warm magnetic mid-low voice with rich resonance, confident phrasing, and intimate presence."
+              },
+              {
+                "value": "sweet",
+                "label": "甜美",
+                "prompt": "A youthful sweet vocal color with a gentle smile, light delivery, and no exaggerated childish tone."
+              },
+              {
+                "value": "deep",
+                "label": "低沉",
+                "prompt": "A deep, grounded vocal timbre with restrained emotion, full chest resonance, and clear articulation."
+              },
+              {
+                "value": "powerful",
+                "label": "力量感",
+                "prompt": "A powerful vocal performance with firm breath support, strong projection, and controlled climactic intensity."
+              },
+              {
+                "value": "ethereal",
+                "label": "空灵",
+                "prompt": "An airy ethereal vocal timbre with soft resonance, spacious phrasing, and a dreamlike but intelligible presence."
+              },
+              {
+                "value": "warm",
+                "label": "温暖",
+                "prompt": "A warm, gentle vocal timbre with rounded tone, sincere emotion, and close conversational presence."
+              }
+            ],
+            "default": "natural"
+          }
+        ],
+        "prompt_template": {
+          "fields": [
+            "settings.music_style_id",
+            "settings.singer_id",
+            "settings.voice_texture_id"
+          ],
+          "suffix": "Produce a complete song around the supplied lyrics. Keep the lyrics intelligible and preserve their original language and wording."
+        }
+      },
+      "input_roles": {},
+      "name": "预设创作",
+      "model_id": "minimax-music3",
+      "model_name": "MiniMax Music 3",
+      "duration": {
+        "min": 1,
+        "max": 360,
+        "default": 5
+      }
+    }
+  },
+  "ui_models": [
+    {
+      "id": "minimax-music",
+      "name": "MiniMax Music 3",
+      "category": "music",
+      "selector_order": 10,
+      "default": true,
+      "functions": [
+        {
+          "capability_id": "music.preset",
+          "name": "预设创作"
+        },
+        {
+          "capability_id": "music.create",
+          "name": "自由创作"
+        }
+      ]
+    }
+  ]
+}

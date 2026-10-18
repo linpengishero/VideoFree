@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "id": "ace-step",
+  "version": "1.0.0",
+  "name": "ace-step",
+  "collaboration_ui": "ui/Collaboration.vue",
+  "categories": [
+    {
+      "id": "music",
+      "name": "音乐生成",
+      "icon": "solar:vinyl-record-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    },
+    {
+      "id": "director",
+      "handler": "collaboration/handler.py:director",
+      "name": "智能协作"
+    }
+  ],
+  "capabilities": {
+    "music.ace_step.background": {
+      "kind": "music",
+      "mode": "background",
+      "file": "workflows/sound/ace_step_1_5_background.json",
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        },
+        "video": {
+          "min": 0,
+          "max": 0
+        },
+        "audio": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "prompt_bindings": [
+        {
+          "node": "4",
+          "input": "tags",
+          "source": "prompt"
+        }
+      ],
+      "parameter_bindings": {
+        "seed": [
+          {
+            "node": "4",
+            "input": "seed"
+          },
+          {
+            "node": "8",
+            "input": "seed"
+          }
+        ],
+        "duration": [
+          {
+            "node": "4",
+            "input": "duration"
+          },
+          {
+            "node": "6",
+            "input": "seconds"
+          }
+        ],
+        "music_bpm": [
+          {
+            "node": "4",
+            "input": "bpm", "default": 120
+          }
+        ],
+        "music_key": [
+          {
+            "node": "4",
+            "input": "keyscale", "default": "C minor"
+          }
+        ],
+        "music_timesignature": [
+          {
+            "node": "4",
+            "input": "timesignature", "default": "4"
+          }
+        ]
+      },
+      "output_nodes": [
+        "10"
+      ],
+      "requirements": {
+        "nodes": [
+          "UNETLoader",
+          "DualCLIPLoader",
+          "TextEncodeAceStepAudio1.5",
+          "EmptyAceStep1.5LatentAudio",
+          "ModelSamplingAuraFlow",
+          "VAEDecodeAudio",
+          "SaveAudio"
+        ],
+        "models": [
+          "models/diffusion_models/acestep_v1.5_turbo.safetensors",
+          "models/text_encoders/qwen_0.6b_ace15.safetensors",
+          "models/text_encoders/qwen_1.7b_ace15.safetensors",
+          "models/vae/ace_1.5_vae.safetensors"
+        ]
+      },
+      "category": "music",
+      "compiler": "builtin",
+      "model_family": "ace_step",
+      "processing_modes": [
+        "direct",
+        "director"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.duration",
+            "label": "时长（秒）",
+            "section": "submit",
+            "minimum": 1,
+            "maximum": 360,
+            "step": 0.1,
+            "default": 30,
+            "component": "number",
+            "required": true
+          },
+          {
+            "bind": "settings.music_bpm",
+            "label": "BPM",
+            "section": "settings",
+            "minimum": 10,
+            "maximum": 300,
+            "step": 1,
+            "default": 100,
+            "component": "number"
+          },
+          {
+            "bind": "settings.music_key",
+            "label": "调式",
+            "section": "settings",
+            "default": "C minor",
+            "options": [
+              {
+                "value": "C major",
+                "label": "C 大调"
+              },
+              {
+                "value": "C minor",
+                "label": "C 小调"
+              },
+              {
+                "value": "D major",
+                "label": "D 大调"
+              },
+              {
+                "value": "D minor",
+                "label": "D 小调"
+              },
+              {
+                "value": "E major",
+                "label": "E 大调"
+              },
+              {
+                "value": "E minor",
+                "label": "E 小调"
+              },
+              {
+                "value": "F major",
+                "label": "F 大调"
+              },
+              {
+                "value": "F minor",
+                "label": "F 小调"
+              },
+              {
+                "value": "G major",
+                "label": "G 大调"
+              },
+              {
+                "value": "G minor",
+                "label": "G 小调"
+              },
+              {
+                "value": "A major",
+                "label": "A 大调"
+              },
+              {
+                "value": "A minor",
+                "label": "A 小调"
+              },
+              {
+                "value": "B major",
+                "label": "B 大调"
+              },
+              {
+                "value": "B minor",
+                "label": "B 小调"
+              }
+            ],
+            "component": "select"
+          },
+          {
+            "bind": "settings.music_timesignature",
+            "label": "拍号",
+            "section": "settings",
+            "default": "4",
+            "options": [
+              {
+                "value": "2",
+                "label": "2/4"
+              },
+              {
+                "value": "3",
+                "label": "3/4"
+              },
+              {
+                "value": "4",
+                "label": "4/4"
+              },
+              {
+                "value": "6",
+                "label": "6/8"
+              }
+            ],
+            "component": "select"
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "ACE-Step 背景配乐",
+      "model_id": "ace-step-1.5",
+      "model_name": "ACE-Step 1.5",
+      "duration": {
+        "min": 1,
+        "max": 360,
+        "default": 5
+      },
+      "confirmation_handler": "collaboration/handler.py:confirmation"
+    }
+  },
+  "ui_models": [
+    {
+      "id": "ace-step",
+      "name": "ACE-Step 1.5",
+      "category": "music",
+      "selector_order": 20,
+      "functions": [
+        {
+          "capability_id": "music.ace_step.background",
+          "name": "背景配乐"
+        }
+      ]
+    }
+  ]
+}

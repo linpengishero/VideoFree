@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "id": "qwen-tts",
+  "version": "1.0.0",
+  "name": "qwen-tts",
+  "categories": [
+    {
+      "id": "tts",
+      "name": "声音生成",
+      "icon": "solar:music-note-3-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    }
+  ],
+  "capabilities": {
+    "tts.describe": {
+      "kind": "tts",
+      "mode": "describe",
+      "file": "workflows/sound/qwen3/tts.json",
+      "references": {
+        "audio": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "category": "tts",
+      "compiler": "builtin",
+      "model_family": "qwen3_tts",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "语音文本",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.instruction",
+            "component": "textarea",
+            "label": "声音描述",
+            "section": "body",
+            "rows": 2,
+            "required": true
+          },
+          {
+            "bind": "settings.voice_speed",
+            "label": "语速",
+            "section": "submit",
+            "minimum": 0.5,
+            "maximum": 2,
+            "step": 0.1,
+            "default": 1,
+            "normal_chars_per_second": 4.5,
+            "component": "number"
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "声音设计",
+      "model_id": "qwen3-tts",
+      "model_name": "Qwen TTS"
+    }
+  },
+  "ui_models": [
+    {
+      "id": "qwen-tts",
+      "name": "Qwen TTS",
+      "category": "tts",
+      "selector_order": 10,
+      "default": true,
+      "functions": [
+        {
+          "capability_id": "tts.describe",
+          "name": "声音描述"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "speech_describe",
+      "name": "声音描述",
+      "scope": "automation",
+      "automation": true,
+      "capability_id": "tts.describe",
+      "handler": "actions.py:speech",
+      "description": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2,
+            "default": 1
+          },
+          "category_id": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "voice_description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "text",
+          "voice_description"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

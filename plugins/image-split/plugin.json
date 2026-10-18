@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "id": "image-split",
+  "version": "1.0.0",
+  "name": "图片分割",
+  "categories": [
+    {
+      "id": "image",
+      "name": "图片生成",
+      "icon": "solar:gallery-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    }
+  ],
+  "capabilities": {
+    "image.split": {
+      "kind": "image",
+      "mode": "split",
+      "executor": "image_split",
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "image-split",
+      "processing_modes": [
+        "direct"
+      ],
+      "operation": "postprocess",
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "input_roles": {},
+      "executor_handler": "executor.py:execute_image_split",
+      "provider_name": "videofree",
+      "name": "四宫格分割",
+      "model_id": "image-split",
+      "model_name": "图片分割工作流",
+      "mode_name": "四宫格分割"
+    },
+    "image.split_6": {
+      "kind": "image",
+      "mode": "split_6",
+      "executor": "image_split",
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "grid": "3x2",
+      "prompt": {
+        "preserve_all": true
+      },
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "image-split",
+      "processing_modes": [
+        "direct"
+      ],
+      "operation": "postprocess",
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "input_roles": {},
+      "executor_handler": "executor.py:execute_image_split",
+      "provider_name": "videofree",
+      "name": "六宫格分割",
+      "model_id": "image-split",
+      "model_name": "图片分割工作流",
+      "mode_name": "六宫格分割"
+    }
+  },
+  "actions": [
+    {
+      "id": "split",
+      "name": "四宫格分割",
+      "description": "将四宫格图片切成 4 张独立图片。",
+      "source_types": [
+        "image"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "image.split",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "upscaler": {
+            "type": "string",
+            "enum": [
+              "2d",
+              "3d"
+            ]
+          },
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "split_6",
+      "name": "六宫格分割",
+      "description": "将三列两行的六宫格图片切成 6 张独立图片。",
+      "source_types": [
+        "image"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "image.split_6",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 64,
+            "maximum": 4096
+          },
+          "upscaler": {
+            "type": "string",
+            "enum": [
+              "2d",
+              "3d"
+            ]
+          },
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,919 @@
+{
+  "schema_version": 1,
+  "id": "gpt-image",
+  "version": "1.0.0",
+  "name": "gpt-image",
+  "settings": {
+    "title": "GPT-Image",
+    "description": "云端图片生成，通过 GrisAI 服务调用。配置保存在本插件的 .env 文件。",
+    "fields": [
+      {
+        "key": "GRSAI_API_KEY",
+        "label": "GrisAI API Key",
+        "type": "secret",
+        "required": true,
+        "prefix": "sk-",
+        "runtime_key": "api_key",
+        "placeholder": "sk-..."
+      },
+      {
+        "key": "GRSAI_BASE_URL",
+        "label": "API 地址",
+        "type": "url",
+        "default": "https://grsai.dakka.com.cn",
+        "required": true,
+        "runtime_key": "base_url"
+      }
+    ]
+  },
+  "categories": [
+    {
+      "id": "image",
+      "name": "图片生成",
+      "icon": "solar:gallery-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    }
+  ],
+  "capabilities": {
+    "image.gpt_image.text_to_image": {
+      "kind": "image",
+      "mode": "text_to_image",
+      "executor": "grsai",
+      "execution_plane": "cloud",
+      "model": "gpt-image-2",
+      "models": [
+        "gpt-image-2",
+        "gpt-image-2.5"
+      ],
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 0
+        }
+      },
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "gpt_image",
+      "processing_modes": [
+        "direct"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          },
+          {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          }
+        ]
+      },
+      "input_roles": {},
+      "executor_handler": "executor.py:execute_grsai",
+      "provider_name": "GrisAI",
+      "name": "GPT-Image 文生图",
+      "model_id": "gpt-image",
+      "model_name": "GPT-Image"
+    },
+    "image.gpt_image.image_to_image": {
+      "kind": "image",
+      "mode": "image_to_image",
+      "executor": "grsai",
+      "execution_plane": "cloud",
+      "model": "gpt-image-2",
+      "models": [
+        "gpt-image-2",
+        "gpt-image-2.5"
+      ],
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "input_roles": {
+        "image": []
+      },
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "gpt_image",
+      "processing_modes": [
+        "direct"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          },
+          {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          }
+        ]
+      },
+      "executor_handler": "executor.py:execute_grsai",
+      "provider_name": "GrisAI",
+      "name": "GPT-Image 图生图",
+      "model_id": "gpt-image",
+      "model_name": "GPT-Image"
+    },
+    "image.gpt_image.character": {
+      "kind": "image",
+      "mode": "character",
+      "executor": "grsai",
+      "execution_plane": "cloud",
+      "model": "gpt-image-2",
+      "models": [
+        "gpt-image-2",
+        "gpt-image-2.5"
+      ],
+      "references": {
+        "image": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "input_roles": {
+        "image": []
+      },
+      "task_instruction": "生成一张16:9横向、背景简洁、排版清晰的单一角色设定板。严格保持参考人物的身份、年龄、体型、肤色、脸部、发型、服装、装备、材质和颜色一致，并优先遵循用户补充要求。画面精确包含：4个全身视图（左侧较大的动态英雄姿势、正面、背面、侧面）；右上方3x2排列的6个同一角色头部或胸像研究；底部DETAILS区域精确4个关键细节面板；PROP区域精确1个与角色相关的重要道具；SILHOUETTE区域精确2个黑色剪影（正面、背面）；PALETTE区域精确4个颜色样本。所有区域只服务同一角色。禁止普通单幅角色插画、额外角色、无关道具、复杂场景、标志、水印、签名和无关文字。",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "gpt_image",
+      "processing_modes": [
+        "direct"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          },
+          {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          }
+        ]
+      },
+      "executor_handler": "executor.py:execute_grsai",
+      "provider_name": "GrisAI",
+      "name": "GPT-Image 角色版",
+      "model_id": "gpt-image",
+      "model_name": "GPT-Image"
+    },
+    "image.gpt_image.scene": {
+      "kind": "image",
+      "mode": "scene",
+      "executor": "grsai",
+      "execution_plane": "cloud",
+      "model": "gpt-image-2",
+      "models": [
+        "gpt-image-2",
+        "gpt-image-2.5"
+      ],
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 8
+        }
+      },
+      "input_roles": {
+        "image": []
+      },
+      "task_instruction": "根据用户描述生成一张电影级场景概念图。参考图存在时保持地点、时代、建筑或地貌、道路、水系、植被、天气、时间、光照、色彩、氛围及关键地标一致；没有参考图时根据文字完整创建场景。建立清楚的前中后景、可信比例、明确视觉锚点和电影级纵深。用户未指定视角时选择最适合主体的定场镜头；只有用户明确要求路线、摄像机路径或运动轨迹时才绘制连续清晰的路径线。默认不出现近景人物。禁止文字、UI、Logo、水印、无关标注和多余边框。",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "gpt_image",
+      "processing_modes": [
+        "direct"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          },
+          {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          }
+        ]
+      },
+      "executor_handler": "executor.py:execute_grsai",
+      "provider_name": "GrisAI",
+      "name": "GPT-Image 场景图",
+      "model_id": "gpt-image",
+      "model_name": "GPT-Image"
+    },
+    "image.gpt_image.storyboard_4": {
+      "kind": "image",
+      "mode": "storyboard_4",
+      "executor": "grsai",
+      "execution_plane": "cloud",
+      "model": "gpt-image-2",
+      "models": [
+        "gpt-image-2",
+        "gpt-image-2.5"
+      ],
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 8
+        }
+      },
+      "input_roles": {
+        "image": []
+      },
+      "task_instruction": "生成一张完整的2x2四宫格电影分镜图，共4格，严格按阅读顺序推进用户故事。用户故事优先级最高：故事节拍等于4时每格一个节拍；不足4时只补充与剧情直接相关的过渡镜头；超过4时合并相邻节拍但不丢失核心事件。参考图用于保持人物身份、服装、道具与场景一致。每格必须完整填满单元格。只呈现画面，禁止文字、数字、镜号、标题、字幕、气泡、UI、箭头、标签、Logo、水印、印章、黑边、留白、外框和粗分隔线。",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "gpt_image",
+      "processing_modes": [
+        "direct"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          },
+          {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          }
+        ]
+      },
+      "executor_handler": "executor.py:execute_grsai",
+      "provider_name": "GrisAI",
+      "name": "GPT-Image 四宫格分镜",
+      "model_id": "gpt-image",
+      "model_name": "GPT-Image"
+    },
+    "image.gpt_image.storyboard_6": {
+      "kind": "image",
+      "mode": "storyboard_6",
+      "executor": "grsai",
+      "execution_plane": "cloud",
+      "model": "gpt-image-2",
+      "models": [
+        "gpt-image-2",
+        "gpt-image-2.5"
+      ],
+      "references": {
+        "image": {
+          "min": 0,
+          "max": 8
+        }
+      },
+      "input_roles": {
+        "image": []
+      },
+      "task_instruction": "生成一张完整的3x2六宫格电影分镜图，共6格，严格按阅读顺序推进用户故事。用户故事优先级最高：故事节拍等于6时每格一个节拍；不足6时只补充与剧情直接相关的过渡镜头；超过6时合并相邻节拍但不丢失核心事件。参考图用于保持人物身份、服装、道具与场景一致。每格必须完整填满单元格。只呈现画面，禁止文字、数字、镜号、标题、字幕、气泡、UI、箭头、标签、Logo、水印、印章、黑边、留白、外框和粗分隔线。",
+      "category": "image",
+      "compiler": "builtin",
+      "model_family": "gpt_image",
+      "processing_modes": [
+        "direct"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "描述词",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_image",
+            "component": "media",
+            "media": "image",
+            "label": "参考图片",
+            "section": "body"
+          },
+          {
+            "bind": "settings.ratio",
+            "label": "比例",
+            "section": "settings",
+            "options": [
+              {
+                "value": "16:9",
+                "label": "16:9 横屏"
+              },
+              {
+                "value": "9:16",
+                "label": "9:16 竖屏"
+              },
+              {
+                "value": "1:1",
+                "label": "1:1 方形"
+              },
+              {
+                "value": "4:3",
+                "label": "4:3 标准"
+              },
+              {
+                "value": "3:4",
+                "label": "3:4 竖版"
+              },
+              {
+                "value": "21:9",
+                "label": "21:9 超宽"
+              },
+              {
+                "value": "2:3",
+                "label": "2:3 海报"
+              },
+              {
+                "value": "3:2",
+                "label": "3:2 相机"
+              }
+            ],
+            "component": "select",
+            "default": "16:9"
+          },
+          {
+            "bind": "settings.resolution",
+            "label": "分辨率",
+            "section": "settings",
+            "options": [
+              {
+                "value": "768P",
+                "label": "自适应"
+              },
+              {
+                "value": "1K",
+                "label": "1K"
+              },
+              {
+                "value": "1440P",
+                "label": "1440P"
+              },
+              {
+                "value": "2K",
+                "label": "2K"
+              }
+            ],
+            "component": "select",
+            "default": "1K"
+          },
+          {
+            "bind": "settings.style_id",
+            "label": "画面风格",
+            "section": "settings",
+            "component": "style",
+            "default": ""
+          },
+          {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          }
+        ]
+      },
+      "executor_handler": "executor.py:execute_grsai",
+      "provider_name": "GrisAI",
+      "name": "GPT-Image 六宫格分镜",
+      "model_id": "gpt-image",
+      "model_name": "GPT-Image"
+    }
+  },
+  "ui_models": [
+    {
+      "id": "gpt-image",
+      "name": "GPT-Image",
+      "category": "image",
+      "selector_order": 20,
+      "functions": [
+        {
+          "capability_id": "image.gpt_image.text_to_image",
+          "name": "文生图"
+        },
+        {
+          "capability_id": "image.gpt_image.image_to_image",
+          "name": "图生图"
+        },
+        {
+          "capability_id": "image.gpt_image.character",
+          "name": "角色版"
+        },
+        {
+          "capability_id": "image.gpt_image.scene",
+          "name": "场景图"
+        },
+        {
+          "capability_id": "image.gpt_image.storyboard_4",
+          "name": "四宫格分镜"
+        },
+        {
+          "capability_id": "image.gpt_image.storyboard_6",
+          "name": "六宫格分镜"
+        }
+      ]
+    }
+  ]
+}

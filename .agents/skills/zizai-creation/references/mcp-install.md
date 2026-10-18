@@ -42,13 +42,13 @@
 ## 3. 可直接交给 AI 的使用规则
 
 1. 先调用 `get_health`、`list_capabilities`、`get_capability`，根据实际返回选择能力、模式、素材角色、比例和分辨率，不猜参数。
-2. 项目隔离：调用 `create_project`，保存返回的项目 ID；后续 `submit_generation` 显式携带 `project_id`。创建项目不会自动切换项目。不带项目 ID 时沿用当前工作区项目，未选项目时使用“未归档项目”。这属于资源归属隔离，不是访问权限隔离。
+2. 项目归属：调用 `create_project`，保存返回的项目 ID；后续 `submit_generation` 显式携带 `project_id`。创建项目不会自动切换项目。不带项目 ID 时沿用当前项目。系统是单用户单安装，不支持 `workspace_id`。
 3. 参考素材先用 `upload_reference` 上传，再把返回的 `upload_id` 放入 `inputs`。不要传网关电脑本机路径。
 4. 统一生成入口为 `submit_generation`。`prompt_processing=direct` 直接生成；`compile` 检查并忠实转换描述词；`director` 进行完整导演协作。不要为了绕过编译或追问另起直提任务。
 5. 返回 `job_id` 后查询任务。返回协作会话时查询该会话；`needs_input` 时向同一个 `submit_generation` 传 `session_id`、`answer` 回答问题。
 6. `awaiting_confirmation` 时展示方案，取得用户明确批准后再用 `confirm_collaboration`，传会话 ID 和当前 `revision`。不要自动确认。`get_final_prompt` 可读取双语确认稿。
 7. 用 `get_job` 或 `wait_job` 等待；完成后调用 `get_job_artifacts` 获取所有文件。单次等待最多 120 秒，等待超时不代表失败，也不会取消任务。不要因此重复提交。
-8. 二采和其他后处理先调用 `get_job_actions`，只执行返回的 `action_id`，使用 `run_job_action` 后继续等待新任务。不要猜 H3 二采是否可用。`regenerate_job` 创建新版本，不删除原任务；修改双语执行稿时同时传匹配的中英文。
+8. 二采和其他后处理先调用 `list_plugin_actions(scope="resource", source_job_id=任务ID)`，只执行返回的 action_id，使用 `run_plugin_action` 传 source_job_id 和符合 input_schema 的 inputs，拿到 job_id 后再等新任务。不要猜 H3 二采是否可用。`regenerate_job` 创建新版本，不删除原任务；修改双语执行稿时同时传匹配的中英文。
 9. 不修改或删除预设，不删除项目或资源，不直接调用 ComfyUI，不传节点 ID、工作流路径或模型文件路径。取消任务需符合用户授权。
 
 ### 项目与素材示例
@@ -59,8 +59,7 @@
 {
   "name": "AI短片项目",
   "description": "独立保存这次短片的素材",
-  "content_summary": "山间武侠短片",
-  "workspace_id": "video-agent-a"
+  "content_summary": "山间武侠短片"
 }
 ```
 
@@ -80,7 +79,6 @@
 {
   "capability_id": "<get_capability核实的能力ID>",
   "project_id": "<创建项目返回的ID>",
-  "workspace_id": "video-agent-a",
   "prompt": "<用户的完整创作需求>",
   "prompt_processing": "compile",
   "inputs": [
@@ -103,13 +101,15 @@
 | 工具 | 必要参数 | 服务端模型 |
 | --- | --- | --- |
 | `list_voices` | 无 | 查询预设 ID、描述及 `ready` |
-| `speech_preset` | `preset_id`、`text` | CosyVoice3 |
-| `speech_describe` | `voice_description`、`text` | Qwen3-TTS |
-| `speech_clone` | `reference_upload_id`、`text` | CosyVoice3 |
+| `speech_preset` 动作 | `inputs.preset_id`、`inputs.text` | CosyVoice3 |
+| `speech_describe` 动作 | `inputs.voice_description`、`inputs.text` | Qwen3-TTS |
+| `speech_clone` 动作 | `inputs.reference_upload_id`、`inputs.text` | CosyVoice3 |
+
+上表的三个 `speech_*` 是插件动作，不是独立 MCP 工具；`list_voices` 仍是只读查询工具。先 `list_plugin_actions`，再 `run_plugin_action(action_id=动作ID, project_id=项目ID, inputs=对应参数)`。三个动作均支持 `inputs.speed`；以实时 `input_schema` 为准。
 
 三种生成都支持可选 `speed`，范围 0.5–2.0，默认 1.0。中文正常约 4–5 字/秒，可用 `字数 / (4.5 × speed)` 粗估时长，不能保证逐秒精确。预设必须 `ready=true`；克隆先上传获得授权的参考音频，参考长度不超过 30 秒，建议 3–10 秒。
 
-语音专用工具没有 `project_id` 参数。先用 `set_current_project` 携带项目 ID 和自己的 `workspace_id`，随后语音工具携带同一 `workspace_id`。不同 AI 使用不同工作区 ID，避免相互切换项目；默认工作区是 `mcp-default`。
+语音通过 `run_plugin_action` 支持显式传入 `project_id`，不传时使用当前项目。多个 AI 并行测试时都应显式传 `project_id`，避免依赖共享的当前项目。
 
 语音工具应直接返回生成任务，不应产生协作会话。没有任务 ID 或意外返回确认会话时报告原始响应并交人工处理，禁止兜底自动确认。
 
@@ -117,14 +117,19 @@
 
 | 用途 | 工具 |
 | --- | --- |
-| 项目，4个 | `list_projects`、`create_project`、`get_current_project`、`set_current_project` |
+| 项目，5个 | `list_projects`、`create_project`、`update_project`、`get_current_project`、`set_current_project` |
 | 服务与能力，3个 | `get_health`、`list_capabilities`、`get_capability` |
 | 只读预设，5个 | `list_voices`、`list_image_styles`、`list_music_styles`、`list_music_singers`、`list_music_voice_textures` |
 | 上传与生成，2个 | `upload_reference`、`submit_generation` |
-| 语音，3个 | `speech_preset`、`speech_describe`、`speech_clone` |
-| 协作，5个 | `create_director_collaboration`、`get_collaboration`、`send_collaboration_message`、`get_final_prompt`、`confirm_collaboration` |
-| 任务与结果，4个 | `get_job`、`wait_job`、`get_job_artifacts`、`cancel_job` |
-| 后处理与重生成，3个 | `get_job_actions`、`run_job_action`、`regenerate_job` |
+| 插件动作，3个 | `list_plugin_actions`、`get_plugin_action`、`run_plugin_action` |
+| 协作，7个 | `create_director_collaboration`、`get_collaboration`、`send_collaboration_message`、`get_final_prompt`、`confirm_collaboration`、`list_collaborations`、`cancel_collaboration` |
+| 任务与结果，6个 | `list_jobs`、`get_job`、`wait_job`、`get_job_artifacts`、`get_job_inputs`、`cancel_job` |
+| 重生成，1个 | `regenerate_job` |
+| 项目分类，3个 | `list_project_categories`、`create_project_category`、`update_project_category` |
+| 素材及公共资产，5个 | `list_library`、`list_public_assets`、`create_public_asset`、`update_public_asset`、`attach_public_asset_media` |
+| 插件发现，2个 | `list_plugins`、`list_plugin_presets` |
+
+共 42 个工具，实际参数以实时 `tools/list` 为准；不存在 `workspace_id`。项目删除、资源清空和系统密钥管理不对 AI 开放。
 
 新请求优先使用统一生成入口；`create_director_collaboration` 和 `send_collaboration_message` 为已有协作客户端保留，不必两条路径混用。
 

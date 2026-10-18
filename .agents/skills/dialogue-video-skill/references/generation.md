@@ -5,11 +5,11 @@
 主制片调用当前MCP，不使用旧 `zizai_video`、`zizai_job` 等专用参数。工具schema以实时tools/list为准。查询、上传和下载可直接调用MCP；本技能的生成、续答和确认必须经过guarded_mcp提交校验，不使用REST或直接MCP提交绕开它。
 
 1. `get_health` -> `list_capabilities` -> `get_capability`，发现图像、视频、分格、配乐和后处理能力。
-2. `create_project` 返回project_id但不切换项目。`submit_generation` 每次明确携带project_id；主制片为语音专用工具先 `set_current_project`，使用相同独立workspace_id。
+2. `create_project` 返回project_id但不切换项目。`submit_generation` 和 `run_plugin_action` 每次明确携带project_id，使用相同独立workspace_id。
 3. `upload_reference(filename, data_base64, media_type)` 上传实际文件，取得upload_id；保持图像与音频各自的输入顺序，按能力给role。
 4. `submit_generation` 提交能力ID、prompt、inputs、settings、project_id、workspace_id和幂等键。
 5. 返回job_id后 `get_job`/`wait_job`；完成后 `get_job_artifacts` 下载全部产物，用 `get_job_inputs(job_id)` 保存真实输入回执。实际upload_id和sha256必须与锁定参考一致，不能用请求副本冒充回执。
-6. `get_job_actions` 查已完成视频支持的后处理，按实际返回action_id调用 `run_job_action`，保存新任务ID，再等结果与复审。
+6. `list_plugin_actions(scope="resource", source_job_id=任务ID)` 查已完成视频支持的后处理，按实际返回action_id调用 `run_plugin_action`，传 source_job_id、project_id、inputs，保存新任务ID，再等结果与复审。
 
 输入格式为 `{"type":"image","upload_id":"返回ID","role":"能力支持的角色"}`，不是本机路径或旧data_url。分辨率、variant、时长来自能力发现；不把草稿分辨率标成最终高清。
 
@@ -41,11 +41,11 @@ H3执行稿使用subject_definitions、summary、retention_analysis、detailed_d
 
 背景音乐发现 `music.ace_step.background`，歌词为空，按故事写器乐配乐简报，节奏拍号用schema支持的值（如"4"而不是"4/4"）。不把唱歌模型当器乐配乐默认方案。
 
-旁白可用speech_preset（先查ready）、speech_describe或speech_clone（先上传声音）。speed为0.5–2.0，中文约4–5字/秒仅可粗估；参考音频不超过30秒，优先3–10秒。主持人H3音频参考使用固定文件，不替换为另一个预设。
+旁白先发现插件动作，再用 run_plugin_action 调用 speech_preset（先查ready）、speech_describe或speech_clone（先上传声音），文本与speed等放inputs，显式传project_id。speed为0.5–2.0，中文约4–5字/秒仅可粗估；参考音频不超过30秒，优先3–10秒。主持人H3音频参考使用固定文件，不替换为另一个预设。
 
 ## 二采政策
 
-常规草稿优先发现可用480P预览模式，通过QA后按config.refine决定是否二采。**长镜允许二采，不设8秒禁令，不硬编码15秒上限。** 需要源latent的H3操作以get_job_actions实际可用性为准；缺latent报告具体原因，不能改用其他放大器冒充H3二采。
+常规草稿优先发现可用480P预览模式，通过QA后按config.refine决定是否二采。**长镜允许二采，不设8秒禁令，不硬编码15秒上限。** 需要源latent的H3操作以list_plugin_actions带source_job_id的实际可用性为准；缺latent报告具体原因，不能改用其他放大器冒充H3二采。
 
 同一镜头可继续二采，记录完整父子任务链；不要无限循环，遵守用户授权的二采次数和预算。LTX2.5仅在能力可用且制作计划批准时使用；先确认声音保留策略。所有二采产物重新检查台词、音色、动作和音轨，丢对白不能放行。
 
@@ -61,7 +61,7 @@ operation支持drafts、references、grids、panels、compilations、continue、
 
 continue/confirm必须带--inputs，保存实际会话问题答复或确认参数。也可为普通生成传真实request.json，但仍校验定稿描述和参考绑定。脚本检查前置文件/QA后提交，并追加jobs.jsonl的intent和回执，主制片从台账收录request，不重新抄描述词。同键同请求恢复原回执，同键不同请求拒绝；缺回执时复用原幂等键查询/重试，不能新建重复转换。编译幂等在网关持久化且按workspace隔离。panels操作按网格只提交一次切割，四个shot记录同一请求、同一job回执及各自panel_index；不要四次重复切割。
 
-当前run_job_action只接受job_id/action_id，不能额外塞width、height或target参数；目标尺寸由公布的动作定义决定。没有合适尺寸动作时报告限制，不承诺当前MCP不能做到的自定义尺寸。
+run_plugin_action 的 inputs 遵循动作 input_schema；H3二采按返回声明提供 inputs.width、inputs.height 和可选 inputs.upscaler。不能额外塞未公布参数，也不能省略必需尺寸。生成动作拿到job_id才等待；即时动作读取result，不当作任务。
 
 ## 台账与恢复
 

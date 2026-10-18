@@ -16,6 +16,8 @@ The gateway converts ratios and named resolutions to legal workflow dimensions,
 binds assets, chooses the registered workflow and output nodes, and stores the
 exact task inputs. Do not reproduce those details in the client.
 
-Both local `storyboard_4` modes additionally require four nonempty strings in
-`settings.shots`. Roles describe reference-image meaning; shots describe the
-four output panels. They are separate requirements.
+For Qwen `storyboard_4`, put all four panel descriptions in `prompt`.
+Krea2 also accepts four nonempty strings in `settings.shots`, taking precedence
+over the story in `prompt`. Alternatively, use shared context followed by
+`Shot 1:` through `Shot 4:` on separate lines in one prompt. Roles describe
+reference-image meaning; shot descriptions define the four output panels.

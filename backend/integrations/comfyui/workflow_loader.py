@@ -4,24 +4,19 @@ import secrets
 import struct
 from pathlib import Path
 
-NODE_ALIASES = {
-    # PrimitiveNode was renamed in newer ComfyUI exports. These LTX templates
-    # use it exclusively as an integer width/height source.
-    'PrimitiveNode': 'PrimitiveInt',
-}
-
 # File pickers are populated from ComfyUI's input directory and can change
 # after object_info was cached. Upload success and ComfyUI prompt validation
 # are authoritative for these fields; cached combo choices are not.
 DYNAMIC_FILE_INPUTS = {
     ('LoadImage', 'image'),
     ('LoadAudio', 'audio'),
+    ('VHS_LoadVideo', 'video'),
     ('VHS_LoadVideoPath', 'video'),
 }
 
 
 def is_dynamic_file_input(class_type, input_name):
-    return (NODE_ALIASES.get(class_type, class_type), input_name) in DYNAMIC_FILE_INPUTS
+    return (class_type, input_name) in DYNAMIC_FILE_INPUTS
 
 
 def workflow_from_png(path):
@@ -48,7 +43,7 @@ def convert_workflow(source, info):
     links = {str(x[0]): [str(x[1]), x[2]] for x in source['links']}
     result = {}
     for node in source['nodes']:
-        kind = NODE_ALIASES.get(node.get('type'), node.get('type'))
+        kind = node.get('type')
         if node.get('mode', 0) != 0 or kind in {'Note', 'MarkdownNote', 'Label (rgthree)', 'AboutAuthorNode|Mie', 'Fast Groups Bypasser (rgthree)', 'Fast Groups Muter (rgthree)'}:
             continue
         if kind not in info:

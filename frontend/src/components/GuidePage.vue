@@ -1,17 +1,12 @@
 <script setup>
 import { Icon } from "@iconify/vue";
 import { ref } from "vue";
+import PluginDialog from './PluginDialog.vue';
 
 defineProps({ section: { type: String, default: "install" } });
 defineEmits(["home", "enter", "section"]);
 
-const contactDialog = ref(null);
-function closeContactOutside(event) {
-  const dialog = contactDialog.value;
-  if (event.target !== dialog) return;
-  const bounds = dialog.getBoundingClientRect();
-  if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
-}
+const contactOpen = ref(false);
 
 const sagePrompt = "帮我给 ComfyUI 安装 SageAttention。先找到 ComfyUI 实际使用的 Python，检查显卡、Python、PyTorch 和 CUDA 版本，再选择兼容的安装方式。不要装到系统 Python，也不要未经确认升级 PyTorch 或 CUDA。安装后用这个 Python 验证能导入 sageattention。遇到不兼容先告诉我原因和方案。我的 ComfyUI 路径是：【填你的路径】。";
 const installPrompt = "请帮我安装 videofree 的全自动视频技能。我已准备 dialogue-video-skill、openmontage 两个完整文件夹。先确认当前智能体的技能安装目录，再复制完整目录并保留所有资产、脚本和许可证。检查 Python 3.10+、FFmpeg 和 ffprobe，在你实际使用的 Python 环境安装 openmontage 的 requirements.txt。给主制片配置我的 videofree MCP：【填网关地址，例如 http://192.168.50.8:8765/mcp】。刷新技能发现，校验固定资产和媒体能力，只检查，不要直接生成或花费额度。";
@@ -27,24 +22,27 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
     <div class="guide-layout">
       <nav class="guide-nav" aria-label="教程板块">
         <span>开始使用</span>
-        <button type="button" :class="{ active: section !== 'skills' }" :aria-current="section !== 'skills' ? 'page' : undefined" @click="$emit('section', 'install')">01 安装部署</button>
-        <button type="button" :class="{ active: section === 'skills' }" :aria-current="section === 'skills' ? 'page' : undefined" @click="$emit('section', 'skills')">02 全自动技能包</button>
+        <button type="button" :class="{ active: section === 'install' }" :aria-current="section === 'install' ? 'page' : undefined" @click="$emit('section', 'install')">01 安装部署</button>
+        <button type="button" :class="{ active: section === 'mcp' }" :aria-current="section === 'mcp' ? 'page' : undefined" @click="$emit('section', 'mcp')">02 MCP 安装</button>
+        <button type="button" :class="{ active: section === 'skills' }" :aria-current="section === 'skills' ? 'page' : undefined" @click="$emit('section', 'skills')">03 全自动技能包</button>
+        <button type="button" :class="{ active: section === 'plugin' }" :aria-current="section === 'plugin' ? 'page' : undefined" @click="$emit('section', 'plugin')">04 插件开发</button>
         <a href="https://pan.quark.cn/s/306e83d5c2ce" target="_blank" rel="noopener noreferrer">配套网盘 <Icon icon="solar:arrow-right-up-linear" width="14" /></a>
         <small>提取码：5vM9</small>
       </nav>
       <main :key="section" class="guide-content">
-        <button class="installation-help" type="button" @click="contactDialog.showModal()">
+        <button class="installation-help" type="button" @click="contactOpen = true">
           <Icon icon="solar:chat-round-line-linear" width="22" />
           <span><strong>不会安装？联系我有偿安装</strong><small>点击查看微信二维码，咨询安装部署服务</small></span>
           <Icon icon="solar:arrow-right-linear" width="18" />
         </button>
-        <template v-if="section !== 'skills'">
+        <template v-if="section === 'install'">
           <div class="eyebrow">板块一 / 从零开始</div>
           <h1>安装部署</h1>
-          <p class="intro">先把 ComfyUI 跑起来，再让 videofree 连上它。这是两个程序，两边都要启动。</p>
+          <p class="intro">ComfyUI 负责执行模型和节点，VideoFree 负责把复杂工作流变成可选择的插件能力，并统一管理提示词、任务和项目素材。两边都要启动，但使用内置能力时不需要再导入工作流或手工连接节点。</p>
           <section class="step">
             <h2><b>1</b>准备 ComfyUI、模型和插件</h2>
             <p>打开<a href="https://pan.quark.cn/s/306e83d5c2ce" target="_blank" rel="noopener noreferrer">配套夸克网盘</a>，提取码 <strong>5vM9</strong>。里面提供项目需要的模型和插件。</p>
+            <p>VideoFree 插件已经保存工作流、参数界面和模型规则；ComfyUI 端只需要具备该插件声明的模型与节点。不要再把网上来源不明的工作流混进 VideoFree 插件目录。</p>
             <p><strong>已经有 ComfyUI：</strong>把网盘里的模型放到你自己的 <code>ComfyUI/models/</code>，插件放到 <code>ComfyUI/custom_nodes/</code>。按包里的目录结构放，不要把所有文件都倒进一个文件夹，也不要随便改模型名。</p>
             <p><strong>还没有 ComfyUI：</strong>如果网盘提供完整安装包，下载并解压到空间充足的目录，按包内说明启动；如果只有模型和插件，先从 <a href="https://www.comfy.org/download" target="_blank" rel="noopener noreferrer">ComfyUI 官网</a>安装，再复制配套文件。</p>
             <pre>你的 ComfyUI/
@@ -69,7 +67,7 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
           </section>
           <section class="step">
             <h2><b>5</b>启动 videofree，填连接地址</h2>
-            <p>解压完整 videofree 发布包，双击 <code>start_gateway.cmd</code>。打开首页，点右上角“进入工作台”，先创建并进入一个项目，再点左侧工具栏的齿轮设置按钮。</p>
+            <p>解压完整 VideoFree 发布包，双击 <code>启动VideoFree.cmd</code>。打开首页，点右上角“进入工作台”，先创建并进入一个项目，再点左侧工具栏的齿轮设置按钮。</p>
             <p>在 <strong>ComfyUI / 网关地址</strong>填上刚才记下的 ComfyUI 地址，然后保存。两边在同一台电脑就用 <code>127.0.0.1</code>；不在同一台电脑，要填 ComfyUI 那台电脑的局域网 IP。</p>
             <figure><a href="/contact/guide-settings.png" target="_blank" rel="noopener noreferrer"><img :src="'/contact/guide-settings.png'" alt="工作台设置窗口，ComfyUI 接口地址位于顶部" loading="lazy" /></a><figcaption>设置界面示例：顶部填写 ComfyUI 地址，底部保存。点击图片查看大图。</figcaption></figure>
             <p class="note">ComfyUI 地址和 videofree 地址不是一回事。8189 是这里的 ComfyUI 示例端口，8765 是 videofree 默认端口；不要把 8765 填进 ComfyUI 接口地址。</p>
@@ -88,10 +86,65 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
             <p><strong>显存不足：</strong>先减分辨率和时长。不是所有模型、尺寸都能在任意显卡运行。</p>
             <p><strong>局域网打不开：</strong>用电脑的实际 IP，不要用 <code>0.0.0.0</code>。跨电脑连接还要检查监听地址和 Windows 防火墙，别把免认证服务暴露到公网。</p>
           </section>
+          <button class="next-button" type="button" @click="$emit('section', 'mcp')">下一步：安装 MCP <Icon icon="solar:arrow-right-linear" width="18" /></button>
+        </template>
+        <template v-else-if="section === 'mcp'">
+          <div class="eyebrow">板块二 / 连接智能体</div>
+          <h1>MCP 安装</h1>
+          <p class="intro">MCP 是让支持 MCP 的 AI 直接调用 videofree 生成、查询和管理项目的连接方式。它随网关一起启动，不需要另外运行 MCP 服务。</p>
+          <section class="step">
+            <h2><b>1</b>确认网关地址</h2>
+            <p>先启动 videofree。默认端口是 <code>8765</code>，MCP 地址固定为 <code>/mcp</code>。</p>
+            <p><strong>同一台电脑：</strong>使用 <code>http://127.0.0.1:8765/mcp</code>。</p>
+            <p><strong>局域网其他电脑：</strong>把 <code>127.0.0.1</code> 换成运行网关电脑的实际局域网 IP，例如 <code>http://192.168.50.8:8765/mcp</code>。不要填写 <code>0.0.0.0</code>，也不要把地址改成 <code>/sse</code>。</p>
+          </section>
+          <section class="step">
+            <h2><b>2</b>粘贴客户端配置</h2>
+            <p>在 AI 客户端的 MCP 服务配置中新增一个服务，名称填 <code>videofree</code>，然后粘贴下面的 JSON。不同客户端可能要求把 <code>type</code> 改成 <code>streamable-http</code>，以客户端文档为准。</p>
+            <pre>{
+  "mcpServers": {
+    "videofree": {
+      "type": "http",
+      "url": "http://127.0.0.1:8765/mcp"
+    }
+  }
+}</pre>
+            <p>从另一台电脑连接时，只需要把 JSON 中的地址替换成网关电脑 IP：</p>
+            <pre>{
+  "mcpServers": {
+    "videofree": {
+      "type": "http",
+      "url": "http://192.168.50.8:8765/mcp"
+    }
+  }
+}</pre>
+          </section>
+          <section class="step">
+            <h2><b>3</b>需要令牌时加入认证</h2>
+            <p>默认令牌为空，不需要认证请求头。如果你在工作台设置中配置了网关访问令牌，在服务配置中加入 <code>headers</code>，并把示例值替换为真实令牌：</p>
+            <pre>{
+  "mcpServers": {
+    "videofree": {
+      "type": "http",
+      "url": "http://127.0.0.1:8765/mcp",
+      "headers": {
+        "X-API-Token": "你的令牌"
+      }
+    }
+  }
+}</pre>
+            <p class="note">不要把令牌写进公开提示词、截图或代码仓库。HTTP API 和 MCP 共用工作台中的同一个令牌。</p>
+          </section>
+          <section class="step">
+            <h2><b>4</b>刷新工具并验证连接</h2>
+            <p>保存配置后刷新 AI 客户端的 MCP 工具列表。先让 AI 调用 <code>get_health</code>、<code>list_capabilities</code> 和 <code>list_voices</code>，能正常返回结果才表示连接完成。</p>
+            <p>客户端必须支持 HTTP POST 的 JSON 响应。旧版只支持 SSE 的客户端不能直接使用这个地址；不要把 MCP 地址改成 <code>/sse</code>。</p>
+            <p>如果局域网连接失败，检查网关监听地址、防火墙和令牌是否一致。网关在线不代表 ComfyUI 已连接，生成失败时再检查工作台里的 ComfyUI 地址。</p>
+          </section>
           <button class="next-button" type="button" @click="$emit('section', 'skills')">下一步：安装全自动技能包 <Icon icon="solar:arrow-right-linear" width="18" /></button>
         </template>
-        <template v-else>
-          <div class="eyebrow">板块二 / 交给智能体制作</div>
+        <template v-else-if="section === 'skills'">
+          <div class="eyebrow">板块三 / 交给智能体制作</div>
           <h1>全自动技能包安装使用</h1>
           <p class="intro">技能包是给智能体看的制作说明和工具，不是双击就能出片的软件。先完成安装部署，再接上你常用的智能体。</p>
           <section class="step">
@@ -135,15 +188,39 @@ const example = "使用 dialogue-video-skill，制作一段机器人和青年男
           </section>
           <button class="next-button" type="button" @click="$emit('enter')">进入工作台 <Icon icon="solar:arrow-right-linear" width="18" /></button>
         </template>
+        <template v-else>
+          <div class="eyebrow">板块四 / 扩展自己的能力</div>
+          <h1>开发 VideoFree 插件</h1>
+          <p class="intro">把已经调通的 ComfyUI 工作流、模型规则、参数界面和固定资源放进一个插件目录，让工作台用户和外部 Agent 使用同一套稳定能力。</p>
+          <section class="step">
+            <h2><b>1</b>选择插件形态</h2>
+            <p><strong>生成插件</strong>封装图片、视频、语音或音乐工作流；<strong>动作插件</strong>提供二采、增强或业务操作；<strong>项目小插件</strong>在当前项目或分类中管理剧本、进度等数据；<strong>应用插件</strong>拥有完整独立页面，例如剪辑工具。</p>
+          </section>
+          <section class="step">
+            <h2><b>2</b>把全部专用内容留在插件内部</h2>
+            <p>插件的 <code>plugin.json</code> 是唯一注册入口。工作流、编译器、协作技能、Vue 页面、图标、预设和固定样本都必须随插件分发；不能把模型专用规则写进框架，也不能直接读取平台数据库或其他插件代码。</p>
+          </section>
+          <section class="step">
+            <h2><b>3</b>让开发智能体读取专用 Skill</h2>
+            <p>仓库已经提供 <code>.agents/skills/videofree-plugin-development/</code>。把完整目录安装到开发智能体的技能目录，然后发送：</p>
+            <blockquote>使用 $videofree-plugin-development，把我的 ComfyUI 工作流制作成 VideoFree 插件。先分析输入、输出、模型依赖和插件形态，再实现、测试并运行发布自检；所有模型专用代码和资源必须留在插件目录。</blockquote>
+          </section>
+          <section class="step">
+            <h2><b>4</b>按真实协议开发和验证</h2>
+            <p>详细字段、运行时接口和 UI 规则以仓库中的 <code>plugins/PLUGIN_DEVELOPMENT.md</code>、<code>docs/plugin-protocol.md</code>、<code>ARCHITECTURE.md</code> 为准。完成后至少验证插件扫描、相关测试、前端构建（有 UI 时）和 <code>启动VideoFree.cmd --check</code>。</p>
+            <p class="note">插件是可信本地代码，不是安全沙箱。安装或更新前先排空相关任务，更新后重启网关；插件不会自动替用户安装 ComfyUI 模型和节点。</p>
+          </section>
+          <button class="next-button" type="button" @click="$emit('enter')">进入工作台 <Icon icon="solar:arrow-right-linear" width="18" /></button>
+        </template>
       </main>
     </div>
-    <dialog ref="contactDialog" class="contact-dialog" aria-labelledby="contact-dialog-title" @click="closeContactOutside">
+    <PluginDialog :open="contactOpen" :framed="false" title="微信咨询 · 有偿安装" @close="contactOpen = false"><section class="contact-dialog">
       <header>
         <h2 id="contact-dialog-title">微信咨询 · 有偿安装</h2>
-        <button class="contact-close" type="button" aria-label="关闭微信二维码" title="关闭" @click="contactDialog.close()"><Icon icon="solar:close-circle-linear" width="24" /></button>
+        <button class="contact-close" type="button" aria-label="关闭微信二维码" title="关闭" @click="contactOpen = false"><Icon icon="solar:close-circle-linear" width="24" /></button>
       </header>
       <img src="/contact/weixin.png" alt="AI老林微信咨询二维码" />
-    </dialog>
+    </section></PluginDialog>
   </div>
 </template>
 
@@ -168,8 +245,7 @@ button { font: inherit; cursor: pointer; }
 .installation-help strong { display: block; color: #e7bf85; font-size: 15px; line-height: 1.7; }
 .installation-help small { display: block; margin-top: 3px; color: #b6beb8; font-size: 12px; line-height: 1.7; }
 .installation-help:hover { border-color: #e7bf85; }
-.contact-dialog { width: min(420px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 16px; border: 1px solid #303330; border-radius: 8px; background: #202420; color: #f0f3ef; }
-.contact-dialog::backdrop { background: rgb(0 0 0 / 75%); }
+.contact-dialog { box-sizing:border-box; width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 16px; border: 1px solid #303330; border-radius: 8px; background: #202420; color: #f0f3ef; }
 .contact-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .contact-dialog h2 { margin: 0; font-size: 17px; }
 .contact-close { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: inherit; }

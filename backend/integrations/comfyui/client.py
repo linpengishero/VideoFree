@@ -1,6 +1,10 @@
+from array import array
+import io
 import json
 from pathlib import Path
 import time
+import sys
+import wave
 from typing import Any, Iterable
 import urllib.error
 import urllib.parse
@@ -63,6 +67,25 @@ class ComfyUIClient:
         return definitions
 
     def upload_input(self, body: bytes, media_type: str, filename: str) -> str:
+        # ComfyUI's audio loader rejects uint8 WAV; preserve the original upload
+        # and convert only the copy sent to ComfyUI into signed PCM16.
+        if body[:4] == b"RIFF" and body[8:12] == b"WAVE":
+            try:
+                with wave.open(io.BytesIO(body), "rb") as source:
+                    if source.getsampwidth() == 1:
+                        samples = array("h", ((value - 128) << 8 for value in source.readframes(source.getnframes())))
+                        if sys.byteorder != "little":
+                            samples.byteswap()
+                        output = io.BytesIO()
+                        with wave.open(output, "wb") as target:
+                            target.setnchannels(source.getnchannels())
+                            target.setsampwidth(2)
+                            target.setframerate(source.getframerate())
+                            target.writeframes(samples.tobytes())
+                        body = output.getvalue()
+            except wave.Error:
+                # Other WAV codecs may be supported by ComfyUI's loader.
+                pass
         boundary = "----MediaGatewayBoundary"
         payload = (
             f'--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="{filename}"\r\n'

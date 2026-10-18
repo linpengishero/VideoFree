@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "ai-project-progress",
+  "version": "1.0.0",
+  "name": "AI制作进度",
+  "description": "按项目与分类记录和查看 AI 制作进展。",
+  "categories": [],
+  "capabilities": {},
+  "project_tool": {
+    "name": "AI进度",
+    "scope": "category",
+    "entry": "ui/Progress.vue",
+    "icon": "solar:chart-2-linear",
+    "requires_project_flags": ["ai_created"],
+    "order": 20
+  },
+  "actions": [
+    {
+      "id": "ai-project-progress.get",
+      "name": "查询 AI 制作进度",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "ai-project-progress.update",
+      "name": "更新 AI 制作进度",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "stage_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+          "stage_name": {"type": "string", "minLength": 1, "maxLength": 80},
+          "status": {"enum": ["pending", "running", "completed", "failed", "blocked", "skipped"]},
+          "note": {"type": "string", "maxLength": 2000},
+          "order": {"type": "integer", "minimum": 0, "maximum": 999}
+        },
+        "required": ["stage_id", "stage_name", "status"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

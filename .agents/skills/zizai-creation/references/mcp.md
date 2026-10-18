@@ -1,5 +1,18 @@
 # 局域网 MCP 接入
 
+## 插件能力发现
+
+`list_capabilities` 从已安装插件自动发现能力，支持 `kind` 和 `category` 过滤。
+`category` 是插件主分类 ID，区别于项目内素材的 `category_id`。
+按返回的 `processing_modes` 选择 `prompt_processing`，自定义值放入 `parameters`。
+用同一个 `submit_generation` 调用内置或第三方能力，无需每插件安装专门的 MCP。
+H3 的 direct、compile、director 也是普通注册模式；其他插件不必提供同名模式。
+等待追问并回答，确认稿必须按原有授权规则显式确认，不得默认自动确认。
+
+`list_public_assets(project_id)` 只读查询项目公共资产，返回资产名称、类型、详细描述和媒体文件URL。
+人物可包含角色板（role=character_sheet）和角色声音（role=character_voice，transcript为声音对应文字）；场景/道具为图片；配乐/音效为音频。按能力单独选择文件，下载后走正常上传引用流程，不自动同时附加角色板和声音。
+公共资产不是分类，不要把公共资产ID或 `@public` 当 `category_id` 提交；生成结果先归原分类，再由工作台显式归档。
+
 可单独转发给其他 AI 的安装与使用文件见 [mcp-install.md](mcp-install.md)。
 
 videofree 网关同时提供一个面向局域网 AI 的 MCP JSON-RPC 入口。原有
@@ -46,8 +59,19 @@ X-API-Token: <MEDIA_GATEWAY_TOKEN>
 先使用项目工具：
 
 1. `list_projects`：列出项目。
-2. `create_project`：创建并返回项目 ID，不自动切换；后续生成显式携带 `project_id`，或用 `set_current_project` 切换工作区项目。
-3. `get_current_project`：确认后续任务的归属。未选择时使用“未归档项目”。
+2. `create_project`：创建并返回项目 ID，不自动切换；后续生成显式携带 `project_id`，或用 `set_current_project` 切换当前项目。
+3. `get_current_project`：确认后续任务的归属。未选择项目时接口会明确报错，应先创建或选择项目。
+
+需要项目内分类时，使用 `list_project_categories` 并传入 `project_id` 获取分类 ID。
+生成、语音和导演任务可携带 `category_id`；省略或传空字符串均归入默认分类。
+二采、增强、分割等派生任务继承来源素材当前的分类，不跟随工作台选中的分类。
+AI 可通过 `create_project_category` 和 `update_project_category` 创建、改名分类；删除仍在工作台管理。
+
+管理与发现工具还包括 `list_jobs`、`list_library`、`list_collaborations`、
+`cancel_collaboration`、`update_project`、`create_public_asset`、
+`update_public_asset`、`attach_public_asset_media`、`list_plugins` 和 `list_plugin_presets`。
+任务与素材查询支持项目筛选。系统是单用户单安装，不声明或接受 `workspace_id`；并行测试应始终显式传 `project_id`。
+`list_plugin_presets(plugin_id)` 通用发现插件选项、音色与相关创作预设，无需为新插件增加专用工具。
 
 项目选定后使用创作工具：
 
@@ -69,8 +93,8 @@ X-API-Token: <MEDIA_GATEWAY_TOKEN>
 12. `get_job_artifacts`：获取最终媒体产物的网关下载 URL。
 13. `cancel_job`：取消仍在排队或运行中的任务。
 
-项目上下文按 `workspace_id` 隔离，选择一次后，后续导演
-协作、直接生成和确认生成都自动归入该项目。任务提交后会固定项目归属，二采、
+当前项目由整个网关实例共享；导演协作、直接生成和确认生成应显式传入项目 ID，
+避免依赖可被其他调用切换的当前项目。任务提交后会固定项目归属，二采、
 重生成和后处理继承父任务项目。最终文件进入网关自己的
 `data/projects/<项目>/images|videos|audio|music`，不依赖 ComfyUI 输出目录同步。
 
@@ -102,16 +126,15 @@ list_capabilities
 python scripts/zizai_api.py upload C:\media\reference.png
 ```
 
-然后在 `create_director_collaboration` 的 `references` 中传入对应素材对象，
+然后在 `create_director_collaboration` 的 `inputs` 中传入上传回执的素材对象，
 例如：
 
 ```json
 [
   {
-    "kind": "image",
-    "name": "character.png",
-    "media_type": "image/png",
-    "data_url": "upload:<upload_id>"
+    "type": "image",
+    "upload_id": "<upload_id>",
+    "role": "reference"
   }
 ]
 ```
@@ -123,22 +146,21 @@ python scripts/zizai_api.py upload C:\media\reference.png
 - 不向外部 AI 暴露 ComfyUI 地址、节点 ID、工作流文件或模型路径。
 - 不把 `C:\`、`E:\` 等本机路径发送给 MCP 客户端。
 - token 应只保存在客户端的安全配置中，不写进公开提示词或项目代码。
-- 不提供删除项目、删除资源、写入或删除任何预设的工具；预设由工作台管理。
+- 不提供删除项目、删除资源、写入或删除任何预设的工具；音色预设归插件管理。
 - 生成与后处理须符合用户的创作授权；不自动确认导演协作稿。
 
 ## 与最小 AI 接口同步的工具
 
 - `submit_generation`：参数沿用 `/api/v2/generations`，支持 `prompt_processing=direct|compile|director`、`project_id`、`session_id`、`answer`、`settings` 与 `inputs`。返回生成任务或协作会话；`needs_input` 时用同一工具携带 `session_id`、`answer` 回答，不另起直提任务。
 - `list_voices`：只读查询音色描述及 `ready`，只有就绪音色才可使用。
-- `speech_preset`：`preset_id`、`text`、可选 `speed`。
-- `speech_describe`：`voice_description`、`text`、可选 `speed`。
-- `speech_clone`：`reference_upload_id`、`text`、可选 `speed`；先用 `upload_reference` 上传音频。
+- `list_plugin_actions` / `get_plugin_action`：查询插件明确允许 AI 使用的动作及 input_schema；按 scope、source_job_id 筛选。外部素材可按 source_kind 预查；include_unavailable=true 可查看 available/reason。以服务端筛选为准，不自行假设所有视频支持 H3 二采。
+- `run_plugin_action`：传 action_id、可选 project_id/source_job_id，以及符合 schema 的 inputs；外部素材上传后传 source_upload_id（与 source_job_id 互斥），可指定 category_id。不为每个插件单独注册工具，提交时会重新校验源素材及辅助文件。
+- 声音动作 `speech_preset` 的 inputs 为 preset_id、text、可选 speed；`speech_describe` 为 voice_description、text、可选 speed；`speech_clone` 为 reference_upload_id、text、可选 speed，先用 upload_reference 上传音频。
 - 三种语音操作直接返回任务，不应进入协作确认流程。异常会话返回需交人工，不允许自动确认。`speed` 为 0.5–2.0；普通中文约4–5字/秒，估算时长为字数除以 `4.5 × speed`，不保证精确时长。
 - `get_health`、`list_image_styles`、`list_music_styles`、`list_music_singers`、`list_music_voice_textures`：状态与预设只读发现。
-- `get_job_actions`、`run_job_action`：查询并执行现有任务支持的后处理。
+- 后处理使用相同动作工具，以 scope=resource、source_job_id 查询，只执行实际公布的动作。inputs.parameters 传插件参数；二采通过 inputs.width/height/upscaler 传规格。新任务继承源项目和分类；没有已安装操作时列表为空。生成动作返回 job_id；即时动作返回 status=completed 和 result，不要无条件等待任务。
 - `regenerate_job`：保留原任务并生成新版本；修改双语执行稿时同时传中英文。
 - `get_job` / `wait_job`：失败时返回 `error_info`，含错误码、缺失项、处理建议与原始错误。
 
-生成任务携带 `project_id` 可显式隔离项目；语音专用接口沿用当前工作区项目，
-可先用 `set_current_project` 设置对应 `workspace_id`，随后语音工具携带同一工作区 ID。
+生成任务和插件动作均可携带 `project_id` 明确项目归属；不传时资源动作继承源项目，其他动作沿用当前项目。
 接口不支持的额外字段不会被解释成模型或工作流参数。

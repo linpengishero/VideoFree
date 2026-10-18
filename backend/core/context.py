@@ -4,20 +4,26 @@ from dataclasses import dataclass, field
 import http.client
 from pathlib import Path
 import threading
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from ..persistence import Database
 from .config import EnvironmentConfig, ProjectPaths
+
+if TYPE_CHECKING:
+    from ..persistence import Database
 
 
 @dataclass(slots=True)
 class ApplicationContext:
     paths: ProjectPaths
     config: EnvironmentConfig
-    db: Database
+    db: "Database"
     comfyui_url: str
     comfyui_output_dir: Path
+    comfyui_output_locations: dict[str, tuple[float, Path | None]] = field(default_factory=dict)
+    plugin_catalogs: dict[str, Any] = field(default_factory=dict)
+    plugin_catalog_lock: threading.RLock = field(default_factory=threading.RLock)
     jobs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    executing_jobs: set[str] = field(default_factory=set)
     agent_sessions: dict[str, dict[str, Any]] = field(default_factory=dict)
     agent_progress: dict[str, dict[str, Any]] = field(default_factory=dict)
     active_agent_connections: dict[str, http.client.HTTPConnection] = field(default_factory=dict)
@@ -29,28 +35,16 @@ class ApplicationContext:
     agent_queue: asyncio.Queue[str] | None = None
     worker_tasks: list[asyncio.Task] = field(default_factory=list)
     direct_generation_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
+    application_tasks: dict[tuple, asyncio.Task] = field(default_factory=dict)
+    application_semaphores: dict[str, asyncio.Semaphore] = field(default_factory=dict)
     worker_supervisor_task: asyncio.Task | None = None
     generation_worker_failures: int = 0
     agent_worker_tasks: list[asyncio.Task] = field(default_factory=list)
     submission_lock: asyncio.Lock | None = None
-    state_lock: threading.Lock = field(default_factory=threading.Lock)
+    generation_idempotency_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    collaboration_submission_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    state_lock: threading.RLock = field(default_factory=threading.RLock)
     library_lock: threading.Lock = field(default_factory=threading.Lock)
     current_collaboration_id: contextvars.ContextVar[str | None] = field(
         default_factory=lambda: contextvars.ContextVar("current_collaboration_id", default=None)
     )
-    current_workspace_id: contextvars.ContextVar[str] = field(
-        default_factory=lambda: contextvars.ContextVar("current_workspace_id", default="studio-default")
-    )
-
-    @classmethod
-    def create(cls, root: Path) -> "ApplicationContext":
-        paths = ProjectPaths.from_root(root)
-        paths.ensure_runtime_directories()
-        config = EnvironmentConfig.load(paths)
-        return cls(
-            paths=paths,
-            config=config,
-            db=Database(paths.data / "media_gateway.db"),
-            comfyui_url=config.default_comfyui_url,
-            comfyui_output_dir=config.default_comfyui_output_dir,
-        )

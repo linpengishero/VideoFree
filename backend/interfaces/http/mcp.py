@@ -10,6 +10,7 @@ import base64
 import asyncio
 import mimetypes
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from typing import Any
@@ -19,11 +20,10 @@ from fastapi.responses import JSONResponse
 
 from ...bootstrap import context
 from ...modules.generation.service import workflow_registry
-from ...modules.shared.schemas import AgentChatRequest
-from .v1_collaboration import enqueue_agent_collaboration
+from ...modules.settings import SettingsService
 from .v2_capabilities import capability as public_capability
 from .dependencies import auth
-from .v2_schemas import CreateRequest, PresetSpeechRequest, DescribedSpeechRequest, ClonedSpeechRequest, RegenerateRequest
+from .v2_schemas import CreateRequest, RegenerateRequest
 
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
@@ -47,18 +47,18 @@ def _local_api_url(path: str) -> str:
     return f"http://127.0.0.1:{context.config.port}{path}"
 
 
-def _local_api_request(method: str, path: str, body: bytes | None = None, content_type: str = "application/json", idempotency_key: str = "", workspace_id: str = "mcp-default") -> Any:
+def _local_api_request(method: str, path: str, body: bytes | None = None, content_type: str = "application/json", idempotency_key: str = "") -> Any:
     headers = {"Accept": "application/json"}
-    if context.config.api_token:
-        headers["X-API-Token"] = context.config.api_token
+    token = SettingsService.access_token(context)
+    if token:
+        headers["X-API-Token"] = token
     if body is not None:
         headers["Content-Type"] = content_type
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
-    headers["X-Workspace-Id"] = workspace_id or "mcp-default"
     request = urllib.request.Request(_local_api_url(path), data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=135 if "/wait?" in path else 30) as response:
+        with urllib.request.urlopen(request, timeout=45 if "/wait?" in path else 30) as response:
             raw = response.read()
             return json.loads(raw.decode("utf-8")) if raw else {}
     except urllib.error.HTTPError as exc:
@@ -66,26 +66,26 @@ def _local_api_request(method: str, path: str, body: bytes | None = None, conten
         raise ValueError(f"网关请求失败 ({exc.code}): {detail}") from exc
 
 
-async def _local_api(method: str, path: str, value: Any = None, workspace_id: str = "mcp-default") -> Any:
+async def _local_api(method: str, path: str, value: Any = None) -> Any:
     body = json.dumps(value, ensure_ascii=False).encode("utf-8") if value is not None else None
-    return await asyncio.to_thread(_local_api_request, method, path, body, "application/json", "", workspace_id)
+    return await asyncio.to_thread(_local_api_request, method, path, body)
 
 
 def _registry() -> dict[str, dict[str, Any]]:
-    workflows_path = context.paths.workflows
+    workflows_path = context.paths.plugins
     values = {}
     for key, value in workflow_registry().items():
         if value.get("executor", "comfyui") != "comfyui" or (workflows_path / value.get("file", "")).is_file():
             values[key] = value
-    for hidden in ("image.text_to_image", "image.image_to_image", "image.character", "tts.clone"):
-        values.pop(hidden, None)
     return values
 
 
-def _capabilities(kind: str | None = None) -> list[dict[str, Any]]:
+def _capabilities(kind: str | None = None, category: str | None = None) -> list[dict[str, Any]]:
     result = []
     for key, config in _registry().items():
         if kind and config.get("kind") != kind:
+            continue
+        if category and config.get("category") != category:
             continue
         result.append(public_capability(key, config))
     return result
@@ -101,22 +101,22 @@ def _tool_definitions() -> list[dict[str, Any]]:
         {
             "name": "create_project",
             "description": "创建项目并返回 project_id。后续生成请显式携带该 project_id；不会改变工作台当前项目。",
-            "inputSchema": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}, "description": {"type": "string"}, "content_summary": {"type": "string"}, "workspace_id": {"type": "string"}}},
+            "inputSchema": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}, "description": {"type": "string"}, "content_summary": {"type": "string"}}},
         },
         {
             "name": "get_current_project",
-            "description": "读取当前 MCP 工作区选择的项目。",
-            "inputSchema": {"type": "object", "properties": {"workspace_id": {"type": "string"}}},
+            "description": "读取当前网关选择的项目。",
+            "inputSchema": {"type": "object", "properties": {}},
         },
         {
             "name": "set_current_project",
-            "description": "切换当前 MCP 工作区项目；后续导演协作与生成自动进入该项目。",
-            "inputSchema": {"type": "object", "required": ["project_id"], "properties": {"project_id": {"type": "string"}, "workspace_id": {"type": "string"}}},
+            "description": "切换当前项目；后续导演协作与生成自动进入该项目。",
+            "inputSchema": {"type": "object", "required": ["project_id"], "properties": {"project_id": {"type": "string"}}},
         },
         {
             "name": "list_capabilities",
             "description": "发现网关当前支持的媒体生成和导演协作能力。",
-            "inputSchema": {"type": "object", "properties": {"kind": {"type": "string", "enum": ["image", "video", "audio", "tts", "music"]}}},
+            "inputSchema": {"type": "object", "properties": {"kind": {"type": "string", "enum": ["image", "video", "audio", "tts", "music"]}, "category": {"type": "string", "description": "可选的插件主分类 ID；不传则发现全部能力"}}},
         },
         {
             "name": "get_capability",
@@ -131,8 +131,9 @@ def _tool_definitions() -> list[dict[str, Any]]:
                 "properties": {
                     "capability_id": {"type": "string"}, "model_id": {"type": "string"}, "mode_id": {"type": "string"},
                     "message": {"type": "string"}, "collaboration_mode": {"type": "string", "enum": ["quick", "director"]},
-                    "references": {"type": "array", "items": {"type": "object"}}, "settings": {"type": "object"},
-                    "project_id": {"type": "string", "description": "可选；省略时使用当前工作区激活项目"},
+                    "inputs": {"type": "array", "items": {"type": "object", "required": ["type", "upload_id"], "properties": {"type": {"type": "string", "enum": ["image", "video", "audio"]}, "upload_id": {"type": "string"}, "role": {"type": "string"}}}}, "settings": {"type": "object"},
+                    "project_id": {"type": "string", "description": "可选；省略时使用当前激活项目"},
+                    "category_id": {"type": "string", "description": "可选；省略时使用默认分类"},
                 },
             },
         },
@@ -164,7 +165,7 @@ def _tool_definitions() -> list[dict[str, Any]]:
         {
             "name": "submit_generation",
             "description": "提交已确认的图片、视频、音频或语音生成任务，返回 job_id；会产生实际生成任务。",
-            "inputSchema": {"type": "object", "required": ["capability_id", "prompt"], "properties": {"capability_id": {"type": "string"}, "prompt": {"type": "string"}, "lyrics": {"type": "string"}, "inputs": {"type": "array", "items": {"type": "object"}}, "settings": {"type": "object"}, "project_id": {"type": "string", "description": "可选；省略时使用当前工作区激活项目"}, "idempotency_key": {"type": "string"}}},
+            "inputSchema": {"type": "object", "required": ["capability_id", "prompt"], "properties": {"capability_id": {"type": "string"}, "prompt": {"type": "string"}, "lyrics": {"type": "string"}, "inputs": {"type": "array", "items": {"type": "object"}}, "settings": {"type": "object"}, "project_id": {"type": "string", "description": "可选；省略时使用当前激活项目"}, "idempotency_key": {"type": "string"}}},
         },
         {
             "name": "get_job",
@@ -173,8 +174,8 @@ def _tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "wait_job",
-            "description": "等待任务一段时间并返回最新状态；超时只表示仍在运行，不会取消任务。",
-            "inputSchema": {"type": "object", "required": ["job_id"], "properties": {"job_id": {"type": "string"}, "timeout": {"type": "integer", "minimum": 1, "maximum": 120}}},
+            "description": "单次最多等待30秒并返回最新状态；仍在运行时可再次等待或查询，不会取消任务。",
+            "inputSchema": {"type": "object", "required": ["job_id"], "properties": {"job_id": {"type": "string"}, "timeout": {"type": "integer", "minimum": 1, "maximum": 30}}},
         },
         {
             "name": "get_job_artifacts",
@@ -193,21 +194,23 @@ def _tool_definitions() -> list[dict[str, Any]]:
         },
     ]
     submission = next(tool for tool in tools if tool["name"] == "submit_generation")
-    submission["description"] = "统一生成入口：direct 直接提交，compile 转换描述词，director 导演协作；追问用 session_id 和 answer 回答。不自动确认。"
+    tools.append({
+        "name": "list_project_categories",
+        "description": "只读查询项目分类；生成时可传 category_id，省略则归默认分类。",
+        "inputSchema": {"type": "object", "required": ["project_id"], "properties": {"project_id": {"type": "string"}}},
+    })
+    tools.append({
+        "name": "list_public_assets",
+        "description": "只读查询项目公共资产档案：人物角色板、场景、道具、配乐、音效；包含名称、文字设定和可下载引用的媒体URL。按需选择参考，不要把全部文件提交。",
+        "inputSchema": {"type": "object", "required": ["project_id"], "properties": {"project_id": {"type": "string"}}},
+    })
+    submission["description"] = "统一插件生成入口：先 list_capabilities 查询 processing_modes 和 parameters，按注册的模式 ID 提交；direct 直接生成，其余模式由插件处理。追问用 session_id 和 answer 回答，不自动确认。"
     submission["inputSchema"] = CreateRequest.model_json_schema()
-    submission["inputSchema"]["properties"].update({"workspace_id": {"type": "string"}, "idempotency_key": {"type": "string"}})
-    for name, description, model in (
-        ("speech_preset", "选择 ready=true 的预设音色生成语音，服务端使用 CosyVoice3；直接返回生成任务。", PresetSpeechRequest),
-        ("speech_describe", "按声音描述生成语音，服务端使用 Qwen3-TTS；直接返回生成任务。", DescribedSpeechRequest),
-        ("speech_clone", "用已上传的参考音频克隆音色，服务端使用 CosyVoice3；直接返回生成任务。", ClonedSpeechRequest),
-        ("regenerate_job", "重新生成任务，保留原始任务；修改双语稿时必须同时传入中英文。", RegenerateRequest),
-    ):
-        schema = model.model_json_schema()
-        schema["properties"]["workspace_id"] = {"type": "string"}
-        if name == "regenerate_job":
-            schema["properties"]["job_id"] = {"type": "string"}
-            schema["required"] = ["job_id"]
-        tools.append({"name": name, "description": description + " 语速 speed=0.5–2.0；普通中文约4–5字/秒。" if name.startswith("speech_") else description, "inputSchema": schema})
+    submission["inputSchema"]["properties"].update({"idempotency_key": {"type": "string"}})
+    regenerate_schema = RegenerateRequest.model_json_schema()
+    regenerate_schema["properties"].update({"job_id": {"type": "string"}})
+    regenerate_schema["required"] = ["job_id"]
+    tools.append({"name": "regenerate_job", "description": "重新生成任务，保留原始任务；修改双语稿时必须同时传入中英文。", "inputSchema": regenerate_schema})
     for name, description in (
         ("get_health", "查询网关与生成服务状态。"),
         ("list_voices", "只读查询预设音色与 ready 状态，不允许修改预设。"),
@@ -218,41 +221,114 @@ def _tool_definitions() -> list[dict[str, Any]]:
     ):
         tools.append({"name": name, "description": description, "inputSchema": {"type": "object", "properties": {}}})
     tools.extend([
-        {"name": "get_job_actions", "description": "查询任务支持的后处理操作。", "inputSchema": {"type": "object", "required": ["job_id"], "properties": {"job_id": {"type": "string"}}}},
-        {"name": "run_job_action", "description": "执行任务已公布的后处理操作，返回新任务。", "inputSchema": {"type": "object", "required": ["job_id", "action_id"], "properties": {"job_id": {"type": "string"}, "action_id": {"type": "string"}}}},
+        {"name": "list_plugin_actions", "description": "发现插件允许 AI 调用的动作及其输入 Schema。可按动作范围或源任务过滤。", "inputSchema": {"type": "object", "properties": {"scope": {"type": "string", "enum": ["resource", "workspace", "automation"]}, "source_job_id": {"type": "string"}, "source_kind": {"type": "string", "enum": ["image", "video", "tts", "music", "audio"]}, "include_unavailable": {"type": "boolean"}}}},
+        {"name": "get_plugin_action", "description": "读取一个插件动作的完整声明和输入 Schema。", "inputSchema": {"type": "object", "required": ["action_id"], "properties": {"action_id": {"type": "string"}}}},
+        {"name": "run_plugin_action", "description": "执行插件声明且允许自动化调用的动作；先通过 list_plugin_actions 获取 action_id 和 inputs。", "inputSchema": {"type": "object", "required": ["action_id"], "properties": {"action_id": {"type": "string"}, "source_job_id": {"type": "string"}, "source_upload_id": {"type": "string", "pattern": "^[a-fA-F0-9]{32}$"}, "project_id": {"type": "string"}, "category_id": {"type": "string"}, "inputs": {"type": "object"}}}},
     ])
+    string = {"type": "string"}
+    page = {"limit": {"type": "integer", "minimum": 1, "maximum": 100}, "offset": {"type": "integer", "minimum": 0}}
+    for name, description, required, properties in (
+        ("list_jobs", "查询生成任务，支持项目、状态、类型及分页。", [], {**page, "project_id": string, "status": string, "kind": string}),
+        ("list_library", "查询本地项目素材库，支持分类、类型及分页。", [], {**page, "project_id": string, "category_id": string, "kind": string, "sort": {"type": "string", "enum": ["new", "old"]}}),
+        ("list_collaborations", "查询项目全部协作会话；active=true 时仅返回进行中的会话。", ["project_id"], {"project_id": string, "active": {"type": "boolean"}}),
+        ("cancel_collaboration", "取消排队、运行或等待输入的协作。", ["collaboration_id"], {"collaboration_id": string}),
+        ("create_project_category", "创建项目分类。", ["project_id", "name"], {"project_id": string, "name": string}),
+        ("update_project_category", "修改项目分类名称。", ["project_id", "category_id", "name"], {"project_id": string, "category_id": string, "name": string}),
+        ("create_public_asset", "创建公共资产档案。", ["project_id", "name", "kind"], {"project_id": string, "name": string, "kind": string, "description": string, "voice_text": string}),
+        ("update_public_asset", "修改公共资产档案。", ["project_id", "asset_id", "name", "kind"], {"project_id": string, "asset_id": string, "name": string, "kind": string, "description": string, "voice_text": string}),
+        ("attach_public_asset_media", "为项目资产绑定素材。source 使用 get_job_artifacts/list_library 返回的当前项目 project_path，或 upload_reference 返回的 upload:<upload_id>；不能直接传 job_id。", ["project_id", "asset_id", "source"], {"project_id": string, "asset_id": string, "source": string, "role": string, "transcript": string}),
+        ("update_project", "修改项目名称、简介与内容摘要。", ["project_id", "name"], {"project_id": string, "name": string, "description": string, "content_summary": string}),
+        ("list_plugins", "查询插件清单、注册状态及错误。", [], {}),
+        ("list_plugin_presets", "查询插件声明的预设选项及音色，无需插件专用工具。", ["plugin_id"], {"plugin_id": string}),
+    ):
+        tools.append({"name": name, "description": description, "inputSchema": {
+            "type": "object", "required": required, "properties": properties}})
     return tools
 
 
 async def _tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    workspace_id = str(arguments.get("workspace_id") or "mcp-default")
+    if name in {"list_jobs", "list_library", "list_collaborations"}:
+        fields = {"list_jobs": ("project_id", "kind", "status", "limit", "offset"),
+                  "list_library": ("project_id", "kind", "category_id", "limit", "offset", "sort"),
+                  "list_collaborations": ("project_id", "active")}[name]
+        query = urllib.parse.urlencode({key: str(arguments[key]).lower() if isinstance(arguments[key], bool) else arguments[key]
+                                       for key in fields if arguments.get(key) is not None})
+        path = {"list_jobs": "jobs", "list_library": "library", "list_collaborations": "collaborations"}[name]
+        return _text(await _local_api("GET", f"/api/v2/{path}?{query}"))
+    if name == "list_plugins":
+        return _text(await _local_api("GET", "/api/v2/plugins"))
+    if name == "list_plugin_presets":
+        plugin_id = urllib.parse.quote(str(arguments["plugin_id"]), safe="")
+        return _text(await _local_api("GET", f"/api/v2/plugins/{plugin_id}/presets"))
+    if name == "cancel_collaboration":
+        identifier = urllib.parse.quote(str(arguments["collaboration_id"]), safe="")
+        return _text(await _local_api("POST", f"/api/v2/collaborations/{identifier}/cancel"))
+    writes = {
+        "create_project_category": ("POST", "/v1/projects/{project_id}/categories", ("name",)),
+        "update_project_category": ("PUT", "/v1/projects/{project_id}/categories/{category_id}", ("name",)),
+        "create_public_asset": ("POST", "/v1/projects/{project_id}/public-assets", ("name", "kind", "description", "voice_text")),
+        "update_public_asset": ("PUT", "/v1/projects/{project_id}/public-assets/{asset_id}", ("name", "kind", "description", "voice_text")),
+        "attach_public_asset_media": ("POST", "/v1/projects/{project_id}/public-assets/{asset_id}/media", ("source", "role", "transcript")),
+        "update_project": ("PUT", "/v1/projects/{project_id}", ("name", "description", "content_summary")),
+    }
+    if name in writes:
+        method, template, fields = writes[name]
+        path = template.format(**{key: urllib.parse.quote(str(arguments[key]), safe="")
+                                  for key in ("project_id", "category_id", "asset_id") if key in arguments})
+        payload = {key: arguments[key] for key in fields if key in arguments}
+        return _text(await _local_api(method, path, payload))
+    if name == "list_public_assets":
+        project_id = urllib.parse.quote(str(arguments["project_id"]), safe="")
+        return _text(await _local_api("GET", f"/v1/projects/{project_id}/public-assets"))
+    if name == "list_project_categories":
+        project_id = urllib.parse.quote(str(arguments["project_id"]), safe="")
+        return _text(await _local_api("GET", f"/api/v2/projects/{project_id}/categories"))
     read_paths = {"get_health": "/health", "list_voices": "/voices", "list_image_styles": "/image/styles", "list_music_styles": "/music/styles", "list_music_singers": "/music/singers", "list_music_voice_textures": "/music/voice-textures"}
     if name in read_paths:
-        return _text(await _local_api("GET", "/api/v2" + read_paths[name], workspace_id=workspace_id))
-    speech = {"speech_preset": ("preset", PresetSpeechRequest), "speech_describe": ("describe", DescribedSpeechRequest), "speech_clone": ("clone", ClonedSpeechRequest)}
-    if name in speech:
-        endpoint, model = speech[name]
-        payload = model.model_validate(arguments).model_dump(mode="json")
-        return _text(await _local_api("POST", f"/api/v2/tts/{endpoint}", payload, workspace_id))
+        return _text(await _local_api("GET", "/api/v2" + read_paths[name]))
     if name == "regenerate_job":
         payload = RegenerateRequest.model_validate(arguments).model_dump(mode="json", exclude_unset=True)
-        return _text(await _local_api("POST", f"/api/v2/jobs/{arguments['job_id']}/regenerate", payload, workspace_id))
-    if name in {"get_job_actions", "run_job_action"}:
-        path = f"/api/v2/jobs/{arguments['job_id']}/actions"
-        if name == "run_job_action":
-            path += f"/{arguments['action_id']}"
-        return _text(await _local_api("POST" if name == "run_job_action" else "GET", path, workspace_id=workspace_id))
+        return _text(await _local_api("POST", f"/api/v2/jobs/{arguments['job_id']}/regenerate", payload))
+    if name == "list_plugin_actions":
+        query = urllib.parse.urlencode({
+            "scope": str(arguments.get("scope") or ""),
+            "source_job_id": str(arguments.get("source_job_id") or ""),
+            "source_kind": str(arguments.get("source_kind") or ""),
+            "include_unavailable": str(bool(arguments.get("include_unavailable", False))).lower(),
+            "automation": "true",
+        })
+        return _text(await _local_api("GET", f"/api/v2/plugin-actions?{query}"))
+    if name == "get_plugin_action":
+        action_id = urllib.parse.quote(str(arguments["action_id"]), safe="")
+        action = await _local_api("GET", f"/api/v2/plugin-actions/{action_id}")
+        if not action.get("automation", False):
+            raise ValueError("该插件动作不允许 AI 调用")
+        return _text(action)
+    if name == "run_plugin_action":
+        action_id = urllib.parse.quote(str(arguments["action_id"]), safe="")
+        action = await _local_api("GET", f"/api/v2/plugin-actions/{action_id}")
+        if not action.get("automation", False):
+            raise ValueError("该插件动作不允许 AI 调用")
+        payload = {
+            "source_job_id": arguments.get("source_job_id"),
+            "project_id": arguments.get("project_id"),
+            "inputs": arguments.get("inputs") or {},
+        }
+        for key in ("source_upload_id", "category_id"):
+            if key in arguments:
+                payload[key] = arguments[key]
+        return _text(await _local_api("POST", f"/api/v2/plugin-actions/{action_id}/execute", payload))
     if name == "list_projects":
-        return _text(await _local_api("GET", "/api/v2/projects", workspace_id=workspace_id))
+        return _text(await _local_api("GET", "/api/v2/projects"))
     if name == "create_project":
-        payload = {"name": str(arguments.get("name", "")), "description": str(arguments.get("description", "")), "content_summary": str(arguments.get("content_summary", ""))}
-        return _text(await _local_api("POST", "/api/v2/projects", payload, workspace_id))
+        payload = {"name": str(arguments.get("name", "")), "description": str(arguments.get("description", "")), "content_summary": str(arguments.get("content_summary", "")), "ai_created": True}
+        return _text(await _local_api("POST", "/api/v2/projects", payload))
     if name == "get_current_project":
-        return _text(await _local_api("GET", "/api/v2/projects/current", workspace_id=workspace_id))
+        return _text(await _local_api("GET", "/api/v2/projects/current"))
     if name == "set_current_project":
-        return _text(await _local_api("PUT", "/api/v2/projects/current", {"project_id": str(arguments.get("project_id", ""))}, workspace_id))
+        return _text(await _local_api("PUT", "/api/v2/projects/current", {"project_id": str(arguments.get("project_id", ""))}))
     if name == "list_capabilities":
-        return _text(_capabilities(arguments.get("kind")))
+        return _text(_capabilities(arguments.get("kind"), arguments.get("category")))
     if name == "get_capability":
         capability_id = str(arguments.get("capability_id", ""))
         config = _registry().get(capability_id)
@@ -261,7 +337,7 @@ async def _tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         return _text(public_capability(capability_id, config))
     if name == "get_collaboration" or name == "get_final_prompt":
         if name == "get_collaboration":
-            value = await _local_api("GET", f"/api/v2/collaborations/{arguments.get('collaboration_id', '')}", workspace_id=workspace_id)
+            value = await _local_api("GET", f"/api/v2/collaborations/{arguments.get('collaboration_id', '')}")
             # Retain result/progress for existing MCP consumers; canonical fields come from HTTP.
             item = context.db.collaboration(str(arguments.get("collaboration_id", "")))
             if item:
@@ -270,6 +346,9 @@ async def _tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         item = context.db.collaboration(str(arguments.get("collaboration_id", "")))
         if not item:
             raise ValueError("协作任务不存在")
+        # The HTTP route is the canonical project authorization boundary.
+        value = await _local_api("GET", f"/api/v2/collaborations/{item['id']}")
+        item = {**item, **value}
         result = item.get("result", {}) if isinstance(item.get("result"), dict) else {}
         if name == "get_final_prompt":
             return _text({"id": item["id"], "status": item["status"], "revision": item.get("revision", 0), "execution_prompt_en": result.get("optimized_prompt", ""), "confirmed_prompt_zh": result.get("optimized_prompt_zh", ""), "review": result.get("review", {})})
@@ -282,39 +361,25 @@ async def _tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         capability_view = public_capability(capability_id, capability_config)
         if not capability_view.get("collaboration_supported"):
             raise ValueError(f"能力不支持导演协作: {capability_id}")
-        parts = capability_id.split(".")
-        if len(parts) < 3:
-            raise ValueError(f"无效的能力 ID: {capability_id}")
-        model_id = str(arguments.get("model_id") or parts[1])
-        mode_id = str(arguments.get("mode_id") or parts[2])
-        request = AgentChatRequest(
-            message=str(arguments.get("message", "")),
-            kind=str(capability_config.get("kind", "video")),
-            model=model_id,
-            mode=mode_id,
-            collaboration_mode=str(arguments.get("collaboration_mode", "director")),
-            duration_seconds=float((arguments.get("settings") or {}).get("duration", 5)),
-            ratio=str((arguments.get("settings") or {}).get("ratio", "16:9")),
-            resolution=int(str((arguments.get("settings") or {}).get("resolution", "720P")).replace("P", "") or 720),
-            references=arguments.get("references") or [],
-            params=arguments.get("settings") or {},
-            review_mode="external",
-            client_request_id=f"mcp-{uuid.uuid4().hex}",
-            project_id=str(arguments.get("project_id", "")) or None,
-        )
-        token = context.current_workspace_id.set(workspace_id)
-        try:
-            return _text(await enqueue_agent_collaboration(request))
-        finally:
-            context.current_workspace_id.reset(token)
+        model_id = str(arguments.get("model_id") or capability_view["model"])
+        mode_id = str(arguments.get("mode_id") or capability_view["mode"])
+        return _text(await _local_api("POST", "/api/v2/collaborations", {
+            "capability_id": capability_id,
+            "model_id": model_id,
+            "mode_id": mode_id,
+            "message": str(arguments.get("message", "")),
+            "collaboration_mode": str(arguments.get("collaboration_mode", "director")),
+            "inputs": arguments.get("inputs") or [],
+            "settings": arguments.get("settings") or {},
+            "project_id": arguments.get("project_id"),
+            "category_id": arguments.get("category_id"),
+        }))
     if name == "send_collaboration_message":
-        request = AgentChatRequest(
-            session_id=str(arguments.get("collaboration_id", "")),
-            message=str(arguments.get("message", "")),
-            model="minimax-h3", mode="reference", review_mode="external",
-            client_request_id=f"mcp-{uuid.uuid4().hex}",
-        )
-        return _text(await enqueue_agent_collaboration(request))
+        collaboration_id = str(arguments.get("collaboration_id", ""))
+        return _text(await _local_api(
+            "POST", f"/api/v2/collaborations/{collaboration_id}/messages",
+            {"message": str(arguments.get("message", ""))},
+        ))
     if name == "upload_reference":
         filename = str(arguments.get("filename", "reference.bin")).replace("\\", "/").rsplit("/", 1)[-1]
         media_type = str(arguments.get("media_type") or mimetypes.guess_type(filename)[0] or "application/octet-stream")
@@ -324,8 +389,9 @@ async def _tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         body = head + raw + f"\r\n--{boundary}--\r\n".encode()
         return _text(await asyncio.to_thread(_local_api_request, "POST", "/v1/uploads", body, f"multipart/form-data; boundary={boundary}"))
     if name == "submit_generation":
-        payload = CreateRequest.model_validate(arguments).model_dump(mode="json")
-        result = await asyncio.to_thread(_local_api_request, "POST", "/api/v2/generations", json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json", str(arguments.get("idempotency_key", "")), workspace_id)
+        # Preserve omission so capability-specific defaults remain owned by the plugin.
+        payload = CreateRequest.model_validate(arguments).model_dump(mode="json", exclude_unset=True)
+        result = await asyncio.to_thread(_local_api_request, "POST", "/api/v2/generations", json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json", str(arguments.get("idempotency_key", "")))
         return _text(result)
     if name == "confirm_collaboration":
         payload = {"revision": int(arguments.get("revision", 0))}
@@ -335,17 +401,18 @@ async def _tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             payload["execution_prompt_en"] = str(arguments["execution_prompt_en"])
         if arguments.get("confirmed_prompt_zh") is not None:
             payload["confirmed_prompt_zh"] = str(arguments["confirmed_prompt_zh"])
-        result = await asyncio.to_thread(_local_api_request, "POST", f"/api/v2/collaborations/{arguments.get('collaboration_id', '')}/confirm", json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json", str(arguments.get("idempotency_key", "")), workspace_id)
+        result = await asyncio.to_thread(_local_api_request, "POST", f"/api/v2/collaborations/{arguments.get('collaboration_id', '')}/confirm", json.dumps(payload, ensure_ascii=False).encode("utf-8"), "application/json", str(arguments.get("idempotency_key", "")))
         return _text(result)
     if name == "get_job":
         return _text(await _local_api("GET", f"/api/v2/jobs/{arguments.get('job_id', '')}"))
     if name == "wait_job":
-        timeout = max(1, min(120, int(arguments.get("timeout", 30))))
+        # Keep a single MCP call below common clients' 60-second request limit.
+        timeout = max(1, min(30, int(arguments.get("timeout", 30))))
         return _text(await _local_api("GET", f"/api/v2/jobs/{arguments.get('job_id', '')}/wait?timeout={timeout}"))
     if name == "get_job_artifacts":
         return _text(await _local_api("GET", f"/api/v2/jobs/{arguments.get('job_id', '')}/artifacts"))
     if name == "get_job_inputs":
-        return _text(await _local_api("GET", f"/api/v2/jobs/{arguments.get('job_id', '')}/inputs", workspace_id=workspace_id))
+        return _text(await _local_api("GET", f"/api/v2/jobs/{arguments.get('job_id', '')}/inputs"))
     if name == "cancel_job":
         return _text(await _local_api("POST", f"/api/v2/jobs/{arguments.get('job_id', '')}/cancel"))
     raise ValueError(f"工具尚未实现: {name}")

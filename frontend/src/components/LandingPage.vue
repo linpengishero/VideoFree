@@ -1,33 +1,27 @@
 <script setup>
 import { Icon } from "@iconify/vue";
-import { ref, nextTick } from "vue";
+import { ref } from "vue";
+import PluginDialog from './PluginDialog.vue';
 
 defineEmits(["enter", "guide"]);
 
-const qrDialog = ref(null);
+const qrOpen = ref(false);
 const activeQr = ref({ src: "", title: "" });
 
-async function openQr(src, title) {
+function openQr(src, title) {
   activeQr.value = { src, title };
-  await nextTick();
-  qrDialog.value.showModal();
+  qrOpen.value = true;
 }
 
 function closeQr() {
-  qrDialog.value.close();
-}
-
-function closeQrOutside(event) {
-  if (event.target !== qrDialog.value) return;
-  const bounds = qrDialog.value.getBoundingClientRect();
-  if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeQr();
+  qrOpen.value = false;
 }
 
 const capabilities = [
-  { icon: "solar:video-frame-play-horizontal-linear", title: "多媒体创作", description: "图片、视频、语音克隆与背景配乐。" },
-  { icon: "solar:folder-with-files-linear", title: "项目化管理", description: "按项目组织素材，生成结果自动归档。" },
-  { icon: "solar:magic-stick-3-linear", title: "高清与后期", description: "视频二采、高清增强、宫格图片分割。" },
-  { icon: "solar:link-linear", title: "智能体接入", description: "API、MCP 与技能，连接自动化创作。" },
+  { icon: "solar:widget-5-linear", title: "工作流插件化", description: "把模型、工作流、参数和资源封装成可安装能力。" },
+  { icon: "solar:magic-stick-3-linear", title: "大白话创作", description: "按模型规则追问和整理提示词，降低学习门槛。" },
+  { icon: "solar:folder-with-files-linear", title: "项目化管理", description: "统一管理剧本、分类、任务、素材与项目资产。" },
+  { icon: "solar:link-linear", title: "Agent 稳定调用", description: "通过 MCP/API 发现和调用能力，不接触节点连线。" },
 ];
 
 const services = [
@@ -52,10 +46,10 @@ const services = [
     <main class="landing-main">
       <div class="product-column">
         <section class="product-intro" aria-labelledby="landing-title">
-          <div class="section-label"><span class="label-mark"></span> AI 多媒体创作工作台</div>
+          <div class="section-label"><span class="label-mark"></span> 本地 AI 视频创作平台</div>
           <h1 id="landing-title">videofree</h1>
-          <p class="product-subtitle">从灵感到作品，在一个工作台完成。</p>
-          <p class="product-description">整合图片、视频、声音与配乐生成，以及项目素材管理和后期处理。连接本地模型、云端服务与 AI 智能体，让创作流程真正跑起来。</p>
+          <p class="product-subtitle">让复杂的本地工作流，成为真正可用的创作能力。</p>
+          <p class="product-description">以 ComfyUI 为生成引擎，把零散模型、复杂节点、提示词规则和配套资源封装成插件。普通用户可以用大白话创作，开发者可以分发能力，Agent 可以通过稳定接口自动调用。</p>
           <div class="product-modes" aria-label="支持的创作方式">
             <span><Icon icon="solar:monitor-linear" width="15" /> 本地模型</span>
             <span><Icon icon="solar:cloud-linear" width="15" /> 云端生成</span>
@@ -78,13 +72,21 @@ const services = [
             <span class="resource-note">AI 视频自动化 / 智能体 / 大模型</span>
             <div class="guide-links">
               <button type="button" @click="$emit('guide', 'install')"><Icon icon="solar:monitor-linear" width="16" />安装部署教程</button>
+              <button type="button" @click="$emit('guide', 'mcp')"><Icon icon="solar:plug-circle-linear" width="16" />MCP 安装教程</button>
               <button type="button" @click="$emit('guide', 'skills')"><Icon icon="solar:book-linear" width="16" />全自动技能包教程</button>
+              <button type="button" @click="$emit('guide', 'plugin')"><Icon icon="solar:widget-add-linear" width="16" />插件开发教程</button>
             </div>
           </div>
-          <button class="qr-link" type="button" @click="openQr('/contact/zsxq-qr.png', '知识星球')" aria-label="放大知识星球二维码">
-            <img src="/contact/zsxq-qr.png" alt="知识星球二维码" width="120" height="120" loading="lazy" />
-            <span>扫码了解知识星球</span>
-          </button>
+          <div class="community-qr-list">
+            <button class="qr-link" type="button" @click="openQr('/contact/zsxq-qr.png', '知识星球')" aria-label="放大知识星球二维码">
+              <img src="/contact/zsxq-qr.png" alt="知识星球二维码" width="200" height="200" loading="lazy" />
+              <span>知识星球</span>
+            </button>
+            <button class="qr-link" type="button" @click="openQr('https://laobanclaw.top/videofree/qrcode.jpg', 'VideoFree 微信交流群')" aria-label="放大 VideoFree 微信交流群二维码">
+              <img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree 微信交流群二维码" width="200" height="200" loading="lazy" referrerpolicy="no-referrer" />
+              <span>微信交流群</span>
+            </button>
+          </div>
         </section>
 
       </div>
@@ -135,13 +137,13 @@ const services = [
       <span>© 2026 AI老林 · videofree</span>
       <span>让创作更自由，让技术真正落地。</span>
     </footer>
-    <dialog ref="qrDialog" class="qr-dialog" aria-labelledby="qr-dialog-title" @click="closeQrOutside">
+    <PluginDialog :open="qrOpen" :framed="false" :title="activeQr.title" @close="closeQr"><section class="qr-dialog">
       <header>
         <h2 id="qr-dialog-title">{{ activeQr.title }}</h2>
         <button type="button" class="qr-close" aria-label="关闭二维码" title="关闭" @click="closeQr"><Icon icon="solar:close-circle-linear" width="24" /></button>
       </header>
       <img v-if="activeQr.src" :src="activeQr.src" :alt="activeQr.title" />
-    </dialog>
+    </section></PluginDialog>
   </div>
 </template>
 
@@ -208,6 +210,8 @@ const services = [
 .feature-item h2 { margin: 0 0 7px; font-size: 15px; font-weight: 600; }
 .feature-item p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .resource-section { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 28px; padding: 26px 0; border-top: 1px solid var(--line); }
+.community-section { grid-template-columns: minmax(0, 1fr) auto; }
+.community-qr-list { display: flex; align-items: flex-start; gap: 16px; }
 .resource-copy { min-width: 0; }
 .resource-copy h2 { margin: 9px 0 10px; font-size: 19px; font-weight: 600; line-height: 1.5; }
 .resource-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
@@ -216,8 +220,7 @@ const services = [
 .guide-links button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--green); font: inherit; font-size: 12px; cursor: pointer; }
 .guide-links button:hover { border-color: var(--green); }
 .qr-link { display: grid; gap: 8px; width: 120px; padding: 0; border: 0; background: transparent; color: var(--muted); font: inherit; text-align: center; cursor: pointer; }
-.qr-dialog { width: min(440px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #202420; color: #f0f3ef; }
-.qr-dialog::backdrop { background: rgb(0 0 0 / 75%); }
+.qr-dialog { box-sizing:border-box; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #202420; color: #f0f3ef; }
 .qr-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .qr-dialog h2 { margin: 0; font-size: 17px; }
 .qr-close { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
@@ -281,6 +284,8 @@ const services = [
   .feature-item { grid-template-columns: 1fr; gap: 10px; }
   .resource-section { gap: 18px; grid-template-columns: minmax(0, 1fr) 104px; }
   .resource-section .qr-link { width: 104px; }
+  .community-section { grid-template-columns: 1fr; }
+  .community-qr-list { gap: 14px; }
   .resource-copy h2 { font-size: 17px; }
   .resource-note { display: none; }
   .business-intro h2 { font-size: 24px; }
@@ -291,5 +296,17 @@ const services = [
   .landing-page { --page-gutter: 16px; }
   .resource-section { grid-template-columns: 1fr; }
   .resource-section .qr-link { width: 120px; }
+}
+@media (min-width: 1051px) {
+  .community-section .community-qr-list .qr-link { width: 200px; }
+}
+@media (min-width: 801px) and (max-width: 1050px) {
+  .community-section .community-qr-list .qr-link { width: 150px; }
+}
+@media (min-width: 481px) and (max-width: 800px) {
+  .community-section .community-qr-list .qr-link { width: 160px; }
+}
+@media (max-width: 480px) {
+  .community-section .community-qr-list .qr-link { width: 112px; }
 }
 </style>

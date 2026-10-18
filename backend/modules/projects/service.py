@@ -1,16 +1,14 @@
 from __future__ import annotations
-
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import sqlite3
 import uuid
 from typing import Any
 
 
-UNASSIGNED_PROJECT_ID = "project-unassigned"
-DEFAULT_WORKSPACE_ID = "studio-default"
 MEDIA_DIRECTORIES = {
     "image": "images",
     "video": "videos",
@@ -31,12 +29,8 @@ class ProjectService:
 
     @property
     def projects_root(self) -> Path:
-        return self.context.paths.projects.resolve()
-
-    @staticmethod
-    def normalize_workspace_id(value: str | None) -> str:
-        candidate = str(value or DEFAULT_WORKSPACE_ID).strip()
-        return candidate if re.fullmatch(r"[A-Za-z0-9._:-]{1,120}", candidate) else DEFAULT_WORKSPACE_ID
+        configured = self.context.db.settings().get("resource_directory", "").strip()
+        return Path(configured).expanduser().resolve() if configured else self.context.paths.projects.resolve()
 
     @staticmethod
     def _directory_name(name: str) -> str:
@@ -44,6 +38,8 @@ class ProjectService:
         value = re.sub(r"\s+", " ", value)
         if not value:
             raise ValueError("项目名称不能为空")
+        if re.fullmatch(r"(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])", value.split('.')[0].rstrip(), re.IGNORECASE):
+            raise ValueError("项目名称不能使用 Windows 保留名称，如 CON、NUL、COM1")
         return value[:80]
 
     def ensure_directory(self, project: dict[str, Any]) -> Path:
@@ -55,7 +51,7 @@ class ProjectService:
             (directory / child).mkdir(parents=True, exist_ok=True)
         return directory
 
-    def create(self, name: str, description: str = "", content_summary: str = "") -> dict[str, Any]:
+    def create(self, name: str, description: str = "", content_summary: str = "", *, ai_created: bool = False) -> dict[str, Any]:
         display_name = name.strip()
         directory = self._directory_name(display_name)
         existing = {str(item["output_subdir"]).casefold() for item in self.context.db.projects(True)}
@@ -64,48 +60,165 @@ class ProjectService:
         while directory.casefold() in existing:
             directory = f"{base}-{suffix}"
             suffix += 1
-        project = self.context.db.create_project({
+        values = {
             "id": f"project-{uuid.uuid4().hex[:12]}",
             "name": display_name,
             "output_subdir": directory,
             "description": description.strip(),
             "content_summary": content_summary.strip(),
-        })
-        self.ensure_directory(project)
-        return project
+            "ai_created": bool(ai_created),
+        }
+        output = self.ensure_directory(values)
+        try:
+            project = self.context.db.create_project(values)
+            return project
+        except Exception:
+            # Remove only empty directories created before the failed insert.
+            for child in set(MEDIA_DIRECTORIES.values()):
+                try:
+                    (output / child).rmdir()
+                except OSError:
+                    pass
+            try:
+                output.rmdir()
+            except OSError:
+                pass
+            raise
 
     def list(self, include_archived: bool = False) -> list[dict[str, Any]]:
         projects = self.context.db.projects(include_archived)
+        # The legacy unassigned bucket is an internal migration fallback, not a
+        # user-facing project. Keep it available to existing jobs and the current project endpoint.
+        # recovery, but never expose it as a selectable project.
         for project in projects:
             directory = self.ensure_directory(project)
             project["output_path"] = str(directory)
             project["asset_count"] = sum(1 for path in directory.rglob("*") if path.is_file())
         return projects
 
-    def current(self, workspace_id: str | None) -> dict[str, Any]:
-        workspace = self.normalize_workspace_id(workspace_id)
-        project = self.context.db.current_project(workspace)
-        if not project or project.get("status") != "active":
-            project = self.context.db.project(UNASSIGNED_PROJECT_ID)
-            if not project:
-                raise RuntimeError("未归档项目尚未初始化")
-            self.context.db.set_current_project(workspace, project["id"])
-        project["output_path"] = str(self.ensure_directory(project))
-        return project
-
-    def select(self, workspace_id: str | None, project_id: str) -> dict[str, Any]:
+    def categories(self, project_id: str) -> list[dict[str, Any]]:
         project = self.context.db.project(project_id)
         if not project or project.get("status") != "active":
             raise ValueError("项目不存在或已归档")
-        selected = self.context.db.set_current_project(self.normalize_workspace_id(workspace_id), project_id)
+        return [{"id": "", "project_id": project_id, "name": "默认分类"}, *self.context.db.project_categories(project_id)]
+
+    def validate_category(self, project_id: str, category_id: str | None) -> str:
+        value = category_id or ""
+        if not any(item["id"] == value for item in self.categories(project_id)):
+            raise ValueError("分类不存在或不属于当前项目")
+        return value
+
+    def save_category(self, project_id: str, name: str, category_id: str | None = None) -> dict[str, str]:
+        self.categories(project_id)
+        name = name.strip()
+        if not name or len(name) > 80 or name in {"默认分类", "公共资产", "全部素材"}:
+            raise ValueError("分类名称须为1至80个字符，且不能使用系统入口名称")
+        if category_id is not None:
+            if not category_id:
+                raise ValueError("默认分类不能修改")
+            self.validate_category(project_id, category_id)
+        identifier = category_id or f"category-{uuid.uuid4().hex[:12]}"
+        try:
+            self.context.db.save_category(project_id, identifier, name, create=category_id is None)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("分类名称已存在") from exc
+        return {"id": identifier, "project_id": project_id, "name": name}
+
+    def delete_category(self, project_id: str, category_id: str) -> None:
+        if not category_id:
+            raise ValueError("默认分类不能删除")
+        self.validate_category(project_id, category_id)
+        if any(job.get("project_id") == project_id and job.get("category_id") == category_id
+               and (job.get("status") in {"queued", "running"}
+                    or job['id'] in getattr(self.context, 'executing_jobs', set()))
+               for job in getattr(self.context, "jobs", {}).values()):
+            raise RuntimeError("分类仍有生成任务，请先完成或取消")
+        # Keep pending collaborations bound to their original category until submission.
+        if any(item.get("status") in {"queued", "running", "awaiting_confirmation", "needs_input"}
+               and (item.get("request", {}).get("category_id") == category_id
+                    or item.get("request", {}).get("params", {}).get("_category_id") == category_id)
+               for item in self._project_collaborations(project_id)):
+            raise RuntimeError("分类仍有智能协作任务，请先完成或取消")
+        jobs = {job['id']: job for job in self.context.db.jobs(limit=None, project_id=project_id)
+                if job.get('category_id') == category_id}
+        jobs.update({job['id']: job for job in getattr(self.context, 'jobs', {}).values()
+                     if job.get('project_id') == project_id and job.get('category_id') == category_id})
+        if any(job.get('status') in {'queued', 'running'} or job['id'] in getattr(self.context, 'executing_jobs', set()) for job in jobs.values()):
+            raise RuntimeError("分类仍有生成任务，请先完成或取消")
+        if any(job.get('parent_job_id') in jobs and (job.get('status') in {'queued', 'running'}
+               or job['id'] in getattr(self.context, 'executing_jobs', set()))
+               for job in self.context.db.jobs(limit=None)):
+            raise RuntimeError("分类素材仍有二采任务运行，请先完成或取消")
+        self._check_application_tasks(project_id)
+        self.check_application_references(project_id, set(jobs))
+        plugins_path = getattr(self.context.paths, "plugins", None)
+        if plugins_path:
+            from ..generation.plugins import PluginCatalog
+            catalog = PluginCatalog(plugins_path, self.context)
+            catalog.application_event(
+                "category_delete", self.context, project_id=project_id, category_id=category_id
+            )
+            self._delete_plugin_category_directories(project_id, category_id, catalog)
+        names = {name for job_id in jobs for name in self.context.db.artifact_names(job_id)}
+        for job in jobs.values():
+            names.update(item['name'] for item in job.get('artifacts', []) if item.get('name'))
+            if job.get('artifact_name'):
+                names.add(job['artifact_name'])
+        paths = self._artifact_paths(names, jobs)
+        for job in jobs.values():
+            self.delete_job_published(job)
+            self._delete_task_package(job)
+            self.context.db.delete_job(job['id'])
+            getattr(self.context, 'jobs', {}).pop(job['id'], None)
+        for path in paths:
+            path.unlink(missing_ok=True)
+        self.context.db.delete_category(project_id, category_id)
+
+    def library_categories(self, project_id: str) -> dict[str, str]:
+        result = {}
+        project = self.context.db.project(project_id)
+        for job in self.context.db.jobs(limit=None, project_id=project_id):
+            for index, artifact in enumerate(job.get("artifacts") or []):
+                path = artifact.get("project_path")
+                if not path and project:
+                    suffix = Path(str(artifact.get("name") or artifact.get("url") or "")).suffix
+                    directory = MEDIA_DIRECTORIES.get(job.get("kind"), "images")
+                    path = f"{project['output_subdir']}/{directory}/{job['id']}_{index}{suffix}"
+                if path:
+                    result[path] = job.get("category_id") or ""
+        return result
+
+    def current(self) -> dict[str, Any]:
+        project = self.context.db.current_project()
+        if not project or project.get("status") != "active":
+            raise ValueError("当前尚未选择项目，请先创建或选择项目")
+        project["output_path"] = str(self.ensure_directory(project))
+        return project
+
+    def select(self, project_id: str) -> dict[str, Any]:
+        project = self.context.db.project(project_id)
+        if not project or project.get("status") != "active":
+            raise ValueError("项目不存在或已归档")
+        selected = self.context.db.set_current_project(project_id)
         if not selected:
             raise RuntimeError("无法切换项目")
         selected["output_path"] = str(self.ensure_directory(selected))
         return selected
 
+    def authorize(self, project_id: str) -> dict[str, Any]:
+        project = self.context.db.project(project_id)
+        if not project or project.get("status") != "active":
+            raise ValueError("项目不存在或已归档")
+        return project
+
+    def authorize_library_path(self, path: Path) -> dict[str, Any]:
+        project = next((item for item in self.context.db.projects(True)
+                        if item.get("output_subdir") == path.parts[0]), None) if path.parts else None
+        if not project:
+            raise ValueError("素材文件不存在")
+        return self.authorize(project["id"])
+
     def update(self, project_id: str, name: str, description: str = "", content_summary: str = "") -> dict[str, Any]:
-        if project_id == UNASSIGNED_PROJECT_ID:
-            raise ValueError("未归档项目不能修改")
         project = self.context.db.project(project_id)
         if not project or project.get("status") != "active":
             raise ValueError("项目不存在或已归档")
@@ -121,13 +234,12 @@ class ProjectService:
         result["output_path"] = str(self.ensure_directory(result))
         return result
 
-    def delete(self, project_id: str) -> None:
-        if project_id == UNASSIGNED_PROJECT_ID:
-            raise ValueError("未归档项目不能删除")
+    def delete(self, project_id: str) -> list[dict[str, str]]:
         project = self.context.db.project(project_id)
         if not project:
             raise ValueError("项目不存在")
         jobs = self.context.db.jobs(limit=None, project_id=project_id)
+        self.context.db.check_plugin_references(project_id)
         jobs_by_id = {str(job["id"]): job for job in jobs if job.get("id")}
         task_dirs: dict[str, Path] = {}
         self._collect_manifest_jobs(project_id, jobs_by_id, task_dirs)
@@ -135,7 +247,7 @@ class ProjectService:
             if isinstance(job, dict) and str(job.get("project_id", "")) == project_id and job.get("id"):
                 jobs_by_id.setdefault(str(job["id"]), job)
         jobs = list(jobs_by_id.values())
-        if any(job.get("status") in {"queued", "running"} for job in jobs):
+        if any(job.get("status") in {"queued", "running"} or job['id'] in getattr(self.context, 'executing_jobs', set()) for job in jobs):
             raise RuntimeError("项目仍有任务正在生成，请先取消任务")
 
         collaborations = self._project_collaborations(project_id)
@@ -146,6 +258,14 @@ class ProjectService:
         active_collaborations = {"queued", "running"}
         if any(item.get("status") in active_collaborations for item in collaborations):
             raise RuntimeError("项目仍有智能协作任务，请先完成或取消任务")
+        self._check_application_tasks(project_id)
+
+        plugins_path = getattr(self.context.paths, "plugins", None)
+        if plugins_path:
+            from ..generation.plugins import PluginCatalog
+            PluginCatalog(plugins_path, self.context).application_event(
+                "project_delete", self.context, project_id=project_id
+            )
 
         # Capture every file location before database rows are removed. Older
         # versions could delete rows while leaving their task packages behind.
@@ -160,8 +280,9 @@ class ProjectService:
             artifact_names.update(self.context.db.artifact_names(str(job["id"])))
         artifact_paths = self._artifact_paths(artifact_names, jobs_by_id)
         collaboration_ids = [str(item["id"]) for item in collaborations if item.get("id")]
+        cleanup_warnings = []
         for job in jobs:
-            self.delete_job_published(job)
+            cleanup_warnings.extend(self.delete_job_published(job))
             self._delete_task_package(job, task_dirs.get(str(job.get("id", ""))))
         for path in artifact_paths:
             path.unlink(missing_ok=True)
@@ -178,7 +299,7 @@ class ProjectService:
             for job in jobs:
                 runtime_jobs.pop(job["id"], None)
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
-
+        return cleanup_warnings
     def _collect_manifest_jobs(self, project_id: str, jobs: dict[str, dict[str, Any]], task_dirs: dict[str, Path]) -> None:
         tasks = getattr(self.context.paths, "tasks", None)
         if not tasks or not Path(tasks).is_dir():
@@ -201,6 +322,22 @@ class ProjectService:
                 "project_id": project_id,
                 "artifacts": [],
             })
+
+    def _check_application_tasks(self, project_id: str) -> None:
+        tasks = getattr(self.context, "application_tasks", {})
+        if any(isinstance(key, tuple) and len(key) > 1 and key[1] == project_id
+               and not task.done() for key, task in tasks.items()):
+            raise RuntimeError("项目仍有插件应用任务运行，请先完成或取消")
+
+    def _delete_plugin_category_directories(self, project_id: str, category_id: str, catalog) -> None:
+        project = self.context.db.project(project_id)
+        if not project:
+            return
+        root = self.ensure_directory(project).resolve()
+        for plugin in catalog.scan()[0]:
+            target = (root / ".plugins" / plugin["id"] / "categories" / category_id).resolve()
+            if root in target.parents and target.is_dir():
+                shutil.rmtree(target)
 
     def _project_collaborations(self, project_id: str) -> list[dict[str, Any]]:
         result = []
@@ -262,10 +399,22 @@ class ProjectService:
         if tasks_root in target.parents and target.is_dir():
             shutil.rmtree(target)
 
-    def delete_job_published(self, job: dict[str, Any]) -> None:
+    def check_application_references(self, project_id: str, job_ids: set[str]) -> None:
+        self.context.db.check_plugin_references(project_id, job_ids)
+
+    def delete_job_published(self, job: dict[str, Any]) -> list[dict[str, str]]:
+        project_id = job.get('project_id')
+        if project_id:
+            self.check_application_references(project_id, {job['id']})
+        from ..generation.plugins import PluginCatalog
+        cleanup_warnings = []
+        if getattr(self.context.paths, "plugins", None):
+            cleanup_warnings = PluginCatalog(self.context.paths.plugins, self.context).resource_event(
+                "delete", self.context, job=job
+            ) or []
         artifacts = job.get("artifacts") or []
         self.delete_published(artifacts)
-        project = self.context.db.project(job.get("project_id", UNASSIGNED_PROJECT_ID))
+        project = self.context.db.project(project_id) if project_id else None
         if not project:
             return
         project_root = self.ensure_directory(project)
@@ -279,27 +428,27 @@ class ProjectService:
                     if target.is_file():
                         target.unlink()
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
-
-    def resolve_job_project(self, workspace_id: str | None, parent_job_id: str | None = None) -> dict[str, Any]:
+        return cleanup_warnings
+    def resolve_job_project(self, parent_job_id: str | None = None) -> dict[str, Any]:
         if parent_job_id:
             parent = self.context.db.job(str(parent_job_id))
             if parent and parent.get("project_id"):
                 project = self.context.db.project(parent["project_id"])
                 if project:
                     return project
-        return self.current(workspace_id)
+        return self.current()
 
     def output_prefix(self, job: dict[str, Any], media_kind: str) -> str:
-        project = self.context.db.project(job.get("project_id", UNASSIGNED_PROJECT_ID))
+        project = self.context.db.project(job.get("project_id")) if job.get("project_id") else None
         if not project:
-            project = self.context.db.project(UNASSIGNED_PROJECT_ID)
+            raise ValueError("生成任务必须属于一个项目")
         directory = MEDIA_DIRECTORIES.get(media_kind, "images")
         return f"projects/{project['output_subdir']}/{directory}/{job['id']}"
 
     def publish(self, job: dict[str, Any], paths: list[Path]) -> list[dict[str, str]]:
-        project = self.context.db.project(job.get("project_id", UNASSIGNED_PROJECT_ID))
+        project = self.context.db.project(job.get("project_id")) if job.get("project_id") else None
         if not project:
-            project = self.context.db.project(UNASSIGNED_PROJECT_ID)
+            raise ValueError("生成任务必须属于一个项目")
         project_root = self.ensure_directory(project)
         media_kind = job.get("kind", "image")
         output_dir = project_root / MEDIA_DIRECTORIES.get(media_kind, "images")
@@ -329,34 +478,3 @@ class ProjectService:
             if root in target.parents and target.is_file():
                 target.unlink()
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
-
-    def import_legacy_assets(self) -> int:
-        settings = self.context.db.settings()
-        marker = "project_legacy_assets_imported_v1"
-        if settings.get(marker) == "1":
-            return 0
-        project = self.context.db.project(UNASSIGNED_PROJECT_ID)
-        if not project:
-            return 0
-        destination_root = self.ensure_directory(project)
-        source_root = self.context.paths.artifacts.resolve()
-        imported = 0
-        for source in source_root.rglob("*"):
-            if not source.is_file():
-                continue
-            suffix = source.suffix.lower()
-            category = next((name for name, extensions in MEDIA_EXTENSIONS.items() if suffix in extensions), None)
-            if not category:
-                continue
-            relative = source.name
-            target = destination_root / category / relative
-            if target.exists():
-                continue
-            try:
-                os.link(source, target)
-            except OSError:
-                shutil.copy2(source, target)
-            imported += 1
-        self.context.db.save_settings({marker: "1"})
-        self.context.library_cache.update(directory="", created_at=0.0, items=[])
-        return imported

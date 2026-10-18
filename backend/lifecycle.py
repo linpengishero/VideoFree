@@ -8,17 +8,18 @@ from fastapi import FastAPI
 
 from .bootstrap import context, comfyui_client
 from .modules.generation.service import (
-    generation_config, job_execution_plane, migrate_generation_metadata, recover_h3_checkpoints, set_status,
+    generation_config, job_execution_plane, set_status,
     start_direct_generation, worker,
 )
-from .modules.presets import MUSIC_PRESETS
-from .modules.presets.voices import VOICE_PRESETS
 from .modules.settings import SettingsService
+from .modules.settings.plugins import PluginSettings
 from .modules.projects import ProjectService
-from .modules.shared.schemas import GenerateRequest
-from .interfaces.http.v1_collaboration import (
-    agent_worker, close_agent_connection, collaboration_directory,
+from .modules.generation.plugins import PluginCatalog
+from .core.schemas import GenerateRequest
+from .modules.collaboration.worker import (
+    agent_worker, close_agent_connection,
 )
+from .modules.collaboration.media import collaboration_directory
 
 
 settings_service = SettingsService(context, comfyui_client)
@@ -52,7 +53,7 @@ async def supervise_generation_workers() -> None:
 def clean_upload_cache() -> None:
     cutoff = time.time() - context.config.upload_max_age_seconds
     protected = set()
-    for item in context.db.collaborations(("queued", "running", "needs_input", "awaiting_confirmation"), limit=500):
+    for item in context.db.collaborations(("queued", "running", "needs_input", "awaiting_confirmation"), limit=None):
         source = item.get("request", {})
         source = source.get("params", {}).get("_source_request", source) if isinstance(source, dict) else {}
         for asset in source.get("inputs", []) if isinstance(source, dict) else []:
@@ -73,8 +74,18 @@ def clean_collaborations() -> None:
 
 
 async def start() -> None:
-    context.db.initialize(VOICE_PRESETS, MUSIC_PRESETS)
-    migrate_generation_metadata()
+    context.db.initialize({})
+    # Remove the retired implicit project directory as part of the same
+    # migration. It was never a user-created project and must not be revived.
+    projects_root = context.paths.projects.resolve()
+    retired_project_dir = (projects_root / "_unassigned").resolve()
+    if retired_project_dir.parent == projects_root and retired_project_dir.is_dir():
+        shutil.rmtree(retired_project_dir, ignore_errors=True)
+    if getattr(context.config, "host", "127.0.0.1") not in {"127.0.0.1", "localhost", "::1"} and not settings_service.access_token(context):
+        logger.warning("Gateway is exposed beyond localhost without an access token")
+    PluginSettings(context).migrate_legacy()
+    context.db.reset_application_activity()
+    await PluginCatalog(context.paths.plugins, context).start_applications(context)
     runtime_settings = settings_service.read()
     context.comfyui_url = runtime_settings["comfyui_url"].rstrip("/")
     comfyui_client.configure(context.comfyui_url)
@@ -82,16 +93,14 @@ async def start() -> None:
     context.comfyui_output_dir = settings_service.effective_output_directory(
         runtime_settings, detect_comfyui=False,
     )
-    ProjectService(context).import_legacy_assets()
     context.jobs = {item["id"]: item for item in context.db.jobs()}
-    restored = recover_h3_checkpoints()
-    if restored:
-        logger.info("restored H3 latent checkpoints for %s completed job(s)", restored)
+    await asyncio.to_thread(PluginCatalog(context.paths.plugins, context).resource_event, "recover", context)
     pending = context.db.pending_jobs()
     context.jobs.update({item["id"]: item for item in pending})
     context.job_queue = asyncio.Queue()
     context.agent_queue = asyncio.Queue(maxsize=context.config.max_agent_queue_size)
     context.submission_lock = asyncio.Lock()
+    context.generation_idempotency_lock = asyncio.Lock()
     context.generation_worker_failures = 0
     clean_upload_cache()
     clean_collaborations()
@@ -112,16 +121,21 @@ async def start() -> None:
     context.worker_supervisor_task = asyncio.create_task(
         supervise_generation_workers(), name="generation-worker-supervisor",
     )
-    for item in context.db.collaborations(("queued", "running"), limit=context.config.max_agent_queue_size + 50):
-        if not str(item.get("capability_id", "")).startswith("studio."):
-            continue
+    capabilities = PluginCatalog(context.paths.plugins, context).capabilities()
+    for item in context.db.collaborations(("queued", "running"), limit=-1):
         if item["status"] == "running":
             context.db.update_collaboration(item["id"], {
                 "status": "interrupted",
                 "error": "网关重启导致智能协作中断，请手动重试，系统不会自动重复调用模型",
                 "completed_at": time.time(),
             })
-        elif not context.agent_queue.full():
+        elif item.get("capability_id") not in capabilities or context.agent_queue.full():
+            context.db.update_collaboration(item["id"], {
+                "status": "interrupted",
+                "error": "协作能力已移除或恢复队列已满，请手动重试",
+                "completed_at": time.time(),
+            })
+        else:
             context.agent_queue.put_nowait(item["id"])
     context.agent_worker_tasks = [asyncio.create_task(agent_worker())]
 
@@ -131,7 +145,7 @@ async def stop() -> None:
         context.worker_supervisor_task.cancel()
         await asyncio.gather(context.worker_supervisor_task, return_exceptions=True)
         context.worker_supervisor_task = None
-    tasks = [*context.worker_tasks, *context.direct_generation_tasks.values(), *context.agent_worker_tasks]
+    tasks = [*context.worker_tasks, *context.direct_generation_tasks.values(), *context.agent_worker_tasks, *context.application_tasks.values()]
     for task in tasks:
         task.cancel()
     if tasks:
@@ -140,6 +154,8 @@ async def stop() -> None:
         close_agent_connection(collaboration_id)
     context.worker_tasks.clear()
     context.direct_generation_tasks.clear()
+    context.application_tasks.clear()
+    context.application_semaphores.clear()
     context.agent_worker_tasks.clear()
 
 

@@ -1,25 +1,30 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
-import { agentReference, gateway } from "./services/api";
-import Composer from "./components/Composer.vue";
+import { gateway, readMediaBlob } from "./services/api";
+import { confirmAction } from './services/confirmations';
+import ConfirmationHost from './components/ConfirmationHost.vue';
+import PluginComposer from './components/PluginComposer.vue';
 import Workspace from "./components/Workspace.vue";
 import AssetDrawer from "./components/AssetDrawer.vue";
 import PreviewModal from "./components/PreviewModal.vue";
 import SettingsModal from "./components/SettingsModal.vue";
-import VoicePresetModal from "./components/VoicePresetModal.vue";
 import PostProcessModal from "./components/PostProcessModal.vue";
-import AgentDock from "./components/AgentDock.vue";
 import TaskDetailModal from "./components/TaskDetailModal.vue";
 import LandingPage from "./components/LandingPage.vue";
 import GuidePage from "./components/GuidePage.vue";
 import ProjectHome from "./components/ProjectHome.vue";
-import {
-  buildMusicPresetPrompt,
-  musicStyleOptions,
-  singerOptions,
-  voiceTextureOptions,
-} from "./config/musicPresets";
+import ProjectCategories from "./components/ProjectCategories.vue";
+import PublicAssets from "./components/PublicAssets.vue";
+import PluginApplication from './components/PluginApplication.vue';
+import PluginToolDialog from './components/PluginToolDialog.vue';
+import NotificationHost from './components/NotificationHost.vue';
+import { notify } from './services/notifications';
+const pluginIconAssets = import.meta.glob('../../plugins/**/*.{png,jpg,jpeg,webp,gif}', { query: '?url', import: 'default', eager: true });
+function applicationIcon(application) {
+  if (!application?.icon_asset) return '';
+  return pluginIconAssets[`../../plugins/${application.plugin_folder}/${application.icon_asset}`] || '';
+}
 function externalJob(file) {
   const type = file.type.split("/")[0];
   const url = URL.createObjectURL(file);
@@ -37,12 +42,19 @@ function externalJob(file) {
   };
 }
 
-const kind = ref("image"),
-  imageMode = ref("text_to_image"),
-  videoMode = ref("reference"),
-  voiceMode = ref("preset"),
-  musicMode = ref("preset");
 const studioVisible = ref(window.location.pathname === "/studio");
+const authRequired = ref(false), accessToken = ref(""), authError = ref(""), authenticating = ref(false);
+function requireAuthentication() { authRequired.value = true; }
+async function authenticate() {
+  authenticating.value = true;
+  authError.value = "";
+  try {
+    await gateway.authenticate(accessToken.value);
+    accessToken.value = "";
+    window.location.reload();
+  } catch (error) { authError.value = error.message; }
+  finally { authenticating.value = false; }
+}
 const guideSection = ref(new URLSearchParams(window.location.search).get("guide"));
 function syncRoute() {
   studioVisible.value = window.location.pathname === "/studio";
@@ -61,10 +73,7 @@ function leaveStudio() {
   window.history.pushState({}, "", "/");
   syncRoute();
 }
-const prompt = ref(""),
-  lyrics = ref(""),
-  files = ref([]),
-  jobs = ref([]),
+const jobs = ref([]),
   preview = ref(null),
   postSource = ref(null),
   taskDetails = ref(null),
@@ -72,12 +81,70 @@ const prompt = ref(""),
   health = ref("检测服务中"),
   settings = ref(false),
   settingsNotice = ref(""),
-  voiceSettings = ref(false),
   voices = ref([]);
 const projects = ref([]);
 const currentProject = ref(null);
+const categories = ref([]);
+const currentCategory = ref(null);
+const pluginCategories = ref([]), pluginCapabilities = ref([]), explicitCapabilityId = ref('');
+const applications = ref([]);
+const projectTools = ref([]), activeProjectToolId = ref('');
+const visibleProjectTools = computed(() => projectTools.value.filter(tool => (tool.requires_project_flags || []).every(flag => currentProject.value?.[flag])));
+const genericComposer = ref(null);
+const selectedCapability = computed(() => pluginCapabilities.value.find(item => item.id === explicitCapabilityId.value));
+const generationCapabilities = computed(() => pluginCapabilities.value
+  .filter(item => item.operation !== 'postprocess' && item.selector_model)
+  .sort((left, right) => {
+    const leftModel = left.selector_model;
+    const rightModel = right.selector_model;
+    return Number(rightModel.default) - Number(leftModel.default)
+      || leftModel.selector_order - rightModel.selector_order
+      || left.selector_order - right.selector_order
+      || left.id.localeCompare(right.id);
+  }));
+async function selectCapability(id) {
+  const cap = pluginCapabilities.value.find(item => item.id === id && item.operation !== 'postprocess');
+  if (!cap) return;
+  if (selectedCapability.value?.id === id) return;
+  explicitCapabilityId.value = id;
+}
+
+async function loadPlugins(){
+  try{const [catalog,generation,postprocess]=await Promise.all([gateway.plugins(),gateway.capabilities(),gateway.capabilities('postprocess')]);applications.value=catalog.applications || [];projectTools.value=(catalog.project_tools || []).map(tool => ({...tool, icon_url: applicationIcon(tool)}));pluginCategories.value=catalog.categories;pluginCapabilities.value=[...generation.items,...postprocess.items];if(!selectedCapability.value && generationCapabilities.value.length)await selectCapability(generationCapabilities.value[0].id);}
+  catch(error){console.error('插件能力发现失败',error);}
+}
+async function pluginSubmitted(id){await restore();if(jobs.value.some(item=>item.id===id))poll(id);}
+const submissionCategory = computed(() => currentCategory.value === '@public' ? '' : currentCategory.value || '');
+const categoryJobs = computed(() => currentCategory.value === null ? jobs.value : jobs.value.filter(job => (job.category_id || '') === currentCategory.value));
+async function loadCategories() {
+  const projectId = currentProject.value.id;
+  const result = await gateway.categories(projectId);
+  if (currentProject.value?.id !== projectId) return;
+  categories.value = result.items;
+  if (currentCategory.value !== null && currentCategory.value !== '@public' && (!currentCategory.value || !categories.value.some(item => item.id === currentCategory.value))) currentCategory.value = null;
+}
+function selectCategory(id) {
+  currentCategory.value = id;
+  localStorage.setItem(`videofree-category-${currentProject.value.id}`, JSON.stringify(id));
+}
+async function saveCategory(name, id, done) {
+  try { const category = await gateway.saveCategory(currentProject.value.id, name, id); await loadCategories(); selectCategory(category.id); done(true); }
+  catch (error) { notify(error.message); done(false); }
+}
+async function deleteCategory(category, done) {
+  const projectId = currentProject.value.id;
+  if (!await confirmAction(`删除分类“${category.name}”及其全部生成任务和文件？项目资产和其他分类不受影响，此操作不可撤销。`)) return;
+  if (currentProject.value.id !== projectId) return;
+  try { await gateway.deleteCategory(projectId, category.id); selectCategory(null); await loadCategories(); await restore(); done(); }
+  catch (error) { notify(error.message); }
+}
 const OPEN_PROJECT_KEY = "zizai-open-project-id";
 const projectHomeVisible = ref(true);
+const projectView = ref("assets");
+const activeApplication = computed(() => applications.value.find(app => app.id === projectView.value));
+const activeProjectTool = computed(() => visibleProjectTools.value.find(tool => tool.id === activeProjectToolId.value));
+const currentCategoryObject = computed(() => currentCategory.value === null || currentCategory.value === '@public'
+  ? null : categories.value.find(item => item.id === currentCategory.value) || (currentCategory.value === '' ? categories.value.find(item => item.id === '') : null));
 const projectsLoading = ref(false);
 let workspaceRevision = 0;
 let workspaceRefreshPending = false;
@@ -93,14 +160,18 @@ async function loadProjects() {
 }
 
 async function openProject(project) {
+  projectView.value = "assets";
   workspaceRevision += 1;
   currentProject.value = await gateway.selectProject(project.id);
+  await loadPlugins();
+  await loadCategories();
+  try { currentCategory.value = JSON.parse(localStorage.getItem(`videofree-category-${project.id}`) || 'null'); }
+  catch { currentCategory.value = null; }
+  if (currentCategory.value !== null && currentCategory.value !== '@public' && (!currentCategory.value || !categories.value.some(item => item.id === currentCategory.value))) currentCategory.value = null;
   localStorage.setItem(OPEN_PROJECT_KEY, currentProject.value.id);
   projectHomeVisible.value = false;
   jobs.value = [];
   await restore();
-  clearAgentState();
-  await restoreAgent();
 }
 
 async function createProject(body, done) {
@@ -110,7 +181,8 @@ async function createProject(body, done) {
     done?.();
     await openProject(project);
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
+    done?.(false);
   }
 }
 
@@ -123,13 +195,17 @@ async function updateProject(project, body, done) {
     }
     done?.();
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
+    done?.(false);
   }
 }
 
 async function deleteProject(project) {
   try {
-    await gateway.deleteProject(project.id);
+    const result = await gateway.deleteProject(project.id);
+    if (result?.cleanup_warnings?.length) {
+      notify(`项目已删除，但有 ${result.cleanup_warnings.length} 个插件资源待清理；请检查 ComfyUI 文件权限后手动清理。`, { type: 'info', duration: 7000 });
+    }
     if (currentProject.value?.id === project.id) {
       localStorage.removeItem(OPEN_PROJECT_KEY);
       projectHomeVisible.value = true;
@@ -138,7 +214,7 @@ async function deleteProject(project) {
     }
     await loadProjects();
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   }
 }
 
@@ -162,203 +238,9 @@ async function restoreProjectView() {
     health.value = error.message;
   }
 }
-const character = ref("orion_7"),
-  instruction = ref(""),
-  duration = ref(5),
-  resolution = ref(768),
-  ratio = ref("16:9");
-const voiceModel = computed(() => voiceMode.value === "describe" ? "qwen3_tts" : "cosyvoice3");
-const voiceSpeed = ref(1.0);
-const speed = ref("quick_preview");
-const videoModel = ref("minimax");
-const h3CameraLora = ref("auto");
-const h3StyleLora = ref("");
-const imageStyle = ref("");
-const imageModel = ref("krea2");
-const gptImageVersion = ref("gpt-image-2");
-const musicStyle = ref("pop");
-const musicSinger = ref("female");
-const musicVoiceTexture = ref("natural");
-const musicBpm = ref(100);
-const musicKey = ref("C minor");
-const musicTimeSignature = ref("4");
-const musicCatalog = ref({
-  styles: musicStyleOptions,
-  singers: singerOptions,
-  voiceTextures: voiceTextureOptions,
-});
-const creationRoute = ref("direct");
-const H3_COLLABORATION_MODE_KEY = "zizai-h3-collaboration-mode";
-const collaborationMode = ref(
-  localStorage.getItem(H3_COLLABORATION_MODE_KEY) === "director"
-    ? "director"
-    : "quick",
-);
-const agentOpen = ref(false);
-const agentBusy = ref(false);
-const agentSession = ref(null);
-const agentMessages = ref([]);
-const agentResult = ref(null);
-const agentGenerationOverride = ref(null);
-const agentError = ref("");
-const agentProgress = ref(null);
-const agentRunningCount = ref(0);
-const agentActivities = ref([]);
-let agentProgressTimer = null;
-let agentPollingToken = 0;
-const AGENT_SESSION_KEY = "zizai-active-collaboration";
-const activeAgentStatuses = new Set(["queued", "running"]);
-const storyboardShots = ref(["", "", "", ""]);
-const storyboardReferences = ref([null, null]);
-function newProgressId() {
-  return `agent-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
-}
-function prepareAgentProgress(progressId) {
-  agentProgress.value = {
-    id: progressId,
-    status: "running",
-    stages: [{ id: "prepare", label: "准备参考素材", status: "running", message: "正在整理发送内容" }],
-  };
-}
-function applyAgentCollaboration(item) {
-  if (!item) return;
-  agentSession.value = item.session_id || item.id;
-  agentMessages.value = item.messages || [];
-  agentResult.value = item.result && Object.keys(item.result).length
-    ? { ...item.result, revision: item.revision }
-    : null;
-  agentProgress.value = item.progress && Object.keys(item.progress).length ? item.progress : agentProgress.value;
-  agentError.value = item.error || "";
-  agentBusy.value = activeAgentStatuses.has(item.status);
-  if (agentResult.value && item.status === "submitted") agentResult.value = { ...agentResult.value, submitted: true };
-  localStorage.setItem(AGENT_SESSION_KEY, agentSession.value);
-}
-async function refreshAgentActivity() {
-  try {
-    const result = await gateway.agentCollaborations(true);
-    agentActivities.value = result.items || [];
-    agentRunningCount.value = agentActivities.value.filter((item) =>
-      activeAgentStatuses.has(item.status),
-    ).length;
-    return agentActivities.value;
-  } catch {
-    return [];
-  }
-}
-function startAgentProgressPolling(collaborationId) {
-  clearInterval(agentProgressTimer);
-  const pollingToken = ++agentPollingToken;
-  const refresh = async () => {
-    try {
-      const item = await gateway.agentCollaboration(collaborationId);
-      if (pollingToken !== agentPollingToken || agentSession.value !== collaborationId) return;
-      applyAgentCollaboration(item);
-      await refreshAgentActivity();
-      if (!activeAgentStatuses.has(item.status)) {
-        clearInterval(agentProgressTimer);
-        agentProgressTimer = null;
-      }
-    } catch (error) {
-      if (error.status !== 404) clearInterval(agentProgressTimer);
-    }
-  };
-  refresh();
-  agentProgressTimer = setInterval(refresh, 1000);
-}
-function stopAgentProgressPolling() {
-  agentPollingToken += 1;
-  clearInterval(agentProgressTimer);
-  agentProgressTimer = null;
-}
-const agentAvailable = computed(
-  () =>
-    (kind.value === "video" && ["minimax", "ltx2_5"].includes(videoModel.value)) ||
-    (kind.value === "image" && ["krea2", "qwen"].includes(imageModel.value)) ||
-    kind.value === "music" && musicMode.value !== "background",
-);
-const h3QuickAvailable = computed(
-  () => kind.value === "video" && videoModel.value === "minimax",
-);
-watch(collaborationMode, (value) =>
-  localStorage.setItem(H3_COLLABORATION_MODE_KEY, value),
-);
-const agentActive = computed(
-  () =>
-    agentBusy.value ||
-    agentMessages.value.length > 0 ||
-    Boolean(agentError.value),
-);
-const accelerationModes = new Set(["fast", "quick_preview", "preview"]);
-async function ensureAiConfigured() {
-  try {
-    const status = await gateway.settingsStatus();
-    if (status.ai.configured) return true;
-  } catch (error) {
-    alert(error.message);
-    return false;
-  }
-  settingsNotice.value = "智能协作尚未配置 AI 模型服务，配置后才能使用；直接生成不受影响。";
-  settings.value = true;
-  return false;
-}
-async function updateCreationRoute(value) {
-  if (value === "agent" && !(await ensureAiConfigured())) return;
-  creationRoute.value = value;
-}
-async function updateSpeed(value) {
-  if (!accelerationModes.has(value)) {
-    speed.value = value;
-    return;
-  }
-  // Do not block mode selection on an optional-node preflight. ComfyUI is
-  // authoritative when the workflow is submitted and returns the real error.
-  speed.value = value;
-}
 function handleSettingsSaved() {
   settingsNotice.value = "";
 }
-async function ensureGrsaiConfigured() {
-  try {
-    const values = await gateway.settings();
-    if (values.grsai_api_key) return true;
-  } catch (error) {
-    alert(error.message);
-    return false;
-  }
-  if (window.confirm("GPT-Image 需要配置 GrisAI API Key，是否现在打开设置？"))
-    settings.value = true;
-  return false;
-}
-watch(imageModel, () => {
-  const allowed = {
-    krea2: ["text_to_image", "image_to_image", "character", "storyboard_4"],
-    qwen: ["text_to_image", "image_to_image", "character", "scene", "storyboard_4", "storyboard_6"],
-    gpt_image: ["text_to_image", "image_to_image", "character", "scene", "storyboard_4", "storyboard_6"],
-  }[imageModel.value] || [];
-  if (!allowed.includes(imageMode.value)) imageMode.value = "text_to_image";
-  const count = imageModel.value === "krea2" ? 2 : 3;
-  storyboardReferences.value = Array.from(
-    { length: count },
-    (_, index) => storyboardReferences.value[index] || null,
-  );
-  if (imageModel.value === "gpt_image") void ensureGrsaiConfigured();
-});
-watch(videoModel, () => {
-  videoMode.value =
-    videoModel.value === "ltx2_5" ? "text_to_video" : "reference";
-  speed.value = videoModel.value === "minimax" ? "quick_preview" : "normal";
-});
-watch(kind, (value) => {
-  if (value === "video") {
-    resolution.value = 480;
-    if (videoModel.value === "minimax") speed.value = "quick_preview";
-  } else if (value === "image" && Number(resolution.value) < 768) {
-    resolution.value = 768;
-  }
-});
-watch(agentAvailable, (available) => {
-  if (!available) creationRoute.value = "direct";
-});
 const healthClass = computed(() =>
   health.value.includes("在线")
     ? "is-online"
@@ -366,115 +248,43 @@ const healthClass = computed(() =>
       ? "is-warning"
       : "is-offline",
 );
-const mode = computed({
-  get: () =>
-    kind.value === "image"
-      ? imageMode.value
-      : kind.value === "video"
-        ? videoMode.value
-        : kind.value === "tts"
-          ? voiceMode.value
-          : musicMode.value,
-  set: (v) =>
-    kind.value === "image"
-      ? (imageMode.value = v)
-      : kind.value === "video"
-        ? (videoMode.value = v)
-        : kind.value === "tts"
-          ? (voiceMode.value = v)
-          : (musicMode.value = v),
-});
-const tabs = computed(() =>
-  kind.value === "image"
-    ? ["gpt_image", "qwen"].includes(imageModel.value)
-      ? [
-          { label: "文生图", value: "text_to_image" },
-          { label: "图生图", value: "image_to_image" },
-          { label: "角色版", value: "character" },
-          { label: "场景图", value: "scene" },
-          { label: "四宫格分镜", value: "storyboard_4" },
-          { label: "六宫格分镜", value: "storyboard_6" },
-        ]
-      : [
-        { label: "文生图", value: "text_to_image" },
-        { label: "图生图", value: "image_to_image" },
-        { label: "角色版", value: "character" },
-        { label: "四宫格分镜", value: "storyboard_4" },
-      ]
-    : kind.value === "video"
-      ? [
-          ...(videoModel.value === "ltx2_5"
-            ? [
-                { label: "文生视频", value: "text_to_video" },
-                { label: "图生视频", value: "image_to_video" },
-                { label: "首尾帧", value: "first_last_frame" },
-                { label: "多主体参考", value: "multi_reference" },
-              ]
-            : [
-                { label: "全能参考", value: "reference" },
-                { label: "文生视频", value: "text_to_video" },
-                { label: "图生视频", value: "image_to_video" },
-                { label: "首尾帧", value: "first_last_frame" },
-              ]),
-        ]
-      : kind.value === "tts"
-        ? [
-            { label: "预设声音", value: "preset" },
-            { label: "声音描述", value: "describe" },
-            { label: "声音克隆", value: "clone" },
-          ]
-        : [
-            { label: "预设模式", value: "preset" },
-            { label: "音乐创作", value: "create" },
-            { label: "背景配乐", value: "background" },
-          ],
-);
-function limitFor(type) {
-  if (kind.value === "tts")
-    return voiceMode.value === "clone" && type === "audio" ? 1 : 0;
-  if (kind.value === "image") {
-    if (type !== "image") return 0;
-    if (["gpt_image", "qwen"].includes(imageModel.value)) {
-      if (["image_to_image", "character", "scene", "storyboard_4", "storyboard_6"].includes(imageMode.value)) return 8;
-      return 0;
-    }
-      return ["image_to_image", "character"].includes(imageMode.value)
-      ? 1 : 0;
+const resourcePicker = ref(null);
+const resourcePickerTypes = ref([]);
+watch(drawer, value => {
+  if (!value && resourcePicker.value) {
+    resourcePicker.value = null;
+    resourcePickerTypes.value = [];
   }
-  if (videoMode.value === "reference")
-    return { image: 9, audio: 3, video: 3 }[type] || 0;
-  if (type === "image")
-    return videoMode.value === "first_last_frame"
-      ? 2
-      : videoMode.value === "multi_reference"
-        ? 3
-        : videoMode.value === "image_to_video"
-          ? 1
-          : 0;
-  return 0;
+});
+function openResourcePicker(options = {}) {
+  resourcePicker.value = typeof options.onSelect === 'function' ? options.onSelect : null;
+  resourcePickerTypes.value = Array.isArray(options.types) ? options.types : [];
+  drawer.value = true;
+}
+async function handleAssetUse(asset) {
+  if (resourcePicker.value) {
+    const callback = resourcePicker.value;
+    resourcePicker.value = null;
+    resourcePickerTypes.value = [];
+    drawer.value = false;
+    await callback({ ...asset, project_id: currentProject.value?.id || '', category_id: currentCategory.value || null });
+    return;
+  }
+  await useAsset(asset);
 }
 function addFile(file) {
-  if (!file) return;
-  const type = file.type.split("/")[0];
-  if (!limitFor(type)) return;
-  const same = files.value.filter((f) => f.type.startsWith(`${type}/`));
-  const multiImage = kind.value === "image" && ["gpt_image", "qwen"].includes(imageModel.value) && limitFor(type) > 1;
-  files.value =
-    kind.value === "image" && !multiImage
-      ? [file]
-      : same.length < limitFor(type)
-        ? [...files.value, file]
-        : files.value;
+  if (file) genericComposer.value?.addFile(file);
 }
-function removeFile(file) {
-  files.value = files.value.filter((f) => f !== file);
-}
+
 async function useAsset(asset) {
-  const blob = await fetch(asset.url).then((r) => r.blob());
-  addFile(new File([blob], asset.name, { type: blob.type }));
+  try {
+    const blob = await readMediaBlob(asset.url);
+    if (currentCategory.value === '@public') { selectCategory(null); await nextTick(); }
+    addFile(new File([blob], asset.name, { type: blob.type }));
+  } catch (error) { notify(error.message); }
 }
 async function removeJob(job) {
-  if (!window.confirm("删除这个生成资源？")) return;
+  if (!await confirmAction("删除这个生成资源？")) return;
   if (job.external) {
     URL.revokeObjectURL(job.artifact_url);
     jobs.value = jobs.value.filter((item) => item.id !== job.id);
@@ -487,33 +297,50 @@ async function removeJob(job) {
     jobs.value = jobs.value.filter((item) => item.id !== job.id);
     if (preview.value?.id === job.id) preview.value = null;
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   }
 }
 
 async function clearWorkspace() {
-  if (!jobs.value.length) return;
-  if (!window.confirm("确定清空工作台全部资源吗？生成产物、参考素材和任务记录都会一起删除，此操作无法撤销。")) return;
+  const projectId = currentProject.value.id;
+  if (currentCategory.value === '@public') {
+    if (!await confirmAction('确定删除当前项目的全部项目资产及其归档文件吗？此操作无法撤销。')) return;
+    if (currentProject.value.id !== projectId) return;
+    try {
+      await gateway.clearPublicAssets(projectId);
+      workspaceRevision += 1;
+      projectView.value = 'assets';
+      await restore();
+    } catch (error) {
+    notify(error.message);
+    }
+    return;
+  }
+  if (!categoryJobs.value.length) return;
+  const categoryId = currentCategory.value;
+  const scope = categoryId === null ? '当前项目全部素材（包含所有分类）' : categories.value.find(item => item.id === categoryId)?.name;
+  if (!await confirmAction(`确定清空“${scope}”的资源吗？生成产物、参考素材和任务记录都会一起删除，此操作无法撤销。`)) return;
+  if (currentProject.value.id !== projectId) return;
   try {
-    await gateway.clearJobs();
+    await gateway.clearJobs(categoryId);
     workspaceRevision += 1;
-    jobs.value.filter((job) => job.external).forEach((job) => URL.revokeObjectURL(job.artifact_url));
-    jobs.value = [];
+    jobs.value.filter(job => job.external && (categoryId === null || (job.category_id || '') === categoryId)).forEach(job => URL.revokeObjectURL(job.artifact_url));
+    jobs.value = jobs.value.filter(job => categoryId !== null && (job.category_id || '') !== categoryId);
     preview.value = null;
     postSource.value = null;
     taskDetails.value = null;
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   }
 }
 async function cancelJob(job) {
-  if (!window.confirm("取消这个生成任务？")) return;
+  if (!await confirmAction("取消这个生成任务？")) return;
   try {
     const result = await gateway.cancelJob(job.id);
     const index = jobs.value.findIndex((item) => item.id === job.id);
     if (index >= 0) jobs.value[index] = { ...jobs.value[index], ...result };
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   }
 }
 
@@ -524,7 +351,7 @@ async function showTaskDetails(job) {
   try {
     taskDetails.value = await gateway.jobManifest(job.id);
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   }
 }
 async function regenerateTask({ manifest, draft, replacements, removed = {}, action = "direct", done }) {
@@ -537,11 +364,7 @@ async function regenerateTask({ manifest, draft, replacements, removed = {}, act
       const itemKey = `${item.type}:${item.index}`;
       let source = replacements[itemKey];
       if (!source) {
-        const response = await fetch(
-          gateway.taskFileUrl(manifest.task_id, item.path),
-        );
-        if (!response.ok) throw Error(`无法读取素材 ${item.index}`);
-        source = await response.blob();
+        source = await readMediaBlob(gateway.taskFileUrl(manifest.task_id, item.path));
       }
       encodedInputs[item.type].push({
         index: Number(item.index),
@@ -555,167 +378,82 @@ async function regenerateTask({ manifest, draft, replacements, removed = {}, act
     );
     const original = JSON.parse(JSON.stringify(manifest.parameters || {}));
     const params = original.params || {};
-    const collaborationModel = manifest.kind === "video"
-      ? (params.video_model === "ltx2_5" ? "ltx2_5" : "minimax-h3")
-      : manifest.kind === "image"
-        ? (params.image_model || "krea2")
-        : manifest.kind === "music" ? "minimax_music3" : "";
-    const canCompile = ["minimax-h3", "ltx2_5", "krea2", "qwen", "minimax_music3"].includes(collaborationModel);
-    if (action === "compile" && canCompile) {
-      const references = activeInputs.map((source, index) => {
-        const uploaded = encodedInputs[source.type]?.find(
-          (entry) => entry.index === Number(source.index),
-        );
-        return {
-          kind: source.type,
-          name: source.original_name || `input-${index + 1}`,
-          media_type: source.media_type || `${source.type}/octet-stream`,
-          data_url: uploaded?.value,
-        };
-      });
-      agentGenerationOverride.value = {
-        kind: manifest.kind,
-        body: {
-          ...original,
-          prompt: "",
-          references: [],
-          duration_seconds: Number(draft.duration_seconds || original.duration_seconds || 5),
-          params: {
-            ...params,
-            videos: [],
-            audios: [],
-            parent_job_id: manifest.task_id,
-            width: Number(draft.width || params.width || 0),
-            height: Number(draft.height || params.height || 0),
-            speed: draft.speed || params.speed,
-          },
-        },
-      };
-      const item = await gateway.agentStart({
-        client_request_id: newProgressId(),
-        message: draft.promptZh.trim(),
-        kind: manifest.kind,
-        model: collaborationModel,
-        mode: original.mode || params.mode || "reference",
-        duration_seconds: Number(draft.duration_seconds || original.duration_seconds || 5),
-        ratio: draft.ratio || "16:9",
-        resolution: Number(draft.resolution || 720),
-        references,
-        collaboration_mode: collaborationModel === "minimax-h3" ? "quick" : "director",
-        params: { ...params, _generation_override: agentGenerationOverride.value },
-      });
+    if (!draft.formValues) throw Error('请更新插件表单后重新编辑');
+    draft.lyrics = draft.formValues.lyrics ?? draft.lyrics;
+    const capabilityId = params.capability_id || original.generation?.capability_id;
+    const capability = pluginCapabilities.value.find(item => item.id === capabilityId);
+    const inputs = activeInputs.map(item => ({
+      type:item.type,
+      role:item.role || capability?.input_roles?.[item.type]?.[encodedInputs[item.type].findIndex(entry => entry.index === Number(item.index))] || 'reference',
+      upload_id:encodedInputs[item.type].find(entry => entry.index === Number(item.index)).value.replace(/^upload:/,''),
+    }));
+    if (action !== 'direct') {
+      if (!capability?.processing_modes?.some(mode => mode.id === action)) throw Error('原插件不支持此处理模式');
+      await selectCapability(capabilityId);
+      await nextTick();
+      await genericComposer.value.startRequest({
+        parent_job_id:manifest.task_id,
+        capability_id:capabilityId, project_id:manifest.project_id,
+        category_id:jobs.value.find(job => job.id === manifest.task_id)?.category_id || '',
+        prompt:draft.promptZh.trim(), lyrics:draft.lyrics, inputs,
+        settings:draft.formValues.settings, parameters:draft.formValues.parameters,
+        prompt_processing:action,
+      },inputs.map((input,index)=>({
+        ...input,name:activeInputs[index].name || `参考素材 ${index+1}`,
+        preview:replacements[`${activeInputs[index].type}:${activeInputs[index].index}`]
+          ? URL.createObjectURL(replacements[`${activeInputs[index].type}:${activeInputs[index].index}`])
+          : gateway.taskFileUrl(manifest.task_id,activeInputs[index].path),
+      })));
       taskDetails.value = null;
-      applyAgentCollaboration(item);
-      agentOpen.value = true;
-      startAgentProgressPolling(item.id);
       return;
     }
-    let body;
-    if (manifest.kind === "tts") {
-      body = {
-        ...original,
-        text: draft.promptEn.trim(),
-        instruction: draft.instruction,
-        reference_audio: encodedInputs.audio[0]?.value || null,
-        parent_job_id: manifest.task_id,
-      };
-    } else {
-      const nextParams = {
-        ...(original.params || {}),
-        videos: encodedInputs.video.map((item) => item.value),
-        audios: encodedInputs.audio.map((item) => item.value),
-        parent_job_id: manifest.task_id,
-        confirmed_prompt_zh: draft.promptZh.trim(),
-        execution_prompt_en: draft.promptEn.trim(),
-      };
-      if (["image", "video"].includes(manifest.kind)) {
-        nextParams.width = Number(draft.width || original.params?.width || 0);
-        nextParams.height = Number(draft.height || original.params?.height || 0);
-      }
-      if (manifest.kind === "video" && draft.speed) nextParams.speed = draft.speed;
-      if (manifest.kind === "music") nextParams.lyrics = draft.lyrics;
-      body = {
-        ...original,
-        prompt: draft.promptEn.trim(),
-        references: encodedInputs.image.map((item) => item.value),
-        duration_seconds: Number(
-          draft.duration_seconds || original.duration_seconds || 5,
-        ),
-        params: nextParams,
-      };
-    }
-    const created = await gateway.submit(manifest.kind, body);
-    jobs.value.unshift({ ...created, id: created.job_id, kind: manifest.kind });
-    poll(created.job_id);
-    taskDetails.value = null;
+    const created = await gateway.regenerateJob(manifest.task_id, {
+        prompt:draft.promptEn.trim(), lyrics:draft.lyrics, inputs,
+        settings:draft.formValues.settings, parameters:draft.formValues.parameters,
+        ...(params.execution_prompt_en ? {execution_prompt_en:draft.promptEn.trim(),confirmed_prompt_zh:draft.promptZh.trim()} : {}),
+      });
+      jobs.value.unshift({...created,id:created.job_id,kind:manifest.kind});
+      poll(created.job_id);taskDetails.value=null;
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   } finally {
     done?.();
   }
 }
 function addExternalFile(file) {
   if (!file || !/^(image|video|audio)\//.test(file.type)) return;
-  jobs.value.unshift(externalJob(file));
+  jobs.value.unshift({ ...externalJob(file), category_id: submissionCategory.value });
 }
-async function submitPost({ source, mode, width, height, upscaler, done }) {
+async function submitPost({ source, mode, capabilityId, inputs, done }) {
   try {
-    if (["h3_refine", "preview_refine_fast", "preview_refine_stable", "ltx_ultra"].includes(mode)) {
-      const created = await gateway.refineJob(source.id, { mode, width, height, upscaler });
-      jobs.value.unshift({ ...created, id: created.job_id, kind: "video" });
-      poll(created.job_id);
-      postSource.value = null;
-      return;
+    const options = { projectId: currentProject.value?.id, categoryId: submissionCategory.value, inputs };
+    if (source.external) {
+      const blob = await readMediaBlob(source.artifact_url);
+      const file = new File([blob], `source.${blob.type.split("/")[1] || "mp4"}`, { type: blob.type });
+      options.sourceUploadId = (await uploadValue(file)).replace(/^upload:/, "");
+    } else {
+      options.sourceJobId = source.id;
     }
-    const response = await fetch(source.artifact_url);
-    if (!response.ok) throw Error("无法读取源资源");
-    const blob = await response.blob();
-    const file = new File(
-      [blob],
-      `source.${blob.type.split("/")[1] || (source.kind === "video" ? "mp4" : "png")}`,
-      { type: blob.type },
-    );
-    const encoded = await uploadValue(file);
-    const isVideo = source.kind === "video";
-    const sourceParams = source.request?.params || {};
-    const sourcePrompt =
-      sourceParams.execution_prompt_en ||
-      source.request?.prompt ||
-      "视频清晰度增强";
-    const body = {
-      prompt: sourcePrompt,
-      mode,
-      references: isVideo ? [] : [encoded],
-      duration_seconds: Number(source.request?.duration_seconds || 5),
-      params: {
-        videos: isVideo ? [encoded] : [],
-        audios: [],
-        width: Number(sourceParams.width || source.width || 768),
-        height: Number(sourceParams.height || source.height || 432),
-        video_model:
-          mode === "lms_enhance" ? "minimax" : sourceParams.video_model || "",
-        speed:
-          mode === "lms_enhance" ? "normal" : sourceParams.speed || "normal",
-        h3_lms_enhance: mode === "lms_enhance",
-        parent_job_id: source.id,
-        confirmed_prompt_zh: sourceParams.confirmed_prompt_zh || "",
-        execution_prompt_en: sourcePrompt,
-      },
-    };
-    const created = await gateway.submit(source.kind, body);
-    jobs.value.unshift({ ...created, id: created.job_id, kind: source.kind });
-    poll(created.job_id);
+    const created = await gateway.runPluginAction(mode, options);
+    if (created.job_id) {
+      jobs.value.unshift({ ...created, id: created.job_id, kind: pluginCapabilities.value.find(cap => cap.id === capabilityId)?.type || source.kind });
+      poll(created.job_id);
+    }
     postSource.value = null;
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   } finally {
     done?.();
   }
 }
-async function translateTask({ text, mode, apply, regeneration, done }) {
+async function translateTask({ actionId, text, mode, apply, regeneration, done }) {
   let regenerationStarted = false;
   try {
-    const result = await gateway.translateH3({ text, mode });
+    if (!actionId) throw Error("当前插件未声明翻译动作");
+    const response = await gateway.runPluginAction(actionId, {
+      projectId: currentProject.value?.id, inputs: { text, mode },
+    });
+    const result = response.result;
     apply?.(result.english_prompt);
     if (regeneration) {
       regeneration.draft.promptEn = result.english_prompt;
@@ -724,380 +462,9 @@ async function translateTask({ text, mode, apply, regeneration, done }) {
       return;
     }
   } catch (error) {
-    alert(error.message);
+    notify(error.message);
   } finally {
     if (!regenerationStarted) done?.();
-  }
-}
-function videoDimensions(resolution, ratioWidth, ratioHeight) {
-  const usesLongEdge = [1024, 2048].includes(resolution);
-  if (usesLongEdge)
-    return ratioWidth >= ratioHeight
-      ? {
-          width: resolution,
-          height: Math.round((resolution * ratioHeight) / ratioWidth),
-        }
-      : {
-          width: Math.round((resolution * ratioWidth) / ratioHeight),
-          height: resolution,
-        };
-  return ratioWidth >= ratioHeight
-    ? {
-        width: Math.round((resolution * ratioWidth) / ratioHeight),
-        height: resolution,
-      }
-    : {
-        width: resolution,
-        height: Math.round((resolution * ratioHeight) / ratioWidth),
-      };
-}
-async function buildGenerationBody(promptOverride = null) {
-const storyboard = kind.value === "image" && imageModel.value === "krea2" && imageMode.value === "storyboard_4";
-  const presetMusic = kind.value === "music" && musicMode.value === "preset";
-  const backgroundMusic = kind.value === "music" && musicMode.value === "background";
-  const enteredText = storyboard
-    ? storyboardShots.value.join("\n").trim()
-    : presetMusic
-      ? lyrics.value.trim()
-      : prompt.value.trim();
-  const text = promptOverride ?? enteredText;
-  if (!text) throw Error("请输入生成内容");
-  if (kind.value === "tts") {
-    if (voiceMode.value === "describe" && !instruction.value.trim())
-      throw Error("请填写声音描述");
-    let referenceAudio = null;
-    if (voiceMode.value === "clone") {
-      const audio = files.value.find((file) => file.type.startsWith("audio/"));
-      if (!audio) throw Error("请上传一段音色参考音频");
-      referenceAudio = (await gateway.upload(audio)).value;
-    }
-    return {
-      text,
-      mode: voiceMode.value,
-      voice_model: voiceModel.value,
-      character: character.value,
-      instruction: instruction.value,
-      speed: voiceSpeed.value,
-      reference_audio: referenceAudio,
-    };
-  }
-  const storyboardReferenceCount = imageModel.value === "krea2" ? 2 : 3;
-  if (
-    storyboard &&
-    (storyboardReferences.value.length !== storyboardReferenceCount ||
-      storyboardReferences.value.some((f) => !f) ||
-      storyboardShots.value.some((s) => !s.trim()))
-  )
-    throw Error(
-      imageModel.value === "krea2"
-        ? "请选择第一参考图、第二参考图，并填写四个镜头"
-        : "请选择场景、角色 A、角色 B，并填写四个镜头",
-    );
-  const images = storyboard
-    ? storyboardReferences.value
-    : files.value.filter((f) => f.type.startsWith("image/"));
-  if (kind.value === "image" && ["gpt_image", "qwen"].includes(imageModel.value)) {
-    if (imageMode.value === "image_to_image" && (images.length < 1 || images.length > 8))
-      throw Error(`${imageModel.value === "qwen" ? "Qwen-Image 2.1" : "GPT-Image"} 图生图需要 1-8 张参考图`);
-    if (["character", "scene"].includes(imageMode.value) && images.length > 8)
-      throw Error("最多支持 8 张参考图");
-    if (["storyboard_4", "storyboard_6"].includes(imageMode.value) && images.length > 8)
-      throw Error("宫格分镜最多支持 8 张参考图");
-  } else if (
-    kind.value === "image" &&
-    [
-      "image_to_image",
-      "character",
-    ].includes(imageMode.value) &&
-    images.length !== 1
-  )
-    throw Error("图生图需要 1 张参考图");
-  if (
-    kind.value === "video" &&
-    videoMode.value === "first_last_frame" &&
-    images.length !== 2
-  )
-    throw Error("首尾帧生视频需要首帧和尾帧各 1 张");
-  if (
-    kind.value === "video" &&
-    videoMode.value === "multi_reference" &&
-    images.length !== 3
-  )
-    throw Error("多主体参考视频需要 3 张参考图");
-  const [references, audios, videos] = await Promise.all([
-    Promise.all(images.map(uploadValue)),
-    Promise.all(
-      files.value.filter((f) => f.type.startsWith("audio/")).map(uploadValue),
-    ),
-    Promise.all(
-      files.value.filter((f) => f.type.startsWith("video/")).map(uploadValue),
-    ),
-  ]);
-  const [w, h] = ratio.value.split(":").map(Number);
-  const selectedResolution = Number(resolution.value);
-  const videoSize = videoDimensions(selectedResolution, w, h);
-  return {
-    prompt: presetMusic
-      ? buildMusicPresetPrompt(
-          musicStyle.value,
-          musicSinger.value,
-          musicVoiceTexture.value,
-          musicCatalog.value,
-        )
-      : text,
-    mode: kind.value === "music" ? (backgroundMusic ? "background" : "create") : mode.value,
-    references,
-    duration_seconds: Number(duration.value),
-    params: {
-      width: kind.value === "video" ? videoSize.width : selectedResolution,
-      height:
-        kind.value === "video"
-          ? videoSize.height
-          : Math.round((selectedResolution * h) / w),
-      audios,
-      videos,
-      speed: speed.value,
-      h3_camera_lora: kind.value === "video" ? h3CameraLora.value : "auto",
-      h3_style_lora: kind.value === "video" ? h3StyleLora.value : "",
-      video_model: kind.value === "video" ? videoModel.value : "",
-      style_id: kind.value === "image" ? imageStyle.value : "",
-      image_model: kind.value === "image" ? imageModel.value : "",
-      native_model:
-        kind.value === "image" && imageModel.value === "gpt_image"
-          ? gptImageVersion.value
-          : "",
-      shots: storyboard ? storyboardShots.value : undefined,
-      lyrics: kind.value === "music" ? lyrics.value : "",
-      music_model: backgroundMusic ? "ace_step" : "minimax_music3",
-      music_bpm: musicBpm.value,
-      music_key: musicKey.value,
-      music_timesignature: musicTimeSignature.value,
-      confirmed_prompt_zh: text,
-      execution_prompt_en: "",
-    },
-  };
-}
-async function enqueueGeneration(body) {
-  const created = await gateway.submit(kind.value, body);
-  jobs.value.unshift({ ...created, id: created.job_id, kind: kind.value });
-  poll(created.job_id);
-  return created;
-}
-async function beginAgent() {
-  agentGenerationOverride.value = null;
-  if (agentBusy.value && agentSession.value) {
-    agentOpen.value = true;
-    return;
-  }
-  if (!(await ensureAiConfigured())) return;
-  // A new submission is independent. Stop displaying the previous task
-  // without cancelling it on the server.
-  stopAgentProgressPolling();
-  const storyboard = kind.value === "image" && imageModel.value !== "gpt_image" && imageMode.value === "storyboard_4";
-  const message = storyboard ? storyboardShots.value.join("\n").trim() : prompt.value.trim();
-  const agentMessage =
-    kind.value === "music" && musicMode.value === "preset"
-      ? lyrics.value.trim()
-      : message;
-  if (!agentMessage) throw Error("请输入生成内容");
-  agentOpen.value = true;
-  agentBusy.value = true;
-  agentSession.value = null;
-  agentResult.value = null;
-  agentError.value = "";
-  const requestId = newProgressId();
-  prepareAgentProgress(requestId);
-  agentMessages.value = [{ role: "user", content: agentMessage }];
-  try {
-    const agentFiles = storyboard ? storyboardReferences.value.filter(Boolean) : files.value;
-    const references = await Promise.all(agentFiles.map(agentReference));
-    const model =
-      kind.value === "video"
-        ? videoModel.value
-        : kind.value === "image"
-          ? imageModel.value
-          : "minimax_music3";
-    const agentParams =
-      kind.value === "music"
-        ? {
-            music_style: musicStyle.value,
-            music_singer: musicSinger.value,
-            music_voice_texture: musicVoiceTexture.value,
-          }
-        : kind.value === "image"
-          ? { style: imageStyle.value }
-          : {};
-    const item = await gateway.agentStart({
-      client_request_id: requestId,
-      message: agentMessage,
-      kind: kind.value,
-      model,
-      mode: mode.value,
-      duration_seconds: Number(duration.value),
-      ratio: ratio.value,
-      resolution: Number(resolution.value),
-      references,
-      params: agentParams,
-      collaboration_mode:
-        model === "minimax-h3" ? collaborationMode.value : "director",
-    });
-    applyAgentCollaboration(item);
-    startAgentProgressPolling(item.id);
-  } catch (error) {
-    agentError.value = error.message;
-    agentBusy.value = false;
-  }
-}
-async function continueAgent(message) {
-  if (!agentSession.value) return beginAgent();
-  agentMessages.value.push({ role: "user", content: message });
-  agentBusy.value = true;
-  agentError.value = "";
-  const requestId = newProgressId();
-  prepareAgentProgress(requestId);
-  try {
-    const item = await gateway.agentStart({
-      client_request_id: requestId,
-      session_id: agentSession.value,
-      message,
-    });
-    applyAgentCollaboration(item);
-    startAgentProgressPolling(item.id);
-  } catch (error) {
-    agentError.value = error.message;
-    agentBusy.value = false;
-  }
-}
-async function generateAgentPlan() {
-  if (!agentResult.value?.optimized_prompt || agentResult.value?.submitted)
-    return;
-  agentBusy.value = true;
-  agentError.value = "";
-  try {
-    if (
-      kind.value === "image" &&
-      imageMode.value === "storyboard_4" &&
-      agentResult.value.optimized_shots?.length === 4
-    ) {
-      storyboardShots.value = [...agentResult.value.optimized_shots];
-    }
-    const override = agentGenerationOverride.value;
-    const body = override
-      ? { ...override.body, prompt: agentResult.value.optimized_prompt }
-      : await buildGenerationBody(agentResult.value.optimized_prompt);
-    body.params = {
-      ...(body.params || {}),
-      confirmed_prompt_zh: agentResult.value.optimized_prompt_zh || "",
-      execution_prompt_en: agentResult.value.optimized_prompt,
-    };
-    const submissionKind = override?.kind || kind.value;
-    const created = await gateway.generateFromAgent(agentSession.value, {
-      kind: submissionKind,
-      payload: body,
-      revision: Number(agentResult.value?.revision || 0),
-    });
-    if (!jobs.value.some((item) => item.id === created.job_id))
-      jobs.value.unshift({ ...created, id: created.job_id, kind: submissionKind });
-    poll(created.job_id);
-    agentResult.value = { ...agentResult.value, submitted: true };
-    agentMessages.value.push({
-      role: "assistant",
-      content: `方案已提交，任务 ${created.job_id} 正在生成。`,
-    });
-    agentOpen.value = false;
-    agentGenerationOverride.value = null;
-    creationRoute.value = "direct";
-  } catch (error) {
-    agentError.value = error.message;
-  } finally {
-    agentBusy.value = false;
-  }
-}
-
-async function resetAgent() {
-  if (agentBusy.value) return;
-  if (agentSession.value) {
-    try {
-      await gateway.abandonAgent(agentSession.value);
-    } catch (error) {
-      agentError.value = error.message;
-      return;
-    }
-  }
-  agentSession.value = null;
-  agentMessages.value = [];
-  agentResult.value = null;
-  agentGenerationOverride.value = null;
-  agentError.value = "";
-  agentProgress.value = null;
-  clearInterval(agentProgressTimer);
-  localStorage.removeItem(AGENT_SESSION_KEY);
-  agentOpen.value = true;
-}
-async function cancelAgent() {
-  if (!agentSession.value || !agentBusy.value) return;
-  try {
-    applyAgentCollaboration(await gateway.cancelAgent(agentSession.value));
-    clearInterval(agentProgressTimer);
-    agentProgressTimer = null;
-    await refreshAgentActivity();
-  } catch (error) {
-    agentError.value = error.message;
-  }
-}
-async function cancelAllAgents() {
-  try {
-    await gateway.cancelAllAgents();
-    agentRunningCount.value = 0;
-    if (agentSession.value) applyAgentCollaboration(await gateway.agentCollaboration(agentSession.value));
-    clearInterval(agentProgressTimer);
-    agentProgressTimer = null;
-  } catch (error) {
-    agentError.value = error.message;
-  }
-}
-async function openAgentSession(id) {
-  try {
-    const item = await gateway.agentCollaboration(id);
-    applyAgentCollaboration(item);
-    agentOpen.value = true;
-    creationRoute.value = "agent";
-    if (activeAgentStatuses.has(item.status)) startAgentProgressPolling(item.id);
-  } catch (error) {
-    agentError.value = error.message;
-  }
-}
-async function cancelAgentSession(id) {
-  try {
-    await gateway.cancelAgent(id);
-    await refreshAgentActivity();
-    if (agentSession.value === id)
-      applyAgentCollaboration(await gateway.agentCollaboration(id));
-  } catch (error) {
-    agentError.value = error.message;
-  }
-}
-function clearAgentState() {
-  stopAgentProgressPolling();
-  agentSession.value = null;
-  agentMessages.value = [];
-  agentResult.value = null;
-  agentError.value = "";
-  agentProgress.value = null;
-  localStorage.removeItem(AGENT_SESSION_KEY);
-}
-async function submit() {
-  try {
-    if (
-      kind.value === "image" &&
-      imageModel.value === "gpt_image" &&
-      !(await ensureGrsaiConfigured())
-    )
-      return;
-    if (creationRoute.value === "agent") return await beginAgent();
-    await enqueueGeneration(await buildGenerationBody());
-  } catch (error) {
-    alert(error.message);
   }
 }
 async function poll(id, failures = 0) {
@@ -1137,6 +504,7 @@ async function refreshWorkspace() {
       if (revision === workspaceRevision && projectHomeVisible.value)
         projects.value = result.items || [];
     } else if (currentProject.value) {
+      await loadCategories();
       const result = await gateway.jobs();
       if (revision !== workspaceRevision || projectHomeVisible.value) return;
       const remote = result.items || [];
@@ -1156,59 +524,9 @@ async function refreshWorkspace() {
     workspaceRefreshPending = false;
   }
 }
-async function restoreAgent() {
-  try {
-    const saved = localStorage.getItem(AGENT_SESSION_KEY);
-    let item = null;
-    if (saved) {
-      try {
-        const stored = await gateway.agentCollaboration(saved);
-        if (!["submitted", "cancelled"].includes(stored.status)) item = stored;
-      } catch {}
-    }
-    if (!item) item = (await gateway.agentCollaborations(true)).items?.[0];
-    if (!item) return;
-    const request = item.request || {};
-    agentGenerationOverride.value = request.params?._generation_override || null;
-    if (request.kind) kind.value = request.kind;
-    if (request.kind === "video" && request.model)
-      videoModel.value = request.model === "minimax-h3" ? "minimax" : request.model;
-    if (request.kind === "image" && request.model) imageModel.value = request.model;
-    await nextTick();
-    if (request.mode) mode.value = request.mode;
-    if (request.duration_seconds) duration.value = request.duration_seconds;
-    if (request.ratio) ratio.value = request.ratio;
-    if (request.resolution) resolution.value = request.resolution;
-    if (["quick", "director"].includes(request.collaboration_mode))
-      collaborationMode.value = request.collaboration_mode;
-    if (request.kind === "music") lyrics.value = request.message || lyrics.value;
-    else prompt.value = request.message || prompt.value;
-    await refreshAgentActivity();
-    applyAgentCollaboration(item);
-    creationRoute.value = "agent";
-    agentOpen.value = true;
-    if (activeAgentStatuses.has(item.status)) startAgentProgressPolling(item.id);
-  } catch {}
-}
 async function loadVoices() {
   try {
     voices.value = (await gateway.voices()).voices || [];
-  } catch {}
-}
-async function loadMusicPresets() {
-  try {
-    const result = await gateway.musicPresets();
-    const options = (items) =>
-      (items || []).map((item) => ({
-        value: item.id,
-        label: item.name,
-        prompt: item.instruction,
-      }));
-    musicCatalog.value = {
-      styles: options(result.styles),
-      singers: options(result.singers),
-      voiceTextures: options(result.voice_textures),
-    };
   } catch {}
 }
 async function checkHealth() {
@@ -1221,31 +539,26 @@ async function checkHealth() {
     health.value = "网关离线";
   }
 }
-watch([kind, mode, imageModel, videoModel, collaborationMode], () => {
-  // Detach the panel from old work, but leave the server-side task alive so it
-  // remains available in the activity list for explicit cancellation/opening.
-  if (agentSession.value) clearAgentState();
-  files.value = [];
-});
 let timer;
 let workspaceRefreshTimer;
 onMounted(() => {
+  window.addEventListener("gateway-auth-required", requireAuthentication);
   window.addEventListener("popstate", syncRoute);
   window.addEventListener("focus", refreshWorkspace);
   document.addEventListener("visibilitychange", refreshWorkspace);
   syncRoute();
   restoreProjectView();
   loadVoices();
-  loadMusicPresets();
+  loadPlugins();
   checkHealth();
   timer = setInterval(checkHealth, 10000);
   workspaceRefreshTimer = setInterval(refreshWorkspace, 5000);
 });
 onUnmounted(() => {
+  window.removeEventListener("gateway-auth-required", requireAuthentication);
   workspaceRevision += 1;
   clearInterval(timer);
   clearInterval(workspaceRefreshTimer);
-  clearInterval(agentProgressTimer);
   window.removeEventListener("popstate", syncRoute);
   window.removeEventListener("focus", refreshWorkspace);
   document.removeEventListener("visibilitychange", refreshWorkspace);
@@ -1253,14 +566,21 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <NotificationHost />
+  <ConfirmationHost />
+  <div v-if="authRequired" class="gateway-auth-overlay">
+    <form class="gateway-auth" aria-label="网关认证" @submit.prevent="authenticate">
+      <h2>网关认证</h2>
+      <label>访问令牌<input v-model="accessToken" type="password" autocomplete="current-password" required autofocus maxlength="512" /></label>
+      <p v-if="authError" role="alert">{{ authError }}</p>
+      <button type="submit" :disabled="authenticating">{{ authenticating ? '验证中' : '连接网关' }}</button>
+    </form>
+  </div>
   <GuidePage v-if="!studioVisible && guideSection" :section="guideSection" @home="leaveStudio" @enter="enterStudio" @section="openGuide" />
   <LandingPage v-else-if="!studioVisible" @enter="enterStudio" @guide="openGuide" />
   <main
     v-else
     class="app"
-    :class="{
-      'agent-active': agentActive && agentOpen && creationRoute === 'agent',
-    }"
   >
     <header class="topbar">
       <button
@@ -1277,47 +597,71 @@ onUnmounted(() => {
           >{{ currentProject?.name || '当前项目' }}</span
         ><b>{{ jobs.length }}</b>
       </button>
-      <a
-        class="topbar-site"
-        href="https://laobanclaw.top/"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="访问 videofree 官网"
-        ><Icon icon="solar:global-linear" width="15" />官网</a
-      >
-      <button v-if="!projectHomeVisible"
-        class="topbar-clear"
-        type="button"
-        :disabled="!jobs.length"
-        aria-label="清空工作台资源"
-        title="清空工作台资源"
-        @click="clearWorkspace"
-      >
-        <Icon icon="solar:trash-bin-minimalistic-linear" width="18" />
-      </button>
-      <span class="health-status" :class="healthClass"
-        ><i aria-hidden="true"></i>{{ health }}</span
-      >
+      <nav v-if="!projectHomeVisible" class="project-view-tabs" aria-label="项目视图">
+        <button :class="{ selected: projectView === 'assets' }" @click="projectView = 'assets'"><Icon icon="solar:widget-2-linear" />素材</button>
+        <button v-for="application in applications" :key="application.id" :class="{ selected: projectView === application.id }" @click="projectView = application.id">
+          <img v-if="applicationIcon(application)" class="application-icon" :src="applicationIcon(application)" alt="" />
+          <span v-else-if="!application.icon" class="application-icon-fallback">{{ application.icon_text }}</span>
+          <Icon v-else :icon="application.icon" />{{ application.name }}
+        </button>
+      </nav>
+      <div class="topbar-actions">
+        <a
+          class="topbar-site"
+          href="https://laobanclaw.top/"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="访问 videofree 官网"
+          ><Icon icon="solar:global-linear" width="15" />官网</a
+        >
+        <span class="health-status" :class="healthClass" :title="`网关状态：${health}`" :aria-label="`网关状态：${health}`" role="status"
+          ><i aria-hidden="true"></i></span
+        >
+        <button v-if="projectHomeVisible" class="topbar-settings" type="button" aria-label="设置" title="设置" @click="settings = true"><Icon icon="solar:settings-linear" width="18" /></button>
+      </div>
     </header>
     <ProjectHome v-if="projectHomeVisible" :projects="projects" :loading="projectsLoading" @open="openProject" @create="createProject" @edit="updateProject" @delete="deleteProject" />
     <template v-else>
-    <nav class="rail">
-      <button aria-label="本地资源" title="本地资源" @click="drawer = true">
-        <Icon icon="solar:folder-with-files-linear" width="20" />
+    <div class="categorized-workspace">
+    <ProjectCategories
+      v-if="!activeApplication || activeApplication.category_selector"
+      :items="categories"
+      :selected="currentCategory"
+      :category-only="!!activeApplication"
+      :overview-label="activeApplication ? '项目进度' : '全部素材'"
+      :clear-visible="!activeApplication && projectView === 'assets'"
+      :clear-disabled="currentCategory === '@public' ? false : !categoryJobs.length"
+      :clear-label="currentCategory === '@public' ? '删除全部项目资产' : currentCategory === null ? '清空项目素材（包含所有分类）' : '清空当前分类素材'"
+      @select="selectCategory"
+      @save="saveCategory"
+      @delete="deleteCategory"
+      @clear="clearWorkspace"
+    />
+    <PluginApplication v-if="activeApplication" :key="activeApplication.id" :application="activeApplication" :project="currentProject" :category="currentCategoryObject" :category-id="currentCategory" :categories="categories" :jobs="categoryJobs" :resource-picker="openResourcePicker" />
+    <nav v-if="!activeApplication && visibleProjectTools.length" class="project-tool-rail" aria-label="项目小插件">
+      <button v-for="tool in visibleProjectTools" :key="tool.id" type="button" :class="{active:activeProjectToolId === tool.id}" :title="tool.name" :aria-label="tool.name" :data-label="tool.name" @click="activeProjectToolId = activeProjectToolId === tool.id ? '' : tool.id">
+        <img v-if="tool.icon_url" :src="tool.icon_url" alt="" />
+        <span v-else-if="!tool.icon">{{ tool.icon_text }}</span>
+        <Icon v-else :icon="tool.icon" />
       </button>
-      <button
-        aria-label="声音预设"
-        title="声音预设"
-        @click="voiceSettings = true"
-      >
-        <Icon icon="solar:microphone-3-linear" width="20" />
+    </nav>
+    <PluginToolDialog v-if="activeProjectTool" :title="activeProjectTool.name" @close="activeProjectToolId = ''">
+      <PluginApplication :key="activeProjectTool.id" :application="activeProjectTool" :project="currentProject" :category="currentCategoryObject" :category-id="currentCategory" :categories="categories" :jobs="categoryJobs" :resource-picker="openResourcePicker" />
+    </PluginToolDialog>
+    <template v-if="!activeApplication">
+    <nav class="rail">
+       <button aria-label="本地资源" title="本地资源" @click="resourcePickerTypes = []; drawer = true">
+        <Icon icon="solar:folder-with-files-linear" width="20" />
       </button>
       <button aria-label="设置" title="设置" @click="settings = true">
         <Icon icon="solar:settings-linear" width="20" />
       </button>
     </nav>
+    <PublicAssets v-if="currentCategory === '@public'" :key="`${currentProject.id}-${workspaceRevision}`" :project-id="currentProject.id" @use="useAsset" />
     <Workspace
-      :jobs="jobs"
+      v-else
+      :jobs="categoryJobs"
+      :applications="applications"
       @preview="preview = $event"
       @delete="removeJob"
       @cancel="cancelJob"
@@ -1325,100 +669,57 @@ onUnmounted(() => {
       @details="showTaskDetails"
       @external-drop="addExternalFile"
     />
-    <Composer
-      v-model:image-model="imageModel"
-      v-model:gpt-image-version="gptImageVersion"
-      v-model:shots="storyboardShots"
-      v-model:references="storyboardReferences"
-      v-model:prompt="prompt"
-      v-model:lyrics="lyrics"
-      :kind="kind"
-      :mode="mode"
-      :tabs="tabs"
-      :files="files"
-      :character="character"
-      :instruction="instruction"
-      :voice-speed="voiceSpeed"
-      :duration="duration"
-      :resolution="resolution"
-      :ratio="ratio"
-      :speed="speed"
-      :camera-lora="h3CameraLora"
-      :style-lora="h3StyleLora"
-      :music-style="musicStyle"
-      :music-singer="musicSinger"
-      :music-voice-texture="musicVoiceTexture"
-      :music-bpm="musicBpm"
-      :music-key="musicKey"
-      :music-time-signature="musicTimeSignature"
-      :music-style-options="musicCatalog.styles"
-      :singer-options="musicCatalog.singers"
-      :voice-texture-options="musicCatalog.voiceTextures"
-      v-model:video-model="videoModel"
-      :creation-route="creationRoute"
-      v-model:collaboration-mode="collaborationMode"
-      :style="imageStyle"
-      :voices="voices"
-      :agent-available="agentAvailable"
-      :h3-quick-available="h3QuickAvailable"
-      :interaction-locked="agentBusy"
-      @update:kind="kind = $event"
-      @update:mode="mode = $event"
-      @update:character="character = $event"
-      @update:instruction="instruction = $event"
-      @update:voice-speed="voiceSpeed = Number($event)"
-      @update:duration="duration = $event"
-      @update:resolution="resolution = $event"
-      @update:ratio="ratio = $event"
-      @update:speed="updateSpeed"
-      @update:camera-lora="h3CameraLora = $event"
-      @update:style-lora="h3StyleLora = $event"
-      @update:creation-route="updateCreationRoute"
-      @update:music-style="musicStyle = $event"
-      @update:music-singer="musicSinger = $event"
-      @update:music-voice-texture="musicVoiceTexture = $event"
-      @update:music-bpm="musicBpm = $event"
-      @update:music-key="musicKey = $event"
-      @update:music-time-signature="musicTimeSignature = $event"
-      @update:style="imageStyle = $event"
-      @add-file="addFile"
-      @remove-file="removeFile"
-      @submit="submit"
-    />
-    <AgentDock
-      :active="creationRoute === 'agent' && agentActive"
-      v-model:open="agentOpen"
-      :busy="agentBusy"
-      :messages="agentMessages"
-      :result="agentResult"
-      :progress="agentProgress"
-      :active-count="agentRunningCount"
-      :activities="agentActivities"
-      :current-session="agentSession"
-      :error="agentError"
-      @send="continueAgent"
-      @generate="generateAgentPlan"
-      @reset="resetAgent"
-      @cancel="cancelAgent"
-      @cancel-all="cancelAllAgents"
-      @open-session="openAgentSession"
-      @cancel-session="cancelAgentSession"
-    />
-    <AssetDrawer v-model:open="drawer" :project-id="currentProject?.id || ''" @use="useAsset" />
-    <SettingsModal v-model:open="settings" :notice="settingsNotice" @saved="handleSettingsSaved" />
-    <VoicePresetModal v-model:open="voiceSettings" @changed="loadVoices" />
+    <PluginComposer v-if="currentCategory !== '@public'" ref="genericComposer" :key="currentProject.id" :selected="selectedCapability" :categories="pluginCategories" :capabilities="pluginCapabilities" :project-id="currentProject.id" :category-id="submissionCategory" :voices="voices" @select-capability="selectCapability" @submitted="pluginSubmitted" />
     <PreviewModal :job="preview" @close="preview = null" />
     <PostProcessModal
       :job="postSource"
+      :capabilities="pluginCapabilities"
       @close="postSource = null"
       @submit="submitPost"
     />
     <TaskDetailModal
       :manifest="taskDetails"
+      :capabilities="pluginCapabilities"
+      :voices="voices"
+      :applications="applications"
       @close="taskDetails = null"
       @regenerate="regenerateTask"
       @translate="translateTask"
+      @resource-changed="refreshWorkspace"
     />
     </template>
+    <AssetDrawer v-model:open="drawer" :project-id="currentProject?.id || ''" :category-id="currentCategory === '@public' ? null : currentCategory" :categories="categories" :picker-types="resourcePickerTypes" @use="handleAssetUse" />
+    </div>
+    </template>
   </main>
+  <SettingsModal v-if="settings" v-model:open="settings" :notice="settingsNotice" @saved="handleSettingsSaved" />
 </template>
+
+<style>
+.gateway-auth-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:#101311e8;padding:20px}
+.gateway-auth{box-sizing:border-box;width:100%;max-width:360px;padding:24px;background:#202522;border:1px solid #455047;border-radius:8px;display:grid;gap:18px;color:#eef2ed}
+.gateway-auth h2{margin:0;font-size:20px}.gateway-auth label{display:grid;gap:10px;font-size:13px}
+.gateway-auth input{box-sizing:border-box;width:100%;min-width:0;height:40px;padding:8px;border:1px solid #58625b;border-radius:4px;background:#151a17;color:#fff}
+.gateway-auth button{height:40px;background:#c6e9a2;color:#182113;border-radius:4px}.gateway-auth p{margin:0;color:#f5a3a3;overflow-wrap:anywhere}
+.categorized-workspace{position:absolute;inset:58px 0 0;display:flex;flex-direction:column;min-height:0}
+.categorized-workspace > .plugin-application{flex:1;min-height:0}
+.categorized-workspace > .workspace{position:relative;inset:auto;flex:1;min-height:0}
+.project-tool-rail{position:absolute;top:50%;right:14px;z-index:24;display:flex;flex-direction:column;gap:8px;transform:translateY(-50%)}
+.project-tool-rail button{position:relative;display:grid;place-items:center;width:40px;height:40px;padding:0;border:1px solid #ffffff18;border-radius:50%;background:#202822;color:#aab6a5;transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease,color .16s ease}
+.project-tool-rail button::after{content:attr(data-label);position:absolute;right:calc(100% + 10px);top:50%;padding:6px 9px;border:1px solid #ffffff20;border-radius:6px;background:#202522;color:#e6eee3;font-size:11px;line-height:1;white-space:nowrap;opacity:0;pointer-events:none;transform:translate(4px,-50%);transition:opacity .14s ease,transform .14s ease;box-shadow:0 8px 20px #0008}
+.project-tool-rail button:hover::after,.project-tool-rail button:focus-visible::after{opacity:1;transform:translate(0,-50%)}
+.project-tool-rail button:hover{transform:translateX(-3px);border-color:#ffffff28;background:#283326;color:#d9f6bd;box-shadow:0 5px 16px #0007}
+.project-tool-rail button.active{border-color:#b7f34acc;background:#40592f;color:#efffdc;box-shadow:0 0 0 2px #b7f34a20,0 5px 16px #0008}
+.project-tool-rail button.active::before{content:"";position:absolute;right:-9px;width:3px;height:18px;border-radius:3px;background:#b7f34a;box-shadow:0 0 10px #b7f34a}
+.project-tool-rail button:focus-visible{outline:2px solid #b7f34a;outline-offset:2px}
+.project-tool-rail button > svg{width:20px;height:20px;filter:drop-shadow(0 0 5px #b7f34a66)}
+.project-tool-rail img{width:20px;height:20px;object-fit:contain;border-radius:3px;filter:drop-shadow(0 0 4px #b7f34a55)}
+.project-tool-rail span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#8fb75c;color:#172015;font-size:13px;font-weight:800}
+@media(max-width:650px){.project-tool-rail{right:8px}}
+.project-view-tabs{display:flex;align-items:center;gap:4px;margin-left:14px}
+.project-view-tabs button{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:5px;color:#9da8ad;background:transparent;white-space:nowrap}
+.project-view-tabs button.selected{background:#2a3421;color:#d5f5a4}
+.application-icon{width:16px;height:16px;object-fit:contain;border-radius:3px}.application-icon-fallback{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:3px;background:#44513b;color:#d5f5a4;font-size:11px;font-weight:700}
+.topbar-settings{display:inline-grid;place-items:center;width:32px;height:32px;flex:none;padding:0;border:1px solid #ffffff1c;border-radius:6px;background:#171b1d;color:#aeb7b0;cursor:pointer;transition:background .16s ease,color .16s ease,border-color .16s ease}.topbar-settings:hover{border-color:#8fb75c66;background:#232b24;color:#b7f34a}.topbar-settings:focus-visible{outline:2px solid #b7f34a;outline-offset:2px}
+@media(max-width:600px){.project-view-tabs{margin-left:0;gap:0}.project-view-tabs button{padding:6px;font-size:11px}}
+</style>

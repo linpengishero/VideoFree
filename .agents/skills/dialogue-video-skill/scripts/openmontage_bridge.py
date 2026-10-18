@@ -45,6 +45,8 @@ def main():
     if not (root / "pipeline_defs/dialogue-video.yaml").is_file():
         raise ValueError("Install the OpenMontage package with dialogue-video integration")
     os.environ["OPENMONTAGE_PROJECTS_DIR"] = str(projects)
+    # Embedded Python may omit the script directory from sys.path.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     sys.path.insert(0, str(root))
     from lib.checkpoint import init_project, write_checkpoint, get_next_stage
     from lib.pipeline_loader import load_pipeline

@@ -1,0 +1,6 @@
+/* Shared framework primitives. Plugin business styles remain in the plugin. */
+:root{--line-strong:#ffffff2b;--surface:#191c1e;--surface-raised:#202426;--danger:#ef9292;--success:#b7f34a;--info:#9ec8ed;--radius-control:8px;--focus-ring:#b7f34a}
+.ui-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 14px;border:1px solid var(--line-strong);border-radius:var(--radius-control);background:var(--surface-raised);color:var(--text,#e5e9df);font-size:12px;cursor:pointer}
+.ui-button:hover{filter:brightness(1.12)}.ui-button.is-primary{background:var(--success);color:#18200f}.ui-button.is-danger{background:#49292d;border-color:#b9656b;color:#ffd9d9}
+.ui-button:disabled{opacity:.5;cursor:default}.ui-button:focus-visible,.ui-popover button:focus-visible,.ui-popover input:focus-visible,.plugin-dialog-shell button:focus-visible,.plugin-dialog-shell input:focus-visible,.plugin-dialog-shell textarea:focus-visible,.plugin-dialog-shell select:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+.ui-feedback{font-size:12px;line-height:1.5;overflow-wrap:anywhere}.ui-feedback.is-error{color:var(--danger)}.ui-feedback.is-success{color:var(--success)}.ui-feedback.is-info{color:var(--info)}

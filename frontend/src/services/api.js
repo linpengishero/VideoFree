@@ -1,44 +1,64 @@
-const WORKSPACE_KEY = "zizai-workspace-id";
-function createWorkspaceId() {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
-  }
-  if (typeof globalThis.crypto?.getRandomValues === "function") {
-    const bytes = new Uint8Array(16);
-    globalThis.crypto.getRandomValues(bytes);
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
-    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
-  }
-  return `workspace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-const workspaceId = (() => {
-  let value = localStorage.getItem(WORKSPACE_KEY);
-  if (!value) {
-    value = `studio-${createWorkspaceId()}`;
-    localStorage.setItem(WORKSPACE_KEY, value);
-  }
-  return value;
-})();
-
 async function request(path, options = {}) {
   const headers = new Headers(options.headers || {});
-  headers.set("X-Workspace-Id", workspaceId);
   const response = await fetch(path, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data.detail || data.error || `请求失败 (${response.status})`);
+    if (response.status === 401) window.dispatchEvent(new Event("gateway-auth-required"));
+    const error = new Error(errorMessage(data, response.status));
     error.status = response.status;
     throw error;
   }
   return data;
 }
 
+function errorMessage(data, status) {
+  const detail = data?.detail || data?.error;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return detail.map(item => typeof item === 'string' ? item : item?.msg || '参数无效').join('；');
+  return `请求失败 (${status})`;
+}
+
+export async function readMediaBlob(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event('gateway-auth-required'));
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(errorMessage(data, response.status));
+    error.status = response.status;
+    throw error;
+  }
+  return response.blob();
+}
+
 export const gateway = {
+  styles: () => request('/v1/styles'),
+  authenticate: (token) => request('/v1/auth/session', { method: 'POST', headers: { 'X-API-Token': token } }),
+  plugins: () => request('/api/v2/plugins'),
+  capabilities: (operation = 'generate') => request(`/api/v2/capabilities?operation=${encodeURIComponent(operation)}`),
+  pluginActions: ({scope = '', sourceJobId = '', sourceKind = '', automation = false, includeUnavailable = false} = {}) => request(`/api/v2/plugin-actions?scope=${encodeURIComponent(scope)}&source_job_id=${encodeURIComponent(sourceJobId)}&source_kind=${encodeURIComponent(sourceKind)}&automation=${automation}&include_unavailable=${includeUnavailable}`),
+  runPluginAction: (actionId, {sourceJobId = null, sourceUploadId = null, projectId = null, categoryId = null, inputs = {}} = {}) => request(`/api/v2/plugin-actions/${encodeURIComponent(actionId)}/execute`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_job_id:sourceJobId,source_upload_id:sourceUploadId,project_id:projectId,category_id:categoryId,inputs})}),
+  createGeneration: (body) => request('/api/v2/generations', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}),
+  regenerateJob: (id, body) => request(`/api/v2/jobs/${encodeURIComponent(id)}/regenerate`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}),
+  collaboration: (id) => request(`/api/v2/collaborations/${encodeURIComponent(id)}`),
+  collaborations: (projectId) => request(`/api/v2/collaborations?project_id=${encodeURIComponent(projectId)}&active=true`),
+  cancelCollaboration: (id) => request(`/api/v2/collaborations/${encodeURIComponent(id)}/cancel`, {method:'POST'}),
+  answerCollaboration: (id, message) => request(`/api/v2/collaborations/${encodeURIComponent(id)}/messages`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message})}),
+  confirmCollaboration: (id, revision) => request(`/api/v2/collaborations/${encodeURIComponent(id)}/confirm`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({revision})}),
+  publicAssets: (projectId) => request(`/v1/projects/${encodeURIComponent(projectId)}/public-assets`),
+  publicAssetTypes: (projectId) => request(`/v1/projects/${encodeURIComponent(projectId)}/public-asset-types`),
+  createPublicAssetType: (projectId, body) => request(`/v1/projects/${encodeURIComponent(projectId)}/public-asset-types`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}),
+  savePublicAsset: (projectId, body, id = null) => request(`/v1/projects/${encodeURIComponent(projectId)}/public-assets${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  attachPublicMedia: (projectId, id, source, role = null, transcript = '') => request(`/v1/projects/${encodeURIComponent(projectId)}/public-assets/${encodeURIComponent(id)}/media`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({source, role, transcript}) }),
+  removePublicMedia: (projectId, id, mediaId) => request(`/v1/projects/${encodeURIComponent(projectId)}/public-assets/${encodeURIComponent(id)}/media/${encodeURIComponent(mediaId)}`, {method:'DELETE'}),
+  deletePublicAsset: (projectId, id) => request(`/v1/projects/${encodeURIComponent(projectId)}/public-assets/${encodeURIComponent(id)}`, {method:'DELETE'}),
+  clearPublicAssets: (projectId) => request(`/v1/projects/${encodeURIComponent(projectId)}/public-assets`, {method:'DELETE'}),
+  categories: (projectId) => request(`/v1/projects/${encodeURIComponent(projectId)}/categories`),
+  saveCategory: (projectId, name, categoryId = null) => request(`/v1/projects/${encodeURIComponent(projectId)}/categories${categoryId ? `/${encodeURIComponent(categoryId)}` : ''}`, {
+    method: categoryId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }),
+  }),
+  deleteCategory: (projectId, categoryId) => request(`/v1/projects/${encodeURIComponent(projectId)}/categories/${encodeURIComponent(categoryId)}`, { method: "DELETE" }),
   projects: () => request("/v1/projects"),
-  currentProject: () => request("/v1/workspace/current-project"),
+  currentProject: () => request("/v1/projects/current"),
   createProject: (body) => request("/v1/projects", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -50,7 +70,7 @@ export const gateway = {
     body: JSON.stringify(body),
   }),
   deleteProject: (projectId) => request(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" }),
-  selectProject: (projectId) => request("/v1/workspace/current-project", {
+  selectProject: (projectId) => request("/v1/projects/current", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ project_id: projectId }),
@@ -63,50 +83,34 @@ export const gateway = {
     `/v1/tasks/${encodeURIComponent(id)}/files/${path.split("/").map(encodeURIComponent).join("/")}`,
   deleteJob: (id) =>
     request(`/v1/jobs/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  clearJobs: () => request("/v1/jobs", { method: "DELETE" }),
+  clearJobs: (categoryId = null) => request(`/v1/jobs${categoryId === null ? '' : `?category_id=${encodeURIComponent(categoryId)}`}`, { method: "DELETE" }),
   cancelJob: (id) =>
     request(`/v1/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
-  refineJob: (id, body) =>
-    request(`/v1/jobs/${encodeURIComponent(id)}/refine`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  translateH3: (body) =>
-    request("/v1/agent/translate-h3", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
   upload: async (file) => {
     const body = new FormData();
     body.append("file", file, file.name || "media");
     return request("/v1/uploads", { method: "POST", body });
   },
-  library: ({ kind = "all", offset = 0, limit = null, sort = "new" } = {}) =>
-    request(`/v1/library?kind=${kind}&offset=${offset}${limit == null ? "" : `&limit=${limit}`}&sort=${sort}`),
+  library: ({ kind = "all", offset = 0, limit = null, sort = "new", categoryId = null } = {}) =>
+    request(`/v1/library?kind=${kind}&offset=${offset}${limit == null ? "" : `&limit=${limit}`}&sort=${sort}${categoryId == null ? '' : `&category_id=${encodeURIComponent(categoryId)}`}`),
   settings: (revealSecrets = false) =>
     request(`/v1/settings?reveal_secrets=${revealSecrets ? "true" : "false"}`),
   settingsStatus: (runtime = false) =>
     request(`/v1/settings/status?runtime=${runtime ? "true" : "false"}`),
   voices: () => request("/v1/voices"),
-  musicPresets: () => request("/v1/music-presets"),
-  createVoice: (body) =>
-    request("/v1/voices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  updateVoice: (key, body) =>
-    request(`/v1/voices/${encodeURIComponent(key)}`, {
+  updateSettings: (body) =>
+    request("/v1/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  generateVoiceSample: (key) =>
-    request(`/v1/voices/${encodeURIComponent(key)}/sample`, { method: "POST" }),
-  updateSettings: (body) =>
-    request("/v1/settings", {
+  selectSettingsDirectory: () =>
+    request("/v1/settings/select-directory", { method: "POST" }),
+  pluginSettings: () => request("/v1/settings/plugins"),
+  pluginSettingValues: (pluginId) =>
+    request(`/v1/settings/plugins/${encodeURIComponent(pluginId)}`),
+  updatePluginSettings: (pluginId, body) =>
+    request(`/v1/settings/plugins/${encodeURIComponent(pluginId)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -119,86 +123,4 @@ export const gateway = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  agentChat: (body) =>
-    request("/v1/agent/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  agentStart: (body) =>
-    request("/v1/agent/collaborations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  agentCollaborations: (active = false) =>
-    request(`/v1/agent/collaborations?active=${active ? "true" : "false"}`),
-  agentCollaboration: (id) =>
-    request(`/v1/agent/collaborations/${encodeURIComponent(id)}`),
-  cancelAgent: (id) =>
-    request(`/v1/agent/collaborations/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
-  cancelAllAgents: () =>
-    request("/v1/agent/collaborations/cancel-all", { method: "POST" }),
-  abandonAgent: (id) =>
-    request(`/v1/agent/collaborations/${encodeURIComponent(id)}/abandon`, { method: "POST" }),
-  generateFromAgent: (id, body) =>
-    request(`/v1/agent/collaborations/${encodeURIComponent(id)}/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-  markAgentSubmitted: (id, jobId) =>
-    request(`/v1/agent/collaborations/${encodeURIComponent(id)}/submitted`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ job_id: jobId }),
-    }),
-  agentProgress: (id) =>
-    request(`/v1/agent/progress/${encodeURIComponent(id)}`),
-  submit: (kind, body) =>
-    request(`/v1/${kind}/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
 };
-
-export function dataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-export async function agentReference(file) {
-  const kind = file.type.split("/")[0];
-  const item = { kind, name: file.name, media_type: file.type };
-  if (kind !== "image") {
-    const uploaded = await gateway.upload(file);
-    return { ...item, data_url: uploaded.value };
-  }
-  const source = URL.createObjectURL(file);
-  try {
-    const image = await new Promise((resolve, reject) => {
-      const value = new Image();
-      value.onload = () => resolve(value);
-      value.onerror = reject;
-      value.src = source;
-    });
-    const scale = Math.min(
-      1,
-      1280 / Math.max(image.naturalWidth, image.naturalHeight),
-    );
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
-    const uploaded = await gateway.upload(new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.jpg`, { type: "image/jpeg" }));
-    return { ...item, data_url: uploaded.value };
-  } finally {
-    URL.revokeObjectURL(source);
-  }
-}

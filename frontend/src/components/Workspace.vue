@@ -1,7 +1,7 @@
 <script setup>
 import { Icon } from "@iconify/vue";
 import JobCard from "./JobCard.vue";
-defineProps({ jobs: Array });
+defineProps({ jobs: Array, applications: { type: Array, default: () => [] } });
 const emit = defineEmits([
   "preview",
   "delete",
@@ -32,6 +32,7 @@ function onDrop(event) {
     </div>
     <div class="stage">
       <JobCard
+        :applications="applications"
         v-for="job in jobs"
         :key="job.id"
         :job="job"

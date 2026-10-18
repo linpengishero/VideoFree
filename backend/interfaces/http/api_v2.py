@@ -4,7 +4,6 @@ import hashlib
 import json
 import mimetypes
 import re
-import sqlite3
 import shutil
 import subprocess
 import time
@@ -13,22 +12,24 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, model_validator
 
-from ...modules.presets import MUSIC_PROMPT_SUFFIX
-from ...bootstrap import context
-from ...modules.projects import ProjectService, UNASSIGNED_PROJECT_ID
+from ...modules.presets.voices import VoicePresets
+from ...modules.projects import ProjectService
+from ...modules.generation.actions import discover_actions, execute_action, public_action, public_actions, uploaded_source
+from ...modules.generation.plugins import PluginCatalog
+from ...modules.generation.service import submit_idempotent
+from ...modules.collaboration.modes import confirmation_overrides
+from ...core.errors import GatewayError
 
 
 from .v2_capabilities import (
-    POST_ACTIONS,
-    RESOLUTIONS,
-    agent_model_and_mode as _agent_model_and_mode,
+    resolution_pixels,
     capability as _capability,
     dimensions as _dimensions,
     model_and_mode as _model_and_mode,
     named_dimensions as _named_dimensions,
-    public_model_id as _public_model_id,
     validate_duration as _validate_duration,
     validate_input_roles as _validate_input_roles,
     voice as _voice,
@@ -38,36 +39,38 @@ from .v2_schemas import (
     CollaborationConfirmRequest,
     CollaborationCreateRequest,
     CollaborationMessageRequest,
-    ClonedSpeechRequest,
     CreateRequest,
     CreateSettings,
-    PresetSpeechRequest,
-    DescribedSpeechRequest,
     ProjectCreateRequest,
     ProjectSelectRequest,
+    PluginActionExecuteRequest,
+    PluginActionResponse,
     RegenerateRequest,
 )
 
 
-def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_path: Path,
+def build_router(*, context, db, auth: Callable, workflow_registry: Callable, workflows_path: Path,
                  submit: Callable, generate_model, tts_model, jobs: Callable,
-                 public_job: Callable, hydrate_job: Callable, artifacts_path: Path,
+                 public_job: Callable, hydrate_job: Callable,
                  upload_cache: Path, upload_handler: Callable, style_items: Callable,
-                 cancel_handler: Callable, delete_handler: Callable,
-                 voice_sample_handler: Callable, agent_handler: Callable, agent_model,
+                 cancel_handler: Callable,
+                 agent_handler: Callable, agent_model,
                  library_handler: Callable, agent_enqueue_handler: Callable | None = None,
                  agent_cancel_handler: Callable | None = None,
-                 agent_delete_handler: Callable | None = None) -> APIRouter:
+                 ) -> APIRouter:
     router = APIRouter(prefix="/api/v2", tags=["AI API v2"], dependencies=[Depends(auth)])
-    collaboration_submission_lock = asyncio.Lock()
+
+    def authorized_project(project_id: str) -> dict[str, Any]:
+        try:
+            return ProjectService(context).authorize(project_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
 
     def registry() -> dict[str, dict[str, Any]]:
         values = {
             key: value for key, value in workflow_registry().items()
             if value.get("executor", "comfyui") != "comfyui" or (workflows_path / value.get("file", "")).is_file()
         }
-        for hidden in ("image.text_to_image", "image.image_to_image", "image.character", "tts.clone"):
-            values.pop(hidden, None)
         return values
 
     def resolve_capability(capability_id: str) -> dict[str, Any]:
@@ -103,6 +106,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         result["prompt_zh"] = params.get("confirmed_prompt_zh", "")
         result["execution_prompt_en"] = params.get("execution_prompt_en", "")
         result["project_id"] = value.get("project_id")
+        result["category_id"] = value.get("category_id") or ""
         if params.get("lyrics"):
             result["lyrics"] = params["lyrics"]
         result["job_url"] = f"/api/v2/jobs/{value['id']}"
@@ -127,6 +131,8 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             "status": item["status"],
             "revision": item.get("revision", 0),
             "message": result.get("message", ""),
+            "error": item.get("error", ""),
+            "progress": item.get("progress", {}),
             "questions": result.get("questions", []),
             "created_at": item["created_at"],
             "updated_at": item["updated_at"],
@@ -156,9 +162,8 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         request = item["request"]
         request = request.get("params", {}).get("_source_request", request)
         settings = CreateSettings.model_validate(request.get("settings", {}))
-        agent_target = _agent_model_and_mode(item["request"]["kind"], item["model_id"], item["mode_id"])
-        if not agent_target:
-            raise HTTPException(422, "当前模型与模式不支持智能协作")
+        config = resolve_capability(request["capability_id"])
+        agent_target = (config.get("model_family", item["model_id"]), item["mode_id"])
         references = []
         for asset in request.get("inputs", []):
             path = upload_path(asset["upload_id"])
@@ -175,9 +180,9 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             mode=agent_target[1],
             duration_seconds=settings.duration,
             ratio=settings.ratio,
-            resolution=RESOLUTIONS.get(settings.resolution, 720),
+            resolution=resolution_pixels(settings.resolution),
             references=references,
-            params={"variant": settings.variant, **settings.model_dump()},
+            params={"variant": settings.variant, **settings.model_dump(), "capability_id": request["capability_id"], "processing_mode": request.get("prompt_processing", "director"), "_plugin_revision": request.get("plugin_revision"), "plugin_parameters": request.get("parameters", {})},
             review_mode="external",
             collaboration_mode=request.get("collaboration_mode", "director"),
         )
@@ -190,11 +195,21 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         return "\n\n".join(lines)
 
     async def run_collaboration(item: dict[str, Any]) -> dict[str, Any]:
-        if agent_enqueue_handler is None:
-            raise HTTPException(503, "智能协作队列未配置")
-        request = collaboration_agent_request(item, conversation_prompt(item["id"]))
-        request.client_request_id = f"v2-{uuid.uuid4().hex}"
-        queued = await agent_enqueue_handler(item["id"], request)
+        try:
+            if agent_enqueue_handler is None:
+                raise HTTPException(503, "智能协作队列未配置")
+            request = collaboration_agent_request(item, conversation_prompt(item["id"]))
+            request.client_request_id = f"v2-{uuid.uuid4().hex}"
+            queued = await agent_enqueue_handler(item["id"], request)
+        except (Exception, asyncio.CancelledError) as exc:
+            if isinstance(exc, (HTTPException, GatewayError)) and exc.status_code == 409:
+                raise
+            db.update_collaboration(item["id"], {
+                "status": "failed", "error": str(getattr(exc, "detail", exc)),
+                "result": {**item.get("result", {}), "enqueue_failed": True},
+                "completed_at": time.time(),
+            })
+            raise
         return public_collaboration(queued, include_messages=True)
 
     @router.get("")
@@ -209,27 +224,16 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             "docs_url": "/docs",
         }
 
-    def music_prompt(settings: CreateSettings) -> str:
-        if settings.music_preset_id:
-            preset = db.creative_preset("music", "preset", settings.music_preset_id)
-            if not preset:
-                raise HTTPException(422, f"音乐组合预设不存在: {settings.music_preset_id}")
-            config = preset.get("config", {})
-            settings = settings.model_copy(update={
-                "music_style_id": config.get("style_id", settings.music_style_id),
-                "singer_id": config.get("singer_id", settings.singer_id),
-                "voice_texture_id": config.get("voice_texture_id", settings.voice_texture_id),
-            })
-        selected = []
-        for category, preset_id in (("style", settings.music_style_id), ("singer", settings.singer_id), ("voice_texture", settings.voice_texture_id)):
-            item = db.creative_preset("music", category, preset_id)
-            if not item:
-                raise HTTPException(422, f"音乐预设不存在: {category}/{preset_id}")
-            selected.append(item["instruction"])
-        return " ".join([*selected, MUSIC_PROMPT_SUFFIX])
-
     async def create_generation(request: CreateRequest, parent_job_id: str | None = None, project_id: str | None = None):
+        if project_id:
+            authorized_project(project_id)
         config = resolve_capability(request.capability_id)
+        request = normalize_form(request, config)
+        from ...modules.generation.plugins import validate_parameters
+        try:
+            plugin_parameters = validate_parameters(config, request.parameters)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         capability = _capability(request.capability_id, config)
         is_postprocess = capability["operation"] == "postprocess"
         _validate_duration(capability, request.settings.duration)
@@ -237,7 +241,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         shot_count = len(config.get("shot_nodes", []))
         if shot_count:
             shots = request.settings.shots
-            if len(shots) != shot_count or any(not isinstance(value, str) or not value.strip() for value in shots):
+            if shots and (len(shots) != shot_count or any(not isinstance(value, str) or not value.strip() for value in shots)):
                 raise HTTPException(422, f"当前分镜模式需要 {shot_count} 条非空镜头描述，请使用 settings.shots 提交")
             request.settings.shots = [value.strip() for value in shots]
         kind, model, mode = _model_and_mode(request.capability_id, config)
@@ -251,24 +255,33 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         for media, limits in capability["inputs"].items():
             if not limits["min"] <= len(grouped[media]) <= limits["max"]:
                 raise HTTPException(422, f"{media} 素材需要 {limits['min']}-{limits['max']} 个，当前为 {len(grouped[media])}")
-        if kind == "tts":
+        plugin_settings = {}
+        settings = request.settings.model_dump()
+        for field in config.get("ui", {}).get("fields", []):
+            if field["bind"].startswith("settings.") and field["component"] != "media":
+                name = field["bind"].split(".")[1]
+                if name in settings:
+                    plugin_settings[name] = settings[name]
+        if kind == "tts" and not is_postprocess and config.get("compiler", "builtin") == "builtin":
             if not request.prompt.strip():
                 raise HTTPException(422, "声音生成需要文本")
             body = tts_model(
+                category_id=request.category_id,
                 text=request.prompt.strip(), mode=mode, character=request.settings.voice_id,
-                voice_model=request.settings.voice_model,
+                voice_model=model,
                 instruction=request.settings.instruction,
                 speed=request.settings.voice_speed,
                 reference_audio=grouped["audio"][0] if grouped["audio"] else None,
+                params={**plugin_settings, "capability_id": request.capability_id,
+                        "plugin_parameters": plugin_parameters, "api_settings": settings},
                 parent_job_id=parent_job_id,
                 internal_project_id=project_id,
             )
         else:
             prompt = request.prompt.strip() or ("后期处理" if is_postprocess else "")
-            if kind == "music":
+            if kind == "music" and config.get("compiler", "builtin") == "builtin":
                 if mode != "background" and not request.lyrics.strip():
                     raise HTTPException(422, "音乐生成需要歌词")
-                prompt = prompt or (music_prompt(request.settings) if mode != "background" else "")
             if not prompt:
                 raise HTTPException(422, "生成描述不能为空")
             width, height = _dimensions(request.settings.resolution, request.settings.ratio, kind)
@@ -282,7 +295,13 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                 "confirmed_prompt_zh": request.settings.confirmed_prompt_zh,
                 "execution_prompt_en": request.settings.execution_prompt_en,
                 "_project_id": project_id,
+                "_category_id": request.category_id,
+                "plugin_parameters": plugin_parameters,
             }
+            # Only declared settings can extend the execution payload. Definitions,
+            # defaults and validation stay in the selected plugin, not this adapter.
+            for name, value in plugin_settings.items():
+                params.setdefault(name, value)
             if kind == "image" and not is_postprocess:
                 params["image_model"] = model
                 params["native_model"] = request.settings.native_model
@@ -297,21 +316,49 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                 params.update(
                     video_model=model,
                     speed=request.settings.variant,
-                    h3_camera_lora=request.settings.h3_camera_lora,
-                    h3_style_lora=request.settings.h3_style_lora,
                 )
             elif kind == "music":
                 params["lyrics"] = request.lyrics.strip()
                 params["music_model"] = model
-                params["music_bpm"] = request.settings.music_bpm
-                params["music_key"] = request.settings.music_key
-                params["music_timesignature"] = request.settings.music_timesignature
             body = generate_model(
                 prompt=prompt, mode=mode, references=grouped["image"],
                 duration_seconds=request.settings.duration, params=params,
             )
         result = await submit(kind, body)
         return api_submission(result, request.capability_id)
+
+    async def invoke_plugin_capability(payload: dict[str, Any], *, project_id: str,
+                                       category_id: str | None = None,
+                                       idempotency_key: str | None = None):
+        """Adapt trusted plugin calls to the same direct-generation contract as HTTP/MCP."""
+        request = CreateRequest.model_validate({
+            **payload,
+            "project_id": project_id,
+            "category_id": category_id,
+            "prompt_processing": "direct",
+        })
+        if idempotency_key:
+            if len(idempotency_key) > 120:
+                raise HTTPException(422, "幂等键过长")
+            result = await submit_idempotent(context, db, request, idempotency_key, create_generation)
+            return api_submission(result, request.capability_id)
+        return await create_generation(request, parent_job_id=request.parent_job_id, project_id=project_id)
+
+    def normalize_form(request, config):
+        from ...modules.generation.plugin_ui import form_values
+        try:
+            payload = request.model_dump(exclude_unset=True)
+            # CreateSettings has a compatibility default for older video
+            # clients. When the caller omitted resolution, remove that
+            # generic value so the selected plugin's declared default wins.
+            # An explicitly supplied value remains subject to plugin validation.
+            settings = dict(payload.get("settings") or {})
+            if "resolution" not in request.settings.model_fields_set:
+                settings.pop("resolution", None)
+            payload["settings"] = settings
+            return CreateRequest.model_validate(form_values(config.get("ui", {}), payload))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     @router.get("/health")
     async def health():
@@ -329,31 +376,77 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
     @router.post("/projects", status_code=201)
     async def create_project(request: ProjectCreateRequest):
         try:
-            project = ProjectService(context).create(request.name, request.description, request.content_summary)
+            project = ProjectService(context).create(request.name, request.description, request.content_summary, ai_created=request.ai_created)
             return project
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
     @router.get("/projects/current")
     async def current_project():
-        return ProjectService(context).current(context.current_workspace_id.get())
+        try:
+            return ProjectService(context).current()
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @router.get("/projects/{project_id}/categories")
+    async def project_categories(project_id: str):
+        try:
+            authorized_project(project_id)
+            return {"items": ProjectService(context).categories(project_id)}
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
 
     @router.put("/projects/current")
     async def select_project(request: ProjectSelectRequest):
         try:
-            return ProjectService(context).select(context.current_workspace_id.get(), request.project_id)
+            return ProjectService(context).select(request.project_id)
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from exc
 
     @router.get("/capabilities")
-    async def capabilities(operation: str = "generate", kind: str | None = None):
+    async def capabilities(operation: str = "generate", kind: str | None = None, category: str | None = None):
         items = [_capability(key, config) for key, config in registry().items()]
-        items = [item for item in items if item["operation"] == operation and (not kind or item["type"] == kind)]
+        items = [item for item in items if item["operation"] == operation and (not kind or item["type"] == kind) and (not category or item["category"] == category)]
         return {"items": items}
+
+    @router.get("/plugins")
+    async def plugins():
+        from ...modules.generation.plugins import PluginCatalog
+        catalog = PluginCatalog(workflows_path, context)
+        result = catalog.public()
+        try:
+            project = ProjectService(context).current()
+        except ValueError:
+            project = None
+        result["applications"] = [item for item in result["applications"]
+                                  if not item.get("requires_project_flags")
+                                  or project and all(bool(project.get(flag)) for flag in item["requires_project_flags"])]
+        return result
 
     @router.get("/capabilities/{capability_id}")
     async def capability(capability_id: str):
         return _capability(capability_id, resolve_capability(capability_id))
+
+    @router.get("/plugins/{plugin_id}/presets")
+    async def plugin_presets(plugin_id: str):
+        from ...modules.presets.plugins import plugin_presets as discover_presets
+        try:
+            return discover_presets(context, plugin_id)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+    @router.get("/plugins/{plugin_id}/ui/{file_path:path}")
+    async def plugin_ui_file(plugin_id: str, file_path: str):
+        plugins, _ = PluginCatalog(workflows_path, context).scan()
+        plugin = next((item for item in plugins if item["id"] == plugin_id), None)
+        ui = (plugin or {}).get("application", {}).get("ui", {})
+        if not plugin or not isinstance(ui, dict) or not ui.get("entry"):
+            raise HTTPException(404, "插件没有独立 UI")
+        root = (workflows_path / plugin["_plugin_folder"] / "ui" / "dist").resolve()
+        target = (root / file_path).resolve()
+        if root not in target.parents and target != root or not target.is_file():
+            raise HTTPException(404, "插件 UI 资源不存在")
+        return FileResponse(target)
 
     @router.post("/uploads")
     async def upload(file: UploadFile = File(...)):
@@ -362,8 +455,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
     @router.get("/voices")
     async def voices():
         def preset_ready(item: dict[str, Any]) -> bool:
-            sample_name = str(item.get("sample_audio_name") or "").strip()
-            sample_path = context.paths.voice_samples / Path(sample_name).name if sample_name else None
+            sample_path = VoicePresets(context).sample_path(item)
             if not sample_path or not sample_path.is_file():
                 return False
             ffprobe = shutil.which("ffprobe")
@@ -375,7 +467,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                      "-of", "default=noprint_wrappers=1:nokey=1", str(sample_path)],
                     capture_output=True, text=True, check=True, timeout=10,
                 )
-                return 0 < float(result.stdout.strip()) <= 30.0
+                return 0 < float(result.stdout.strip())
             except (OSError, ValueError, subprocess.SubprocessError):
                 return False
 
@@ -386,43 +478,8 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                 "description": item.get("instruction", ""),
                 "ready": preset_ready(item),
             }
-            for item in db.presets()
+            for item in VoicePresets(context).items()
         ]}
-
-    @router.post("/tts/preset", status_code=202)
-    async def preset_speech(request: PresetSpeechRequest):
-        preset = db.preset(request.preset_id)
-        if not preset:
-            raise HTTPException(404, "声音预设不存在")
-        sample_name = str(preset.get("sample_audio_name") or "").strip()
-        sample_path = context.paths.voice_samples / Path(sample_name).name if sample_name else None
-        if not sample_path or not sample_path.is_file():
-            raise HTTPException(409, "该声音预设尚未生成可用音色样本")
-        body = tts_model(text=request.text, mode="preset", character=request.preset_id,
-                         voice_model="cosyvoice3", speed=request.speed, reference_audio=None)
-        return api_submission(await submit("tts", body), "tts.cosyvoice3.preset")
-
-    @router.post("/tts/describe", status_code=202)
-    async def described_speech(request: DescribedSpeechRequest):
-        body = tts_model(text=request.text, mode="describe", character="orion_7",
-                         voice_model="qwen3_tts", speed=request.speed,
-                         instruction=request.voice_description)
-        return api_submission(await submit("tts", body), "tts.qwen3_tts.describe")
-
-    @router.post("/tts/clone", status_code=202)
-    async def clone_speech(request: ClonedSpeechRequest):
-        reference_path = upload_path(request.reference_upload_id)
-        if (mimetypes.guess_type(reference_path.name)[0] or "").split("/", 1)[0] != "audio":
-            raise HTTPException(422, "声音克隆的参考素材必须是音频")
-        body = tts_model(
-            text=request.text,
-            mode="clone",
-            character="orion_7",
-            voice_model="cosyvoice3",
-            speed=request.speed,
-            reference_audio=upload_value(request.reference_upload_id),
-        )
-        return api_submission(await submit("tts", body), "tts.cosyvoice3.clone")
 
     def catalog_routes(domain: str, categories: set[str]):
         @router.get(f"/{domain}/presets")
@@ -454,8 +511,10 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         return {"items": db.creative_presets("music", "voice_texture")}
 
     @router.get("/library")
-    async def library(kind: str = "all", offset: int = 0, limit: int = 48, sort: str = "new"):
-        result = await library_handler(kind=kind, offset=offset, limit=limit, sort=sort, _=None)
+    async def library(kind: str = "all", offset: int = 0, limit: int = 48, sort: str = "new", category_id: str | None = None, project_id: str | None = None):
+        if project_id:
+            authorized_project(project_id)
+        result = await library_handler(kind=kind, offset=offset, limit=limit, sort=sort, category_id=category_id, _=None, project_id=project_id)
         result.pop("output_dir", None)
         return result
 
@@ -481,10 +540,22 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         kind, _, _ = _model_and_mode(request.capability_id, config)
         payload = request.model_dump()
         payload["kind"] = kind
+        payload.update({
+            "prompt_processing": "compile" if request.collaboration_mode == "quick" else request.collaboration_mode,
+            "plugin_id": config.get("plugin_id"),
+            "plugin_version": config.get("plugin_version"),
+            "plugin_revision": config.get("plugin_revision"),
+        })
+        if request.project_id:
+            authorized_project(request.project_id)
         try:
-            payload["project_id"] = ProjectService(context).current(context.current_workspace_id.get())["id"]
-        except sqlite3.OperationalError:
-            payload["project_id"] = UNASSIGNED_PROJECT_ID
+            payload["project_id"] = request.project_id or ProjectService(context).current()["id"]
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        try:
+            payload["category_id"] = ProjectService(context).validate_category(payload["project_id"], request.category_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         item = db.create_collaboration({
             "id": collaboration_id,
             "capability_id": request.capability_id,
@@ -502,23 +573,47 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         db.add_collaboration_message(collaboration_id, "user", initial)
         return await run_collaboration(item)
 
+    @router.get("/collaborations")
+    async def list_collaborations(project_id: str, active: bool = False):
+        authorized_project(project_id)
+        statuses = ("queued", "running", "needs_input", "awaiting_confirmation") if active else None
+        return {"items": [public_collaboration(item) for item in db.collaborations(statuses, limit=1000, project_id=project_id)]}
+
+    @router.post("/collaborations/{collaboration_id}/cancel")
+    async def cancel_collaboration(collaboration_id: str):
+        item = db.collaboration(collaboration_id)
+        if not item:
+            raise HTTPException(404, "智能协作会话不存在")
+        authorized_project(item.get("project_id", ""))
+        if not agent_cancel_handler:
+            raise HTTPException(503, "协作取消服务不可用")
+        return public_collaboration(await agent_cancel_handler(collaboration_id))
+
     @router.get("/collaborations/{collaboration_id}")
     async def get_collaboration(collaboration_id: str):
         item = db.collaboration(collaboration_id)
         if not item:
             raise HTTPException(404, "智能协作会话不存在")
+        authorized_project(item.get("project_id", ""))
         return public_collaboration(item, include_messages=True)
 
     @router.post("/collaborations/{collaboration_id}/messages")
     async def send_collaboration_message(collaboration_id: str, request: CollaborationMessageRequest):
+        async with context.collaboration_submission_lock:
+            return await _send_collaboration_message(collaboration_id, request)
+
+    async def _send_collaboration_message(collaboration_id: str, request: CollaborationMessageRequest):
         item = db.collaboration(collaboration_id)
         if not item:
             raise HTTPException(404, "智能协作会话不存在")
+        authorized_project(item.get("project_id", ""))
         if item["status"] in {"submitted", "deleted"}:
             raise HTTPException(409, "当前会话已经提交，不能继续修改")
-        db.add_collaboration_message(collaboration_id, "user", request.message)
         if item["status"] in {"queued", "running"}:
             raise HTTPException(409, "当前会话仍在处理中")
+        if item["status"] == "cancelled":
+            raise HTTPException(409, "当前会话已经取消，不能继续修改")
+        db.add_collaboration_message(collaboration_id, "user", request.message)
         return await run_collaboration(item)
 
     @router.get("/collaborations/{collaboration_id}/progress")
@@ -526,6 +621,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         item = db.collaboration(collaboration_id)
         if not item:
             raise HTTPException(404, "智能协作会话不存在")
+        authorized_project(item.get("project_id", ""))
         result = item.get("result", {})
         progress = item.get("progress", {})
         return {
@@ -542,6 +638,9 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         item = db.collaboration(collaboration_id)
         if not item:
             raise HTTPException(404, "智能协作会话不存在")
+        authorized_project(item.get("project_id", ""))
+        if request.revision != item.get("revision"):
+            raise HTTPException(409, f"方案版本已更新，当前版本为 {item.get('revision', 0)}")
         if item.get("job_id"):
             job = jobs().get(item["job_id"]) or db.job(item["job_id"])
             if job:
@@ -549,8 +648,6 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                         "collaboration_id": collaboration_id, "revision": item.get("revision", 0)}
         if item["status"] != "awaiting_confirmation":
             raise HTTPException(409, "当前方案尚未达到可确认状态")
-        if request.revision != item.get("revision"):
-            raise HTTPException(409, f"方案版本已更新，当前版本为 {item.get('revision', 0)}")
         result = item.get("result", {})
         optimized_prompt = str(request.execution_prompt_en or result.get("optimized_prompt", "")).strip()
         optimized_prompt_zh = str(request.confirmed_prompt_zh or result.get("optimized_prompt_zh", "")).strip()
@@ -559,25 +656,28 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         if not optimized_prompt_zh:
             raise HTTPException(409, "协作方案缺少对应的中文稿")
         source = item["request"].get("params", {}).get("_source_request", item["request"])
+        pinned = source.get("plugin_revision")
+        if pinned and pinned != resolve_capability(item["capability_id"]).get("plugin_revision"):
+            raise HTTPException(409, "插件已更新，请新建会话并重新确认")
         settings = dict(source.get("settings", {}))
-        generation_payload = result.get("generation_payload", {})
-        if item["capability_id"] == "music.ace_step.background" and isinstance(generation_payload, dict):
-            for key in ("music_bpm", "music_key", "music_timesignature"):
-                if key in generation_payload:
-                    settings[key] = generation_payload[key]
+        patch = confirmation_overrides(resolve_capability(item["capability_id"]), source, result,
+                                       item.get("project_id"))
+        settings.update(patch.get("settings", {}))
         create_request = CreateRequest(
             capability_id=item["capability_id"],
             prompt=optimized_prompt,
-            lyrics="" if item["capability_id"] == "music.ace_step.background" else source.get("lyrics", ""),
+            lyrics=patch.get("lyrics", source.get("lyrics", "")),
             inputs=[AssetInput.model_validate(value) for value in source.get("inputs", [])],
             settings=CreateSettings.model_validate(settings),
+            parameters={**source.get("parameters", {}), **patch.get("parameters", {})},
         )
         create_request.settings.confirmed_prompt_zh = optimized_prompt_zh
+        create_request.category_id = source.get("category_id")
         create_request.settings.execution_prompt_en = optimized_prompt
         optimized_shots = result.get("optimized_shots", [])
         if isinstance(optimized_shots, list) and optimized_shots:
             create_request.settings.shots = [str(value).strip() for value in optimized_shots if str(value).strip()]
-        confirmation_key = f"confirm:{context.current_workspace_id.get()}:{collaboration_id}:{request.revision}:{request.idempotency_key}" if request.idempotency_key else None
+        confirmation_key = f"confirm:{collaboration_id}:{request.revision}:{request.idempotency_key}" if request.idempotency_key else None
         if confirmation_key:
             existing = db.idempotent_job(confirmation_key)
             if existing:
@@ -586,7 +686,10 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                     db.update_collaboration(collaboration_id, {"status": "submitted", "job_id": existing})
                     return {**api_submission({"job_id": existing, "kind": job["kind"], "status": job["status"], "reused": True}, item["capability_id"]),
                             "collaboration_id": collaboration_id, "revision": request.revision}
-        submission = await create_generation(create_request, project_id=str(item["request"].get("project_id", "")) or None)
+        submission = await create_generation(
+            create_request, parent_job_id=source.get("parent_job_id"),
+            project_id=item.get("project_id") or source.get("project_id") or None,
+        )
         if confirmation_key:
             db.save_idempotent_job(confirmation_key, submission["job_id"])
         db.update_collaboration(collaboration_id, {"status": "submitted", "job_id": submission["job_id"]})
@@ -594,7 +697,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
 
     @router.post("/collaborations/{collaboration_id}/confirm", status_code=202)
     async def confirm_collaboration(collaboration_id: str, request: CollaborationConfirmRequest):
-        async with collaboration_submission_lock:
+        async with context.collaboration_submission_lock:
             return await _confirm_collaboration(collaboration_id, request)
 
     @router.post("/assistant/chat")
@@ -603,6 +706,10 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
 
     @router.post("/generations", status_code=202)
     async def create(request: CreateRequest, idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")):
+        async with context.collaboration_submission_lock:
+            return await _create(request, idempotency_key)
+
+    async def _create(request: CreateRequest, idempotency_key: str | None):
         # One public submission contract supports direct generation and the
         # model-aware collaboration path. The latter keeps the same session
         # until ambiguity is resolved, then confirms through this endpoint.
@@ -612,6 +719,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             item = db.collaboration(request.session_id)
             if not item:
                 raise HTTPException(404, "生成会话不存在")
+            authorized_project(item.get("project_id", ""))
             if item["status"] in {"submitted", "deleted", "cancelled"}:
                 raise HTTPException(409, "生成会话已经结束")
             if item["status"] in {"queued", "running"}:
@@ -623,18 +731,36 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
 
         if not request.capability_id:
             raise HTTPException(422, "capability_id 不能为空")
+        if request.parent_job_id:
+            parent = jobs().get(request.parent_job_id) or db.job(request.parent_job_id)
+            if not parent:
+                raise HTTPException(404, "原任务不存在")
+            authorized_project(parent.get("project_id", ""))
+            if request.project_id and request.project_id != parent.get("project_id"):
+                raise HTTPException(422, "重新生成不能改变原任务的项目")
+            request.project_id = parent.get("project_id")
+            request.category_id = parent.get("category_id")
         if request.prompt_processing != "direct":
             config = resolve_capability(request.capability_id)
             capability = _capability(request.capability_id, config)
-            if not capability["collaboration_supported"]:
-                raise HTTPException(422, "当前能力不支持模型处理，请使用 prompt_processing=direct")
+            supported_modes = {mode["id"] for mode in capability["processing_modes"]}
+            if request.prompt_processing not in supported_modes:
+                raise HTTPException(422, "当前能力不支持此 prompt_processing，可用值：" + ", ".join(sorted(supported_modes)))
+        request = normalize_form(request, resolve_capability(request.capability_id))
+        if request.prompt_processing != "direct":
             model_id = capability["model"]
             mode_id = capability["mode"]
-            collaboration_mode = "quick" if request.prompt_processing == "compile" and model_id == "minimax-h3" else "director"
+            collaboration_mode = "quick" if request.prompt_processing == "compile" else "director"
+            from ...modules.generation.plugins import validate_parameters
+            try:
+                request.parameters = validate_parameters(config, request.parameters)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
             collaboration_id = f"collab-{uuid.uuid4().hex[:16]}"
             kind, _, _ = _model_and_mode(request.capability_id, config)
             payload = {
                 "capability_id": request.capability_id,
+                "parent_job_id": request.parent_job_id,
                 "model_id": model_id,
                 "mode_id": mode_id,
                 "message": request.prompt.strip() or "请根据当前生成参数完成模型提示词处理。",
@@ -645,13 +771,23 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                 "collaboration_mode": collaboration_mode,
                 "kind": kind,
                 "prompt_processing": request.prompt_processing,
+                "plugin_id": config.get("plugin_id"),
+                "plugin_version": config.get("plugin_version"),
+                "plugin_revision": config.get("plugin_revision"),
+                "parameters": request.parameters,
             }
+            if request.project_id:
+                authorized_project(request.project_id)
             try:
-                payload["project_id"] = request.project_id or ProjectService(context).current(context.current_workspace_id.get())["id"]
-            except sqlite3.OperationalError:
-                payload["project_id"] = UNASSIGNED_PROJECT_ID
+                payload["project_id"] = request.project_id or ProjectService(context).current()["id"]
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
             for asset in request.inputs:
                 upload_path(asset.upload_id)
+            try:
+                payload["category_id"] = ProjectService(context).validate_category(payload["project_id"], request.category_id)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from exc
             value = {
                 "id": collaboration_id,
                 "capability_id": request.capability_id,
@@ -662,35 +798,34 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
                 "request": payload,
             }
             fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-            scoped_key = f"{context.current_workspace_id.get()}:{idempotency_key}" if idempotency_key else None
+            scoped_key = hashlib.sha256(json.dumps([payload["project_id"], idempotency_key]).encode()).hexdigest() if idempotency_key else None
             try:
                 item = db.create_collaboration(value, idempotency_key=scoped_key, fingerprint=fingerprint)
             except ValueError as exc:
                 raise HTTPException(409, str(exc)) from exc
             if item["id"] != collaboration_id:
+                if item["status"] == "failed" and item.get("result", {}).get("enqueue_failed"):
+                    return {**await run_collaboration(item), "reused": True}
                 return {**public_collaboration(item, include_messages=True), "reused": True}
             db.add_collaboration_message(collaboration_id, "user", payload["message"])
             return await run_collaboration(item)
 
         if idempotency_key:
-            if len(idempotency_key) > 120:
-                raise HTTPException(422, "Idempotency-Key 过长")
-            existing = db.idempotent_job(idempotency_key)
-            if existing:
-                item = jobs().get(existing) or db.job(existing)
-                if item:
-                    result = api_submission({"job_id": existing, "kind": item["kind"], "status": item["status"], "reused": True})
-                    result["capability_id"] = api_job(item).get("capability_id")
-                    return result
-        result = await create_generation(request, project_id=request.project_id)
-        if idempotency_key:
-            db.save_idempotent_job(idempotency_key, result["job_id"])
-        return result
+            try:
+                result = await submit_idempotent(context, db, request, idempotency_key, create_generation)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
+            return api_submission(result, request.capability_id)
+        return await create_generation(request, parent_job_id=request.parent_job_id, project_id=request.project_id)
 
     @router.get("/jobs")
-    async def list_jobs(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), kind: str | None = None, status: str | None = None):
-        project_id = ProjectService(context).current(context.current_workspace_id.get())["id"]
-        items = [api_job(item) for item in db.jobs(project_id=project_id)]
+    async def list_jobs(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), kind: str | None = None, status: str | None = None, project_id: str | None = None):
+        try:
+            project_id = project_id or ProjectService(context).current()["id"]
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        authorized_project(project_id)
+        items = [api_job(item) for item in db.jobs(limit=None, project_id=project_id)]
         if kind:
             items = [item for item in items if item.get("kind") == kind]
         if status:
@@ -702,6 +837,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         item = jobs().get(job_id) or db.job(job_id)
         if not item:
             raise HTTPException(404, "任务不存在")
+        authorized_project(item.get("project_id", ""))
         return api_job(item)
 
     @router.get("/jobs/{job_id}/wait")
@@ -711,6 +847,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             item = jobs().get(job_id) or db.job(job_id)
             if not item:
                 raise HTTPException(404, "任务不存在")
+            authorized_project(item.get("project_id", ""))
             if item.get("status") not in {"queued", "running"} or time.monotonic() >= deadline:
                 return api_job(item)
             await asyncio.sleep(1)
@@ -720,6 +857,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         item = jobs().get(job_id) or db.job(job_id)
         if not item:
             raise HTTPException(404, "任务不存在")
+        authorized_project(item.get("project_id", ""))
         return {"job_id": job_id, "items": api_job(item).get("artifacts", [])}
 
     @router.get("/jobs/{job_id}/inputs")
@@ -727,6 +865,7 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
         item = jobs().get(job_id) or db.job(job_id)
         if not item:
             raise HTTPException(404, "任务不存在")
+        authorized_project(item.get("project_id", ""))
         manifest_path = Path(item.get("manifest_path", ""))
         if not manifest_path.is_file():
             return {"job_id": job_id, "items": []}
@@ -742,54 +881,71 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
 
     @router.post("/jobs/{job_id}/cancel")
     async def cancel(job_id: str):
+        item = jobs().get(job_id) or db.job(job_id)
+        if not item:
+            raise HTTPException(404, "任务不存在")
+        authorized_project(item.get("project_id", ""))
         return await cancel_handler(job_id)
 
-    @router.get("/jobs/{job_id}/actions")
-    async def job_actions(job_id: str):
-        item = jobs().get(job_id) or db.job(job_id)
-        if not item:
-            raise HTTPException(404, "任务不存在")
-        actions = POST_ACTIONS.get(item.get("kind"), {})
-        return {"items": [{"id": key, "name": value[0]} for key, value in actions.items()]}
+    @router.get("/plugin-actions")
+    async def plugin_actions(scope: str | None = None, source_job_id: str | None = None,
+                             automation: bool = False, source_kind: str | None = None,
+                             include_unavailable: bool = False):
+        if scope and scope not in {"resource", "workspace", "automation"}:
+            raise HTTPException(422, "无效的插件动作范围")
+        source = None
+        if source_kind:
+            if source_kind not in {"image", "video", "tts", "music", "audio"}:
+                raise HTTPException(422, "无效的资源类型")
+            source = {"kind": source_kind, "status": "completed", "external": True}
+        if source_job_id:
+            source = jobs().get(source_job_id) or db.job(source_job_id)
+            if not source:
+                raise HTTPException(404, "任务不存在")
+        catalog = PluginCatalog(workflows_path, context)
+        return {"items": public_actions(await asyncio.to_thread(discover_actions,
+            catalog, scope=scope, source=source, automation_only=automation,
+            context=context, include_unavailable=include_unavailable,
+        ))}
 
-    def stage_artifact(item: dict[str, Any]) -> tuple[str, str]:
-        artifacts = item.get("artifacts") or []
-        name = artifacts[0].get("name") if artifacts else item.get("artifact_name")
-        source = artifacts_path / Path(name or "").name
-        if not source.is_file():
-            raise HTTPException(404, "任务产物不存在")
-        upload_id = uuid.uuid4().hex
-        target = upload_cache / f"{upload_id}{source.suffix.lower()}"
-        shutil.copy2(source, target)
-        media_type = (mimetypes.guess_type(source.name)[0] or "application/octet-stream").split("/", 1)[0]
-        return upload_id, media_type
-
-    @router.post("/jobs/{job_id}/actions/{action_id}", status_code=202)
-    async def run_action(job_id: str, action_id: str):
-        item = jobs().get(job_id) or db.job(job_id)
-        if not item:
-            raise HTTPException(404, "任务不存在")
-        action = POST_ACTIONS.get(item.get("kind"), {}).get(action_id)
+    @router.get("/plugin-actions/{action_id}")
+    async def plugin_action(action_id: str):
+        action = PluginCatalog(workflows_path, context).actions().get(action_id)
         if not action:
-            raise HTTPException(422, "当前产物不支持此操作")
-        upload_id, media_type = stage_artifact(item)
-        config = resolve_capability(action[1])
-        kind, _, mode = _model_and_mode(action[1], config)
-        value = f"upload:{upload_id}"
-        request = generate_model(prompt="后期处理", mode=mode, references=[value] if media_type == "image" else [], params={"videos": [value] if media_type == "video" else [], "audios": [], "parent_job_id": job_id})
-        return api_submission(await submit(kind, request), action[1])
+            raise HTTPException(404, "插件动作不存在")
+        return public_action(action)
+
+    @router.post("/plugin-actions/{action_id}/execute", status_code=202,
+                 response_model=PluginActionResponse, response_model_exclude_none=True)
+    async def run_plugin_action(action_id: str, body: PluginActionExecuteRequest):
+        if body.source_job_id and body.source_upload_id:
+            raise HTTPException(422, "源任务和上传素材不能同时指定")
+        source = None
+        if body.source_upload_id:
+            source = uploaded_source(context, body.source_upload_id)
+        if body.source_job_id:
+            source = jobs().get(body.source_job_id) or db.job(body.source_job_id)
+            if not source:
+                raise HTTPException(404, "任务不存在")
+            authorized_project(source.get("project_id", ""))
+        if body.project_id:
+            authorized_project(body.project_id)
+        catalog = PluginCatalog(workflows_path, context)
+        result = await execute_action(catalog, action_id, body.inputs, context, submit,
+                                      source=source, project_id=body.project_id, category_id=body.category_id,
+                                      invoke_capability=invoke_plugin_capability)
+        return api_submission(result, result.get("capability_id")) if result.get("job_id") else result
 
     @router.post("/jobs/{job_id}/regenerate", status_code=202)
     async def regenerate(job_id: str, request: RegenerateRequest):
         item = jobs().get(job_id) or db.job(job_id)
         if not item:
             raise HTTPException(404, "任务不存在")
+        authorized_project(item.get("project_id", ""))
         original = hydrate_job(dict(item))
-        capability_id = original.get("params", {}).get("capability_id")
+        capability_id = original.get("params", {}).get("capability_id") or original.get("generation", {}).get("capability_id")
         if not capability_id:
-            params = original.get("params", {})
-            model = params.get("image_model") or params.get("video_model")
-            capability_id = f"{item['kind']}.{model}.{original.get('mode')}" if model in {"qwen", "krea2", "gpt_image", "ltx2_5"} else f"{item['kind']}.{original.get('mode')}"
+            raise HTTPException(422, "原任务缺少插件能力标识，请选择能力后重新提交")
         inputs = request.inputs
         if inputs is None:
             inputs = []
@@ -812,11 +968,12 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             settings = CreateSettings(
                 ratio=ratio,
                 resolution=resolution,
-                duration=float(original.get("duration_seconds", item.get("duration_seconds", 5))),
+                duration=float(original.get("duration_seconds") or item.get("duration_seconds") or 5),
                 variant=params.get("speed", "normal"),
                 seed=params.get("seed"),
                 style_id=params.get("style_id", ""),
-                voice_id=original.get("character", "orion_7"),
+                voice_id=original.get("character", ""),
+                voice_speed=original.get("speed", 1.0),
                 instruction=original.get("instruction", ""),
                 shots=params.get("shots", []),
             )
@@ -837,6 +994,8 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             settings.confirmed_prompt_zh = confirmed_prompt
         create_request = CreateRequest(
             capability_id=capability_id,
+            category_id=item.get("category_id"),
+            parameters=request.parameters if request.parameters is not None else params.get("plugin_parameters", {}),
             prompt=execution_prompt or (
                 request.prompt if request.prompt is not None else original.get("prompt", original.get("text", ""))
             ),
@@ -844,6 +1003,6 @@ def build_router(*, db, auth: Callable, workflow_registry: Callable, workflows_p
             inputs=inputs,
             settings=settings,
         )
-        return await create_generation(create_request, parent_job_id=job_id)
+        return await create_generation(create_request, parent_job_id=job_id, project_id=item.get("project_id"))
 
     return router

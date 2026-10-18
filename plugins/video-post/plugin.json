@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "id": "video-post",
+  "version": "1.0.0",
+  "name": "视频后期处理",
+  "categories": [
+    {
+      "id": "video",
+      "name": "视频生成",
+      "icon": "solar:clapperboard-play-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    }
+  ],
+  "capabilities": {
+    "video.interpolate": {
+      "kind": "video",
+      "mode": "interpolate",
+      "file": "workflows/post/video/interpolate.json",
+      "references": {
+        "video": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "media_bindings": {
+        "video": [
+          {
+            "node": "24",
+            "input": "video"
+          }
+        ]
+      },
+      "output_nodes": [
+        "22"
+      ],
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "video-post",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "operation": "postprocess",
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "input_roles": {},
+      "name": "视频补帧",
+      "model_id": "video-post",
+      "model_name": "RIFE",
+      "mode_name": "视频补帧",
+      "duration": {
+        "min": 1,
+        "max": 30,
+        "default": 5
+      }
+    },
+    "video.upscale": {
+      "kind": "video",
+      "mode": "upscale",
+      "file": "workflows/post/video/upscale.json",
+      "references": {
+        "video": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "prompt": {
+        "preserve_all": true
+      },
+      "dynamic_ltx_dimensions": false,
+      "media_bindings": {
+        "video": [
+          {
+            "node": "9078",
+            "input": "video"
+          }
+        ]
+      },
+      "output_nodes": [
+        "9054"
+      ],
+      "category": "video",
+      "compiler": "builtin",
+      "model_family": "video-post",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "operation": "postprocess",
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "input_roles": {},
+      "name": "LTX 2.5 视频放大",
+      "model_id": "video-post",
+      "model_name": "LTX 2.5",
+      "mode_name": "视频放大",
+      "duration": {
+        "min": 1,
+        "max": 30,
+        "default": 5
+      }
+    }
+  },
+  "actions": [
+    {
+      "id": "interpolate",
+      "name": "视频补帧",
+      "description": "为视频插入中间帧，让运动更流畅。",
+      "source_types": [
+        "video"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "video.interpolate",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "upscale",
+      "name": "LTX 2.5 视频放大",
+      "description": "从视频文件重新编码并放大增强，无需原始生成检查点。",
+      "source_types": [
+        "video"
+      ],
+      "ui": {
+        "version": 1,
+        "fields": []
+      },
+      "scope": "resource",
+      "automation": true,
+      "capability_id": "video.upscale",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parameters": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

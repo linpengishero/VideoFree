@@ -1,32 +1,63 @@
-"""Built-in voice presets."""
+"""Read-only voice definitions owned by installed plugins."""
 
-def voice_profile(name: str, description: str, keywords: str, avoid: str) -> dict[str, str]:
-    return {"display_name": name, "instruction": f"{description}\n关键词：{keywords}。\n禁忌：{avoid}。"}
+from pathlib import Path
+import logging
+
+from ..generation.plugins import IDENTIFIER, PluginCatalog, contained_file
+
+logger = logging.getLogger(__name__)
 
 
-VOICE_PRESETS = {
-    "my_voice": {
-        "display_name": "我的音色",
-        "instruction": "保持参考音频中的本人音色，以自然、清楚、稳定的普通话表达。",
-        "model": "cosyvoice3",
-        "sample_audio_name": "my_voice.mp3",
-    },
-    "orion_7": voice_profile("星河", "14岁机械少年音，声线清亮偏高，带轻微电子合成感和旧扬声器质感。反应敏捷、认真可靠，危险时语句变短变急，但始终清楚可听。", "机械少年、清脆、电子感、认真、可靠、微可爱", "不要成熟大叔音、低沉反派感、导航腔、幼儿腔、过度失真"),
-    "documentary_female": voice_profile("纪录片女声", "32岁女性，声线中低、清澈克制，叙述沉稳而有观察力。语速中等，段落间自然留白，像正在带领观众进入真实现场。", "成熟、纪录片、冷静、清晰、可信、人文感", "不要播音腔、过度煽情、甜腻少女感、反派感、夸张起伏"),
-    "warm_male": voice_profile("温暖男声", "30岁男性，声线温厚自然，表达平和可信。讲话像一位耐心的朋友，信息重点清楚，但不刻意说教。", "温暖、自然、亲切、知识感、可信", "不要新闻腔、油腻感、过度低沉、销售感、机械朗读"),
-    "calm_female": voice_profile("沉静女声", "28岁女性，声线柔和偏中低，呼吸平稳，情绪克制。说话节奏舒缓清晰，能让人安定下来。", "沉静、柔和、舒缓、细腻、稳定", "不要气声过多、撒娇感、播音腔、过度悲伤、拖沓"),
-    "calm_male": voice_profile("沉静男声", "35岁男性，声线低而不压迫，语气理性平稳。表达简洁，重点明确，像经验丰富的专业顾问。", "理性、沉稳、克制、专业、可靠", "不要反派感、老成过头、播报腔、情绪起伏过大、含混"),
-    "young_female": voice_profile("年轻女声", "23岁女性，声线明亮自然，有轻微笑意但不过分甜美。语速轻快，表达真诚，适合日常分享。", "年轻、明亮、自然、亲和、轻快", "不要幼态化、夹子音、撒娇、过度兴奋、广告腔"),
-    "young_male": voice_profile("年轻男声", "24岁男性，声线清爽明快，口语自然，带一点行动力。说话直接但友好，节奏灵活。", "年轻、清爽、自然、行动感、真实", "不要油腻感、主播腔、少年过头、粗鲁、播音腔"),
-    "warm_female": voice_profile("温柔女声", "30岁女性，声线温暖细腻，中等语速，情绪有温度但不黏腻。像在认真倾听后给出回应。", "温柔、细腻、温暖、亲切、治愈", "不要过度撒娇、气声太重、苦情感、播音腔、甜腻"),
-    "narrator_male": voice_profile("叙事男声", "38岁男性，声线醇厚沉稳，叙事节奏从容，有画面感。情绪推进克制，关键段落自然加重。", "叙事、醇厚、沉稳、故事感、层次", "不要戏剧腔、过度低沉、反派感、新闻播报、拖沓"),
-    "narrator_female": voice_profile("叙事女声", "34岁女性，声线清晰柔韧，叙述有细节感。语气自然流动，适合人物故事和人文表达。", "叙事、清晰、细腻、人文、自然", "不要甜妹感、播音腔、哭腔、过度柔弱、夸张情绪"),
-    "news_male": voice_profile("资讯男声", "32岁男性，声线端正清晰，语速稳定，信息层次分明。语气专业但不过于僵硬，适合重点播报。", "专业、清晰、正式、稳定、信息感", "不要播音员过重、官腔、反派感、情绪化、机械断句"),
-    "news_female": voice_profile("资讯女声", "30岁女性，声线利落明晰，咬字干净，节奏精准。面对复杂信息仍保持冷静和亲和。", "利落、专业、清晰、冷静、信息感", "不要播音腔过强、尖锐、甜腻、过度热情、机械感"),
-    "energetic_male": voice_profile("活力男声", "27岁男性，声线明亮有冲劲，表达积极而自然。节奏偏快，关键处有推动力，像带队完成一次行动。", "活力、行动感、明亮、积极、感染力", "不要喊叫、销售腔、油腻、少年音过重、播报腔"),
-    "energetic_female": voice_profile("活力女声", "26岁女性，声线明快有弹性，精神饱满但不尖锐。语速轻快，表达有感染力，像在分享值得期待的事。", "活力、明亮、自然、感染力、轻快", "不要尖叫、甜腻、夹子音、广告腔过重、幼态化"),
-    "elder_male": voice_profile("长者男声", "60岁男性，声线醇厚略带沙感，语气从容有阅历。说话不急，像把重要经验慢慢讲给人听。", "长者、醇厚、从容、阅历、可靠", "不要虚弱、老态过重、说教感、反派感、含混不清"),
-    "elder_female": voice_profile("长者女声", "58岁女性，声线温和稳当，有轻微岁月感。表达亲切从容，像一位见过许多故事的长辈。", "长者、温和、从容、亲切、故事感", "不要过度老态、苦情、刻意慈祥、播音腔、含混"),
-    "child_male": voice_profile("童声男孩", "10岁男孩，声线清脆自然，有好奇心和小小的勇敢。语速适中，像认真讲述刚刚发现的新世界。", "男孩童声、清脆、好奇、自然、勇敢", "不要幼儿腔、撒娇、尖叫、成人模仿感、过度卡通"),
-    "child_female": voice_profile("童声女孩", "10岁女孩，声线明亮灵动，自然天真，有轻微雀跃感。说话清楚，像在开心分享一个秘密。", "女孩童声、明亮、灵动、天真、自然", "不要幼儿腔、夹子音、过度撒娇、尖锐、成人模仿感"),
-}
+def voice_presets(directory: Path, context=None) -> dict:
+    catalog = PluginCatalog(directory, context)
+    plugins, _ = catalog.scan()
+    result = {}
+    for plugin in plugins:
+        target = plugin.get("voice_presets")
+        if not target:
+            continue
+        config = next(iter(plugin["capabilities"].values()), None)
+        if not config:
+            continue
+        try:
+            definitions = catalog._load_handler(config, target)()
+            if not isinstance(definitions, dict):
+                raise ValueError("Voice presets must be a dictionary")
+            pending = {}
+            for key, definition in definitions.items():
+                if not isinstance(key, str) or not IDENTIFIER.fullmatch(key):
+                    raise ValueError(f"Invalid voice preset id: {key}")
+                if key in result:
+                    raise ValueError(f"Duplicate voice preset: {key}")
+                if not isinstance(definition, dict) or not definition.get("display_name"):
+                    raise ValueError(f"Invalid voice preset: {key}")
+                if definition.get("sample_file"):
+                    contained_file(directory / config["plugin_folder"], definition["sample_file"])
+                pending[key] = {**definition, "plugin_id": plugin["id"], "plugin_folder": config["plugin_folder"]}
+            result.update(pending)
+        except Exception:
+            logger.exception("Cannot load voice presets from plugin %s", plugin["id"])
+    return result
+
+
+class VoicePresets:
+    def __init__(self, context):
+        self.context = context
+
+    def items(self):
+        return [self._item(key, value) for key, value in voice_presets(self.context.paths.plugins, self.context).items()]
+
+    def get(self, key):
+        definition = voice_presets(self.context.paths.plugins, self.context).get(key)
+        return self._item(key, definition) if definition else None
+
+    def _item(self, key, definition):
+        sample = Path(definition["sample_file"]).name if definition.get("sample_file") else None
+        return {**definition, "preset_key": key, "model": definition.get("model", definition["plugin_id"]),
+                "sample_audio_name": sample, "sample_audio_url": f"/v1/voices/{key}/sample" if sample else None}
+
+    def sample_path(self, item):
+        root = self.context.paths.plugins / item["plugin_folder"]
+        if item.get("sample_file"):
+            return contained_file(root, item["sample_file"])
+        return None

@@ -1,3 +1,3 @@
-from .executors import NativeExecutionCancelled, NativeExecutionContext, execute_native
+from .executors import NativeExecutionCancelled, NativeExecutionContext, NativeExecutionResult
 
-__all__ = ["NativeExecutionCancelled", "NativeExecutionContext", "execute_native"]
+__all__ = ["NativeExecutionCancelled", "NativeExecutionContext", "NativeExecutionResult"]

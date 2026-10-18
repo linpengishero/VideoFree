@@ -1,6 +1,6 @@
 <script setup>
 import { Icon } from '@iconify/vue'
-const props = defineProps({ job: { type: Object, required: true } });
+const props = defineProps({ job: { type: Object, required: true }, applications: { type: Array, default: () => [] } });
 defineEmits(["preview", "delete", "cancel", "process", "details"]);
 function assets(job) { return job?.artifacts?.length ? job.artifacts : job?.artifact_url ? [{ url: job.artifact_url }] : [] }
 function elapsed(value) {
@@ -31,6 +31,7 @@ function typeText(job) {
           <Icon :icon="job.kind === 'video' ? 'solar:play-circle-linear' : job.kind === 'tts' ? 'solar:play-circle-linear' : 'solar:maximize-square-3-linear'" :width="job.kind === 'image' ? 19 : 42" />
         </button>
         <span v-if="job.kind === 'tts'" class="audio-label">播放声音</span>
+        <span v-if="applications.some(app => app.selection_label && job.application_marks?.includes(app.id))" class="job-application-marks"><span v-for="app in applications.filter(app => app.selection_label && job.application_marks?.includes(app.id))" :key="app.id"><Icon icon="solar:check-circle-linear" width="12" />{{ app.selection_label }}</span></span>
       </template>
       <div v-else class="job-error" @click.stop>
         <strong>{{ job.error || "任务失败" }}</strong>
@@ -46,7 +47,7 @@ function typeText(job) {
       <div class="job-actions">
         <button v-if="['queued', 'running'].includes(job.status)" class="job-cancel" type="button" aria-label="取消任务" title="取消任务" @click.stop="$emit('cancel', job)"><Icon icon="solar:stop-circle-linear" width="16" /></button>
         <button v-if="!job.external" class="job-details" type="button" aria-label="查看任务详情" title="查看原始素材与描述词" @click.stop="$emit('details', job)"><Icon icon="solar:document-text-linear" width="16" /></button>
-        <button v-if="job.status === 'completed' && ['image', 'video'].includes(job.kind)" class="job-process" type="button" aria-label="后期处理" title="后期处理" @click.stop="$emit('process', job)"><Icon icon="solar:tuning-square-2-linear" width="16" /></button>
+        <button v-if="job.status === 'completed'" class="job-process" type="button" aria-label="后期处理" title="后期处理" @click.stop="$emit('process', job)"><Icon icon="solar:tuning-square-2-linear" width="16" /></button>
         <button v-if="!['queued', 'running'].includes(job.status)" class="job-delete" type="button" aria-label="删除资源" title="删除资源" @click.stop="$emit('delete', job)"><Icon icon="solar:trash-bin-trash-linear" width="16" /></button>
       </div>
     </footer>
@@ -54,6 +55,8 @@ function typeText(job) {
 </template>
 <style scoped>
 .job-card { position: relative; }
+.job-application-marks{position:absolute;bottom:8px;left:8px;display:flex;flex-wrap:wrap;gap:4px;font-size:10px}
+.job-application-marks > span{display:flex;align-items:center;gap:4px;background:#20351ee6;color:#c3eba4;padding:4px 6px;border-radius:4px}
 .job-card.status-failed .job-media { overflow:auto; }
 .job-error p { margin:8px 0; }
 .job-error pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0; font-size:10px; }
@@ -68,7 +71,7 @@ function typeText(job) {
 .job-details { display:grid; place-items:center; width:28px; height:28px; padding:0; border:1px solid #ffffff30; border-radius:6px; background:#17191de8; color:#dadde3; }
 .job-details:hover { color:#b7f34a; background:#293125; border-color:#b7f34a66; }
 footer em { font-style:normal; }
-.job-card { width: 100%; height: auto; display:grid; grid-template-rows:auto 32px; align-self:start; border-radius: 8px; }
+.job-card { width: 100%; height: auto; display:grid; grid-template-rows:auto 32px; grid-auto-rows:auto; align-self:start; border-radius: 8px; }
 .job-media { height: auto; aspect-ratio:4 / 3; min-width:0; overflow:hidden; }
 .job-card footer { height:32px; padding:0 9px; align-items:center; }
 .job-info { width:100%; min-width: 0; }

@@ -15,8 +15,9 @@ ComfyUI 及其社区节点由各自项目作者维护，许可证和版权归各
 
 ## OpenMontage
 
-OpenMontage 位于 `.agents/skills/openmontage/`，是可选安装的独立技能和剪辑工具，
-不是 videofree 网关的核心运行依赖。OpenMontage 目录内的 `LICENSE`、版权声明和
+OpenMontage 位于 `.agents/skills/openmontage/`，可独立作为技能使用，也是网关可选
+基础合成功能的运行依赖；网关启动和其他生成功能不依赖它。其 AGPL-3.0 许可仍独立适用，
+videofree 的商业授权不免除第三方许可义务。OpenMontage 目录内的 `LICENSE`、版权声明和
 其他来源说明必须与其源码一起保留。使用 OpenMontage 时，以其目录中的许可证和
 第三方声明为准。
 
@@ -24,3 +25,9 @@ OpenMontage 位于 `.agents/skills/openmontage/`，是可选安装的独立技�
 
 Python、JavaScript、FFmpeg 及其他依赖的许可证以依赖项目自身发布的许可证为准。
 依赖清单不代表 videofree 对这些项目拥有版权或再授权权。
+
+## Krea 2 提示词扩写模板
+
+`plugins/krea2/collaboration/skills/upstream/krea-2/expansion.txt` 来自 Krea AI 的
+Krea 2 官方仓库 `docs/expansion.txt`，按 Apache License 2.0 使用。原始来源与许可链接
+记录在同目录 `SOURCE.md`；其版权归 Krea AI 及上游贡献者所有。

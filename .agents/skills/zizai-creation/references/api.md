@@ -87,17 +87,20 @@ Create request:
 }
 ```
 
-For local `storyboard_4` capabilities, send exactly four nonempty descriptions
-in `settings.shots`. The compatibility top-level `shots` field is also accepted,
-but `settings.shots` is canonical. Intelligent collaboration supplies its
-`optimized_shots` automatically when the result is confirmed.
+For Qwen `storyboard_4`, include all four panel descriptions in `prompt`.
+For Krea2, optionally send exactly four nonempty descriptions in `settings.shots`;
+these override the story prompt. Without that array, Krea2 splits explicit
+`Shot 1:` through `Shot 4:` headings (or Chinese `镜头一：` through `镜头四：`)
+on separate lines, retaining any shared context before them. Unstructured
+prompts use four successive story stages. The compatibility top-level `shots`
+field is also accepted. Collaboration forwards `optimized_shots` when supplied.
 
 Qwen example:
 
 ```json
 {
   "capability_id": "image.qwen.storyboard_4",
-  "prompt": "两名角色在雨夜车站相遇并发生冲突",
+  "prompt": "两名角色在雨夜车站相遇并发生冲突。四宫格：1.雨夜车站全景，两名角色从两侧接近；2.角色A停步警觉，锁定角色B；3.角色B抬手阻拦，双方对峙；4.列车灯光扫过，两人隔雨相望。",
   "inputs": [
     {"type": "image", "upload_id": "SCENE_UPLOAD", "role": "scene"},
     {"type": "image", "upload_id": "CHARACTER_A_UPLOAD", "role": "character_a"},
@@ -116,7 +119,7 @@ Qwen example:
 }
 ```
 
-Krea2 uses the same `settings.shots` contract but requires two image roles:
+Krea2 supports explicit `settings.shots` and requires two image roles:
 `context` followed by `subject`. Always trust the selected capability's live
 `inputs` and `input_roles` response over examples.
 
@@ -292,12 +295,17 @@ For AI-assisted score design, create a collaboration using the exact advertised
 `collaboration_mode: "director"`. Speech preset mode uses `prompt` as spoken
 text and `voice_id`.
 
-AI speech generation uses these model-independent endpoints:
+AI speech uses discovered plugin actions through the unified execution endpoint:
 
 - `GET /api/v2/voices` lists `preset_id`, description, and `ready` status.
-- `POST /api/v2/tts/preset` with `{ "preset_id": "warm_male", "text": "...", "speed": 1.0 }`; the server selects CosyVoice3 and the fixed preset sample.
-- `POST /api/v2/tts/describe` with `{ "voice_description": "温暖自然的成年男声", "text": "...", "speed": 1.0 }`; the server selects Qwen3-TTS VoiceDesign.
-- `POST /api/v2/tts/clone` with `{ "reference_upload_id": "<upload_id>", "text": "...", "speed": 1.0 }`; upload exactly one reference audio through `/api/v2/uploads` first, then the server selects CosyVoice3 cloning.
+- `GET /api/v2/plugin-actions?automation=true` discovers actions and their input_schema.
+- `POST /api/v2/plugin-actions/speech_preset/execute` with `{ "project_id": "<project_id>", "inputs": { "preset_id": "warm_male", "text": "...", "speed": 1.0 } }`; the plugin selects CosyVoice3 and the fixed sample.
+- `POST /api/v2/plugin-actions/speech_describe/execute` with `{ "project_id": "<project_id>", "inputs": { "voice_description": "温暖自然的成年男声", "text": "...", "speed": 1.0 } }`; the plugin selects Qwen3-TTS VoiceDesign.
+- `POST /api/v2/plugin-actions/speech_clone/execute` with `{ "project_id": "<project_id>", "inputs": { "reference_upload_id": "<upload_id>", "text": "...", "speed": 1.0 } }`; upload one reference audio first.
+
+Resource actions use this same endpoint with source_job_id and inputs; discover them using scope=resource and source_job_id. Execution inherits the source project and rejects a conflicting project_id. Generation results contain job_id; immediate plugin results contain result instead. Always inspect the returned contract before waiting. MCP uses list_plugin_actions/get_plugin_action/run_plugin_action with the same fields.
+
+For uploaded sources, discover with source_kind=image|video|audio, then execute with source_upload_id instead of source_job_id (mutually exclusive). Optional category_id controls uploaded-source results; job-source results retain their original category. Discovery and execution share server-side type, provenance and auxiliary-file checks. Never assume all videos support H3 refinement. include_unavailable=true adds available/reason for diagnostics.
 
 `speed` accepts `0.5-2.0`. For rough planning, normal Mandarin is about
 `4-5 Chinese characters per second`; estimate duration as non-whitespace
@@ -306,7 +314,7 @@ emotion can change the actual duration.
 
 Do not pass model names, workflow names, or speaker presets to these AI-facing endpoints. Voice cloning accepts only the reusable `upload_id` returned by the upload endpoint, never a local path or raw workflow input.
 
-Voice presets are managed only by the workbench's internal settings UI. The
+Voice preset definitions belong to their installed plugins. The
 AI-facing v2 API is read-only for voice presets: it exposes the catalog and
 speech generation, but no create, update, delete, or sample-regeneration route.
 Do not attempt to mutate voice presets through the AI API.
@@ -317,7 +325,8 @@ When validating this API revision, cover these behaviors without deleting user
 data:
 
 1. Reuse one `upload_id` in two different generation requests.
-2. Submit Qwen and Krea2 `storyboard_4` with four `settings.shots` entries.
+2. Submit Qwen `storyboard_4` with four panel descriptions in `prompt`; check
+   Krea2 with both numbered prompt headings and four `settings.shots` entries.
 3. Confirm a storyboard collaboration and verify its generated job receives the
    four optimized shots.
 4. Run `image.split` directly on one uploaded grid and verify four artifacts.

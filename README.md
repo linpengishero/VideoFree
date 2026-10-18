@@ -1,22 +1,60 @@
-# videofree
+# VideoFree
+
+[中文](README.md) · [English](README_EN.md)
 
 当前版本：`1.1.0`
 
+**把零散、复杂的本地 AI 工作流，变成普通用户能使用、开发者能分发、Agent 能稳定调用的完整创作能力。**
+
+VideoFree 是一个面向本地 AI 视频创作的工作台、能力网关和插件平台。它以 ComfyUI 作为底层生成引擎，但不要求用户直接面对复杂的节点连线、模型路径和零散工作流。VideoFree 将模型、工作流、参数界面、提示词技能和配套资源封装成可安装插件，再用统一的项目、分类、素材和任务系统组织整个创作过程。
+
+普通用户可以在工作台中完成创作，外部 Agent 可以通过 MCP 或 HTTP API 使用同一套插件能力、项目数据和本地素材。
+
+## 为什么需要 VideoFree
+
+### 从云端转向本地，首先面对的是混乱
+
+云端产品通常已经替用户选择好了模型、参数和操作流程。转到本地后，用户面对的却是琳琅满目的模型、散落在网络各处的工作流，以及难以理解的 ComfyUI 节点和连线。
+
+即使下载了工作流，也经常遇到缺少节点、模型路径不一致、参数含义不清楚和版本不兼容。用户需要先成为“工作流维护者”，才能开始真正的内容创作。
+
+VideoFree 不替代 ComfyUI，而是在它之上建立一层稳定的产品能力。开发者可以将已经调试好的工作流制作成插件，把工作流、输入规则、模型参数、专用编译逻辑和依赖说明放在一起。用户安装插件后，可以像使用普通创作软件一样选择能力，而不必理解内部节点。
+
+### 降低不同模型的提示词学习成本
+
+图片、视频、语音和音乐模型拥有不同的提示词格式、参考素材要求和参数限制。同一句自然语言需求，交给不同模型往往需要完全不同的写法。
+
+每个 VideoFree 插件可以携带自己的模型知识和协作技能。用户只需要用大白话描述想要的画面、动作、对白或音乐，智能协作就能根据当前模型和生成模式进行追问、检查素材关系，并整理为模型真正需要的执行稿。增加新模型时，它的特殊规则仍留在插件中，不会继续堆进主程序。
+
+### 解决本地创作的文件和素材混乱
+
+ComfyUI 擅长执行工作流，但不是完整的视频项目管理工具。生成的图片、视频、声音和中间文件容易混在输出目录中，剧本、文案、提示词和参考素材又散落在文档、聊天记录与文件夹里。
+
+VideoFree 使用“项目—分类—素材”组织创作：项目可以对应一部影片或一个系列，分类可以对应某一集、章节或镜头组；最终素材自动归档，任务记录保留输入来源、生成参数、能力和重新生成关系，人物、场景与声音等项目资产可以反复使用。剧本、分镜、制作进度等业务数据还可以由项目插件管理，并始终跟随当前项目或分类上下文。
+
+### 让 Agent 稳定使用 ComfyUI 工作流
+
+直接让 Agent 操作原始 ComfyUI 工作流并不稳定。Agent 必须理解节点编号、输入连接、模型文件和工作流版本，任何细节变化都可能导致调用失败。
+
+VideoFree 把工作流转换为带固定能力 ID、输入 Schema 和执行契约的接口。Agent 只需要发现能力、上传素材、提交参数并查询任务；平台负责工作流选择、参数校验、素材绑定、排队、恢复、错误报告和结果归档。工作台、MCP 与 HTTP API 共用同一个能力目录和任务服务，不是三套生成实现。
+
+### 让工作流成为可以安装和复用的产品
+
+一个插件可以同时包含 ComfyUI 工作流、模型与能力声明、参数界面、专用编译器、智能协作技能、预设资源、后处理动作和独立应用页面。同一个插件既能供用户在工作台中操作，也能通过 MCP 或 HTTP API 提供给 Agent。
+
+插件开发入口：
+
+- [插件开发指南](plugins/PLUGIN_DEVELOPMENT.md)
+- [插件协议](docs/plugin-protocol.md)
+- [VideoFree 插件开发 Skill](.agents/skills/videofree-plugin-development/SKILL.md)
+
+纯声明式生成插件安装时只需复制完整插件目录并重启网关。带独立 UI 的应用插件应在插件目录内构建和分发自己的 `ui/dist/`，无需修改 VideoFree 主前端。
+
 ## 许可证与第三方边界
 
-videofree 自有源代码按 [GNU AGPL-3.0](LICENSE) 发布。AGPL-3.0 允许商业使用，
-但使用、修改、分发或通过网络提供服务时必须履行许可证规定的义务。需要闭源集成、
-企业部署、白标、技术支持或定制开发时，可查看[商业授权说明](COMMERCIAL_LICENSE.md)。
+VideoFree 自有源代码按 [GNU AGPL-3.0](LICENSE) 发布。需要闭源集成、企业部署、白标、技术支持或定制开发时，可查看[商业授权说明](COMMERCIAL_LICENSE.md)。
 
-本项目主要负责调用用户配置的 ComfyUI 和外部媒体服务；ComfyUI、社区节点、模型、
-LoRA、字体、FFmpeg 及其他资源不属于 videofree 的统一授权范围，请遵守各自许可证。
-OpenMontage 是 `.agents/skills/openmontage/` 下可选安装的独立技能和剪辑工具，不是
-videofree 网关的核心运行依赖，使用时请保留其目录中的许可证和版权声明。详见
-[第三方组件说明](THIRD_PARTY_NOTICES.md)。
-
-运行在 Windows + GPU 上的本地 AI 创作工作台，包含图片、视频、声音、音乐生成、持久任务记录和本地资源管理。
-
-videofree 集成本地与云端 AI 能力，本地生成与部分后处理能力基于 ComfyUI 及其社区插件构建。模型与插件的版权和许可归各自作者所有，使用或分发时请遵守对应许可。
+ComfyUI、社区节点、模型、LoRA、字体、FFmpeg 及其他资源不属于 VideoFree 的统一授权范围，请遵守各自许可证。剪辑功能属于 `plugins/film-studio/` 应用插件，并随插件分发其 FFmpeg/ffprobe 运行工具和许可证；`.agents/skills/openmontage/` 是独立的自动化视频制作技能，不是剪辑插件的运行依赖。详见[第三方组件说明](THIRD_PARTY_NOTICES.md)。
 
 ## AI军火库与知识星球
 
@@ -24,6 +62,12 @@ videofree 集成本地与云端 AI 能力，本地生成与部分后处理能力
 - **知识星球**：分享各类 AI 视频自动化流水线，以及 AI、智能体与大模型专业知识。可在工作台首页扫码，或点击下方二维码放大查看。
 
 [![知识星球二维码](frontend/public/contact/zsxq-qr.png)](frontend/public/contact/zsxq-qr.png)
+
+### 微信交流群
+
+欢迎加入 VideoFree 微信交流群，交流本地模型、插件开发、工作流封装和 AI 视频创作。二维码失效时可前往 [laobanclaw.top](https://laobanclaw.top/) 获取最新入口。
+
+<img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree 微信交流群二维码" width="240" />
 
 ## 配套 ComfyUI 模型和插件
 
@@ -43,15 +87,15 @@ videofree 集成本地与云端 AI 能力，本地生成与部分后处理能力
 
 ## 启动
 
-解压完整发布包后，直接双击 `start_gateway.cmd`。程序使用随包附带的 Python，启动成功后会自动打开创作页面，不要求用户安装 Python 或 Node.js。
+解压完整发布包后，直接双击 `启动VideoFree.cmd`。程序使用随包附带的 Python，启动成功后会自动打开创作页面，不要求用户安装 Python 或 Node.js。
 
-首次使用请在网页设置中填写 ComfyUI 网关地址。项目资源目录自动创建，生成素材按图片、视频、声音和音乐分类保存，无需设置资源目录。需要通过环境变量覆盖配置时，可将 `.env.example` 复制为 `.env`。
+首次使用请在网页设置中填写 ComfyUI 网关地址。项目资源默认保存在 `data/projects/`，也可在“设置 → 基础设置”指定其他本地目录；修改后只读写新目录，不迁移或继续读取旧目录。需要通过环境变量覆盖配置时，可将 `.env.example` 复制为 `.env`。
 
-`start_gateway.cmd` 会自动读取根目录的 `.env`；直接通过 PowerShell 启动 Python 时，PowerShell 本身不会自动读取该文件。网关默认监听 `0.0.0.0`，可通过本机或局域网访问；对局域网开放时建议设置 `MEDIA_GATEWAY_TOKEN`。如需限制为仅本机访问，将 `MEDIA_GATEWAY_HOST` 设置为 `127.0.0.1`。ComfyUI 地址通过 `COMFYUI_URL` 配置。
+`启动VideoFree.cmd` 会自动读取根目录的 `.env`；直接通过 PowerShell 启动 Python 时，PowerShell 本身不会自动读取该文件。网关默认监听 `0.0.0.0`，可通过本机或局域网访问；对局域网开放时建议设置 `MEDIA_GATEWAY_TOKEN`。如需限制为仅本机访问，将 `MEDIA_GATEWAY_HOST` 设置为 `127.0.0.1`。ComfyUI 地址通过 `COMFYUI_URL` 配置。
 
 ## 基本配置教程
 
-网页图文教程：启动 videofree 后，在首页知识星球说明下点击“安装部署教程”或“全自动技能包教程”。也可访问 `http://127.0.0.1:8765/?guide=install` 与 `http://127.0.0.1:8765/?guide=skills`；局域网使用时替换为网关电脑的实际 IP。教程包含安装步骤、工作台界面示例和可交给智能体的安装指令。
+网页图文教程：启动 VideoFree 后，可在首页进入安装部署、MCP、全自动技能包和插件开发四个教程。对应地址为 `?guide=install`、`?guide=mcp`、`?guide=skills` 和 `?guide=plugin`；局域网使用时将 `127.0.0.1` 替换为网关电脑的实际 IP。教程包含工作台示例、可交给智能体的安装指令和插件开发 Skill。
 
 ### 1. 准备并启动 ComfyUI
 
@@ -61,7 +105,7 @@ videofree 集成本地与云端 AI 能力，本地生成与部分后处理能力
 
 ### 2. 启动 videofree 并配置连接
 
-双击 `start_gateway.cmd`，本机访问 `http://127.0.0.1:8765/`，进入工作台的设置，填写实际的 ComfyUI 地址并保存。ComfyUI 与网关在同一台电脑时使用 `127.0.0.1`；不同电脑时使用 ComfyUI 所在电脑的局域网 IP，并确保其监听地址和防火墙允许访问。
+双击 `启动VideoFree.cmd`，本机访问 `http://127.0.0.1:8765/`，进入工作台的设置，填写实际的 ComfyUI 地址并保存。ComfyUI 与网关在同一台电脑时使用 `127.0.0.1`；不同电脑时使用 ComfyUI 所在电脑的局域网 IP，并确保其监听地址和防火墙允许访问。
 
 可选：复制 `.env.example` 为 `.env`，按实际情况修改以下内容。修改后重新启动网关：
 
@@ -76,13 +120,13 @@ MEDIA_GATEWAY_TOKEN=
 
 ### 3. 配置 AI 与云端能力
 
-需要导演协作、H3 描述词转换等能力时，在网页设置中配置对应 AI 服务的接口地址、模型名称及 API Key。需要 GPT-Image 云端生图时，配置 GrisAI API Key；仅使用本地生成能力时，不必配置该云端密钥。密钥不要写入 README 或提交到公开仓库。
+需要导演协作、H3 描述词转换等能力时，在“设置 → LLM 服务”配置系统公共模型，插件通过框架接口调用且不能读取该密钥。需要 GPT-Image 云端生图时，在“设置 → 插件配置 → GPT-Image”填写 GrisAI 参数；值保存在 `plugins/gpt-image/.env`。仅使用本地生成能力时不必配置。插件 `.env` 已被 Git 忽略，不要将密钥提交到公开仓库。
 
 ### 4. 创建项目并生成素材
 
 在工作台创建项目，填写名称、简介和内容概要，然后进入项目提交生成。系统自动创建项目目录，并按 `images`、`videos`、`audio`、`music` 分类保存最终素材，无需手动指定资源目录或同步 ComfyUI 输出文件。
 
-生成素材位于 `data/projects/`。音色样本位于 `data/cache/voice_samples/`，预设配置、项目与任务记录保存在 `data/media_gateway.db`。不要把数据库和音色样本当作普通缓存删除。备份时保留整个 `data/`。
+未自定义资源目录时，生成素材位于 `data/projects/`。内置音色样本随声音插件分发，例如 `plugins/cosyvoice3/samples/`，不依赖框架缓存；系统设置、项目与任务记录保存在 `data/media_gateway.db`，插件专属配置位于各插件的 `.env`。不要删除数据库或插件自带的音色资源。
 
 ### 5. 常见问题
 
@@ -97,9 +141,11 @@ MEDIA_GATEWAY_TOKEN=
 
 ## API
 
-设置 `MEDIA_GATEWAY_TOKEN` 后，接口使用 `X-API-Token` 认证；留空则免认证。生成前通过 `/v1/uploads` 流式上传素材，再将返回的 `upload:<id>` 放入生成请求。任务可通过 `/v1/jobs/{id}` 查询，通过 `/v1/jobs/{id}/cancel` 取消。
+在设置页配置“网关访问令牌”，默认留空免认证；工作台、HTTP API 和 MCP 共用此令牌。API/MCP 客户端通过 `X-API-Token` 请求头发送令牌。浏览器首次连接时输入令牌，验证后使用 HttpOnly、SameSite=Strict Cookie 访问接口与媒体，有效期七天；更换令牌会使旧会话失效，当前保存设置的浏览器自动续接。不要将令牌放入 URL；跨机器使用时建议通过 HTTPS 访问。
 
-工作流按类型存放在 `workflows/`，并统一注册到 `workflows/registry.json`。网关只调用注册表中存在的工作流；请求中的 `{{prompt}}` 会在提交 ComfyUI 前替换。
+`MEDIA_GATEWAY_TOKEN` 仅作为尚未保存网关令牌设置时的启动缺省值，设置页保存的值优先（包括显式清空）。生成前通过 `/v1/uploads` 流式上传素材，再将返回的 `upload:<id>` 放入生成请求。任务可通过 `/v1/jobs/{id}` 查询，通过 `/v1/jobs/{id}/cancel` 取消。取消会移除尚在 ComfyUI 队列中的提示词；运行中的计算采用协作取消并丢弃结果，不调用会影响其他客户端的全局中断。执行器退出前禁止删除任务、分类或项目；开始归档后不再接受取消。
+
+每个插件独立存放在 `plugins/<plugin-id>/`，工作流、处理器和注册清单 `plugin.json` 均放在插件内。网关只调用插件已注册的能力；请求中的 `{{prompt}}` 会在提交 ComfyUI 前替换。不再读取旧的 `workflows/registry.json`。
 
 H3 生成与二采的最终保存链路在提交前统一编译为 VideoHelperSuite `VHS_VideoCombine`，使用独立 FFmpeg 的 `video/nvenc_h264-mp4` 编码（H.264、15 Mbps、原有音频）。ComfyUI 需安装 VideoHelperSuite，且其 FFmpeg 支持 NVIDIA NVENC；不会回退到已出现原生崩溃的 PyAV 保存链路。仓库工作流模板的输出节点编号、采样参数和 latent 保存逻辑保持不变，任务快照记录实际提交的编码节点。
 

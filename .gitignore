@@ -5,8 +5,6 @@
 
 # Runtime data, generated media, caches and local databases
 data/
-backups/
-commuity/
 __pycache__/
 *.pyc
 *.pyo
@@ -43,3 +41,4 @@ Thumbs.db
 *.mov
 *.wav
 *.mp3
+!plugins/cosyvoice3/samples/*.mp3

@@ -1,5 +1,7 @@
 import asyncio
 import mimetypes
+import shutil
+import subprocess
 import time
 import urllib.parse
 import uuid
@@ -10,6 +12,7 @@ from fastapi.responses import FileResponse
 
 from ...bootstrap import context
 from ...modules.projects import ProjectService
+from ...modules.generation.plugins import PluginCatalog
 from .dependencies import auth
 
 
@@ -46,6 +49,27 @@ def resolve_upload_media(file: UploadFile) -> tuple[str, str] | None:
     return UPLOAD_MEDIA_TYPES.get(guessed)
 
 
+def validate_upload_content(path, media_type: str) -> None:
+    """Reject truncated or undecodable media before it reaches a worker."""
+    if media_type.startswith("image/"):
+        try:
+            from PIL import Image
+            with Image.open(path) as image:
+                image.verify()
+        except Exception as exc:
+            raise HTTPException(422, "文件内容损坏或格式与扩展名不匹配") from exc
+    elif media_type.startswith(("video/", "audio/")):
+        ffprobe = shutil.which("ffprobe")
+        if not ffprobe:
+            return
+        try:
+            subprocess.run([ffprobe, "-v", "error", "-show_entries", "format=format_name",
+                            "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+                           capture_output=True, text=True, check=True, timeout=15)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise HTTPException(422, "文件内容损坏或格式与扩展名不匹配") from exc
+
+
 @router.post("/v1/uploads", dependencies=[Depends(auth)])
 async def upload_media(file: UploadFile = File(...)):
     resolved = resolve_upload_media(file)
@@ -70,15 +94,37 @@ async def upload_media(file: UploadFile = File(...)):
         raise
     finally:
         await file.close()
+    try:
+        validate_upload_content(target, media_type)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
     return {"upload_id": upload_id, "value": f"upload:{upload_id}", "size": size, "media_type": media_type}
 
 @router.get("/v1/library")
-async def library(kind: str = "all", offset: int = 0, limit: int | None = None, sort: str = "new", _: None = Depends(auth)):
+async def library(kind: str = "all", offset: int = 0, limit: int | None = None, sort: str = "new", category_id: str | None = None, _: None = Depends(auth), project_id: str | None = None):
     types = {"image": {".png", ".jpg", ".jpeg", ".webp", ".gif"}, "video": {".mp4", ".webm", ".mov", ".mkv"}, "audio": {".mp3", ".wav", ".flac", ".ogg", ".m4a"}, "music": {".mp3", ".wav", ".flac", ".ogg", ".m4a"}}
     if kind not in {"all", *types}: raise HTTPException(400, "invalid library type")
     if offset < 0 or (limit is not None and (limit < 1 or limit > 100)) or sort not in {"new", "old"}: raise HTTPException(400, "invalid pagination")
-    project = ProjectService(context).current(context.current_workspace_id.get())
-    return await asyncio.to_thread(scan_library, kind, offset, limit, sort, types, project)
+    service = ProjectService(context)
+    try:
+        project = (service.authorize(project_id) if project_id else service.current())
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    if not project or project.get("status") != "active":
+        raise HTTPException(422, "项目不存在或已归档")
+    if category_id is not None:
+        try:
+            ProjectService(context).validate_category(project["id"], category_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    result = await asyncio.to_thread(scan_library, kind, 0, None, sort, types, project)
+    ownership = ProjectService(context).library_categories(project["id"])
+    items = [{**item, "category_id": ownership.get(item["path"], "")} for item in result["items"]]
+    if category_id is not None:
+        items = [item for item in items if item["category_id"] == category_id]
+    page = items[offset:offset + limit] if limit is not None else items[offset:]
+    return {**result, "items": page, "total": len(items), "next_offset": offset + limit if limit is not None and len(items) > offset + limit else None}
 
 
 def scan_library(kind: str, offset: int, limit: int, sort: str, types: dict[str, set[str]], project: dict[str, Any]) -> dict[str, Any]:
@@ -87,14 +133,19 @@ def scan_library(kind: str, offset: int, limit: int, sort: str, types: dict[str,
     with context.library_lock:
         if context.library_cache["directory"] != directory or time.monotonic() - context.library_cache["created_at"] > 30:
             indexed = []
+            output_rules = [app['library_outputs'] for app in PluginCatalog(context.paths.plugins, context).applications() if app.get('library_outputs')]
             for path in project_directory.rglob("*"):
                 if not path.is_file(): continue
                 ext = path.suffix.lower()
                 relative_project = path.relative_to(project_directory)
+                if any(relative_project.parts[0] == rule['directory'] and path.name not in rule['filenames'] for rule in output_rules):
+                    continue
+                if relative_project.parts and relative_project.parts[0] == "public-assets":
+                    continue
                 media_type = "music" if relative_project.parts and relative_project.parts[0] == "music" else next((name for name, extensions in types.items() if name != "music" and ext in extensions), None)
                 if not media_type: continue
                 stat = path.stat()
-                relative = str(path.relative_to(context.paths.projects)).replace("\\", "/")
+                relative = str(path.relative_to(ProjectService(context).projects_root)).replace("\\", "/")
                 indexed.append({"name": path.name, "path": relative, "type": media_type, "modified": stat.st_mtime, "size": stat.st_size, "url": f"/v1/library/files/{urllib.parse.quote(relative)}"})
             indexed.sort(key=lambda item: item["modified"], reverse=True)
             context.library_cache.update(directory=directory, created_at=time.monotonic(), items=indexed)
@@ -107,8 +158,15 @@ def scan_library(kind: str, offset: int, limit: int, sort: str, types: dict[str,
 
 @router.get("/v1/library/files/{path:path}")
 async def library_file(path: str, _: None = Depends(auth)):
-    root = context.paths.projects.resolve()
+    root = ProjectService(context).projects_root
     target = (root / path).resolve()
     if root not in target.parents or not target.is_file(): raise HTTPException(404, "file not found")
+    relative = target.relative_to(root)
+    if not relative.parts:
+        raise HTTPException(404, "file not found")
+    try:
+        ProjectService(context).authorize_library_path(relative)
+    except ValueError as exc:
+        raise HTTPException(404, "file not found") from exc
     return FileResponse(target)
 

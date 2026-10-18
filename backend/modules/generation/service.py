@@ -2,17 +2,15 @@
 
 import asyncio
 import base64
-import hashlib
 import json
+import hashlib
 import logging
 import mimetypes
 import os
 from pathlib import Path
 import re
 import secrets
-import shlex
 import shutil
-import subprocess
 import time
 from typing import Any
 import urllib.error
@@ -22,44 +20,68 @@ import uuid
 from ...bootstrap import context, comfyui_client
 from ...core.errors import JobCancelled
 from ...integrations.comfyui.compiler import (
-    apply_h3_reference_bindings, apply_image_dimensions, apply_input_overrides,
-    apply_media_bindings, apply_parameter_bindings, apply_storyboard_grid,
-    comfy_queue_contains, configure_h3_generation_loras, configure_h3_lms_guide,
-    configure_h3_latent_upscaler as _configure_h3_latent_upscaler,
-    configure_qwen_image21_references,
+    apply_input_overrides, apply_media_bindings, apply_parameter_bindings,
+    comfy_queue_contains,
     fit_aligned_dimensions, history_is_complete, history_media,
-    inject_h3_checkpoint_save, prune_workflow, replace_h3_video_savers,
+    prune_workflow,
     replace_prompt, validate_reference_counts,
 )
 from ...integrations.comfyui.workflow_loader import convert_workflow, workflow_from_png
-from ...integrations.native import NativeExecutionCancelled, NativeExecutionContext, execute_native
+from ...integrations.comfyui.errors import describe_failure
+from ...integrations.native import NativeExecutionCancelled, NativeExecutionContext, NativeExecutionResult
 from ..presets.style_library import apply_style, catalog
-from ..presets.voices import VOICE_PRESETS
+from ..presets.voices import VoicePresets
 from ..settings import SettingsService
-from ..shared.schemas import GenerateRequest, TTSRequest
+from ..settings.plugins import PluginSettings
+from ...core.schemas import GenerateRequest, TTSRequest
+from ..shared.plugin_runtime import PluginRuntime
 from ..projects import ProjectService
 from .state import assert_job_transition
 from .task_store import TaskStore
 from .workflow_registry import WorkflowRegistry
+from .plugins import PluginCatalog
 
+
+async def submit_idempotent(ctx, db, request, key, submit):
+    """Serialize keyed submissions within a project."""
+    project_id = request.project_id or ProjectService(ctx).current()['id']
+    ProjectService(ctx).validate_category(project_id, request.category_id)
+    request = request.model_copy(update={'project_id': project_id})
+    scoped_key = 'generate:' + hashlib.sha256(json.dumps([project_id, key]).encode()).hexdigest()
+    fingerprint = hashlib.sha256(json.dumps(request.model_dump(), sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    async with ctx.generation_idempotency_lock:
+        existing = db.idempotent_job(scoped_key, fingerprint)
+        if existing and (item := db.job(existing)):
+            return {'job_id': existing, 'kind': item['kind'], 'status': item['status'], 'reused': True}
+        result = await submit(request, parent_job_id=request.parent_job_id, project_id=project_id)
+        db.save_idempotent_job(scoped_key, result['job_id'], fingerprint)
+        return result
 ARTIFACTS = context.paths.artifacts
 TASKS = context.paths.tasks
 UPLOAD_CACHE = context.paths.uploads
-WORKFLOWS = context.paths.workflows
-WORKFLOW_REGISTRY = context.paths.workflow_registry
+WORKFLOWS = context.paths.plugins
 settings_service = SettingsService(context, comfyui_client)
 logger = logging.getLogger(__name__)
 
 
+def generation_error_info(message: str) -> dict[str, Any]:
+    return describe_failure(message)
+
+
 def registry_service() -> WorkflowRegistry:
-    return WorkflowRegistry(WORKFLOWS, WORKFLOW_REGISTRY, node_definitions)
+    return WorkflowRegistry(WORKFLOWS, node_definitions, context)
 
 
 def task_store() -> TaskStore:
     return TaskStore(TASKS, UPLOAD_CACHE)
 
-def configured_grsai_key(settings: dict[str, Any] | None = None) -> str:
-    return settings_service.configured_grsai_key(settings)
+
+def plugin_runtime(config, job_id):
+    return PluginRuntime(
+        config["plugin_id"], PluginSettings(context).runtime(config["plugin_id"]), context,
+        project_id=context.jobs[job_id].get("project_id"),
+        category_id=context.jobs[job_id].get("category_id"),
+    )
 
 def comfy(path: str, method="GET", body: bytes | None = None) -> Any:
     return comfyui_client.request(path, method, body)
@@ -88,8 +110,7 @@ def normalize_combo_values(workflow):
 
 
 def node_definitions(kinds):
-    from ...integrations.comfyui.workflow_loader import NODE_ALIASES
-    return comfyui_client.node_definitions(kinds, NODE_ALIASES)
+    return comfyui_client.node_definitions(kinds, {})
 
 
 def free_comfy_memory() -> None:
@@ -137,10 +158,12 @@ def download_output(value: dict[str, Any]) -> bytes:
 
 def set_status(job_id: str, status: str, **extra: Any) -> None:
     with context.state_lock:
+        if context.jobs[job_id].get("status") == "cancelled" and status != "cancelled":
+            raise JobCancelled()
         assert_job_transition(str(context.jobs[job_id].get("status", "")), status)
         context.jobs[job_id].update(status=status, updated_at=time.time(), **extra)
-    context.db.update_job(job_id, {"status": status, **extra, "completed_at": time.time() if status in {"completed", "failed", "cancelled"} else None})
-    update_task_manifest(job_id, status=status, **{key: value for key, value in extra.items() if key in {"error", "elapsed_seconds"}})
+        context.db.update_job(job_id, {"status": status, **extra, "completed_at": time.time() if status in {"completed", "failed", "cancelled"} else None})
+        update_task_manifest(job_id, status=status, **{key: value for key, value in extra.items() if key in {"error", "elapsed_seconds"}})
 
 
 def data_url_bytes(value: str) -> tuple[bytes, str]:
@@ -155,10 +178,6 @@ def task_directory(job_id: str) -> Path:
     return task_store().directory(job_id)
 
 
-def write_json_atomic(path: Path, value: Any) -> None:
-    TaskStore.write_json(path, value)
-
-
 def create_task_package(job: dict[str, Any], parent_job_id: str | None = None) -> Path:
     return task_store().create(job, parent_job_id)
 
@@ -171,214 +190,35 @@ def update_task_manifest(job_id: str, **values: Any) -> None:
     task_store().update_manifest(job_id, **values)
 
 
-def h3_checkpoint_root() -> Path:
-    return context.comfyui_output_dir / "MiniMaxH3" / "latent_checkpoints"
-
-
-def h3_checkpoint_roots() -> tuple[Path, ...]:
-    """Search both the configured path and ComfyUI's live local output path.
-
-    Project assets are copied into the gateway library after completion, while
-    H3 checkpoint nodes write their files directly into ComfyUI's output tree.
-    The second location repairs installations that retained the former gateway
-    fallback directory after project-library migration.
-    """
-    roots = [h3_checkpoint_root()]
-    try:
-        live_output = settings_service.local_comfyui_output_directory(settings_service.read())
-    except (OSError, RuntimeError, ValueError, TypeError, KeyError):
-        live_output = None
-    if live_output:
-        live_root = live_output / "MiniMaxH3" / "latent_checkpoints"
-        if live_root.resolve() != roots[0].resolve():
-            roots.append(live_root)
-    return tuple(roots)
-
-
-def h3_checkpoint_path(relative: str) -> Path | None:
-    """Resolve a stored checkpoint filename without allowing path traversal."""
-    filename = Path(relative).name
-    if not filename or filename != relative:
-        return None
-    for root in h3_checkpoint_roots():
-        candidate = (root / filename).resolve()
-        if candidate.parent == root.resolve() and candidate.is_file():
-            return candidate
-    return None
-
-
-def persist_h3_checkpoint(job_id: str, request: GenerateRequest) -> None:
-    matches = sorted(
-        (
-            path for root in h3_checkpoint_roots()
-            for path in root.glob(f"{job_id}_*.h3latent.safetensors")
-        ),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
-    if not matches:
-        raise RuntimeError("H3 初稿完成，但未找到原生 latent 检查点")
-    checkpoint = matches[0]
-    relative = checkpoint.name
-    digest = hashlib.sha256()
-    with checkpoint.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
-            digest.update(chunk)
-
-    frames = max(5, round(request.duration_seconds * 24))
-    request.params.update(
-        latent_checkpoint=relative,
-        latent_checkpoint_owner=job_id,
-        latent_sha256=digest.hexdigest().upper(),
-        latent_checkpoint_ready=True,
-        latent_width=int(request.params.get("width", 768)),
-        latent_height=int(request.params.get("height", 432)),
-        latent_frames=frames + (5 - frames % 17) % 17,
-        latent_fps=24,
-        latent_size=checkpoint.stat().st_size,
-        h3_checkpoint_kind=str(request.params.get("h3_checkpoint_kind") or "completed_draft_latent"),
-        h3_resume_stage=str(request.params.get("h3_resume_stage") or "post_sampling"),
-        h3_resume_step=int(request.params.get("h3_resume_step") or 0),
-        h3_total_steps=int(request.params.get("h3_total_steps") or 0),
-        h3_sigma_schedule_persisted=bool(request.params.get("h3_sigma_schedule_persisted", False)),
-        h3_conditioning_cache_key=hashlib.sha256(
-            json.dumps({
-                "mode": request.mode,
-                "speed": request.params.get("speed", "normal"),
-                "prompt": request.prompt,
-                "width": request.params.get("width"),
-                "height": request.params.get("height"),
-                "duration": request.duration_seconds,
-            }, ensure_ascii=False, sort_keys=True).encode("utf-8")
-        ).hexdigest(),
-    )
-    stored = dict(context.jobs[job_id]["request"])
-    stored["params"] = {**stored.get("params", {}), **request.params}
-    context.jobs[job_id]["request"] = stored
-    compact = dict(stored)
-    compact.pop("references", None)
-    compact.pop("reference_audio", None)
-    compact["params"] = dict(compact.get("params", {}))
-    compact["params"].pop("videos", None)
-    compact["params"].pop("audios", None)
-    context.db.update_job_request(job_id, compact)
-
-    manifest_path = task_directory(job_id) / "manifest.json"
-    if manifest_path.is_file():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        parameters = dict(manifest.get("parameters", {}))
-        parameters["params"] = {**parameters.get("params", {}), **compact["params"]}
-        manifest.pop("latent_checkpoint_warning", None)
-        manifest.update(parameters=parameters, latent_checkpoint_ready=True)
-        write_json_atomic(manifest_path, manifest)
-        write_json_atomic(task_directory(job_id) / "config" / "request.json", compact)
-
-
-def delete_h3_checkpoint(item: dict[str, Any]) -> None:
-    params = (item.get("request") or {}).get("params", {})
-    owner = str(params.get("latent_checkpoint_owner", "")).strip()
-    if owner and owner != item.get("id"):
-        return
-    if not owner and (item.get("parent_job_id") or params.get("refine_mode")):
-        return
-    relative = str(params.get("latent_checkpoint", "")).strip()
-    if not relative:
-        return
-    target = h3_checkpoint_path(relative)
-    if target:
-        target.unlink()
-
-
-def recover_h3_checkpoints() -> int:
-    """Restore H3 refine eligibility for completed jobs affected by old paths."""
-    restored = 0
-    for job in context.jobs.values():
-        request_data = job.get("request") or {}
-        params = request_data.get("params") or {}
-        if (
-            job.get("kind") != "video"
-            or job.get("status") != "completed"
-            or params.get("latent_checkpoint_ready")
-            or params.get("video_model") != "minimax"
-        ):
-            continue
-        try:
-            persist_h3_checkpoint(job["id"], GenerateRequest(**request_data))
-            restored += 1
-        except (OSError, RuntimeError, TypeError, ValueError, KeyError):
-            continue
-    return restored
 
 
 def workflow_registry() -> dict[str, dict[str, Any]]:
     return registry_service().all()
 
 
-def registered_workflow(kind: str, mode: str, model: str = "", variant: str = "") -> dict[str, Any]:
-    return registry_service().resolve(kind, mode, model, variant)
 
 
-MODEL_NAMES = {
-    "krea2": "Krea2",
-    "qwen": "Qwen Image",
-    "gpt_image": "GPT-Image",
-    "minimax": "MiniMax H3",
-    "ltx2_5": "LTX-2.5",
-    "minimax_music3": "MiniMax Music 3",
-    "ace_step": "ACE-Step 1.5",
-    "qwen3_tts": "Qwen3-TTS",
-    "cosyvoice3": "CosyVoice3",
-    "rife": "RIFE",
-    "gateway": "videofree",
-}
-
-
-MODE_NAMES = {
-    "text_to_image": "文生图", "image_to_image": "图生图", "character": "角色版",
-    "scene": "场景图", "storyboard_4": "四宫格", "storyboard_6": "六宫格",
-    "text_to_video": "文生视频", "image_to_video": "图生视频",
-    "first_last_frame": "首尾帧生视频", "multi_reference": "多主体参考视频",
-    "reference": "全能参考", "create": "音乐创作", "background": "背景配乐", "preset": "预设音色",
-    "describe": "声音设计", "split": "宫格分割", "krea2_upscale": "Krea2 高清增强",
-    "interpolate": "视频补帧", "upscale": "视频放大", "lms_enhance": "LMS 清晰度增强",
-}
 
 
 def generation_metadata(kind: str, payload: dict[str, Any]) -> dict[str, str]:
     """Create one durable identity snapshot for every generation task."""
     params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+    action_id = str(params.pop("_action_id", ""))
+    action_name = str(params.pop("_action_name", ""))
+    action_model_name = str(params.pop("_action_model_name", ""))
+    explicit_id = params.get("capability_id")
     mode = str(payload.get("mode", ""))
     variant = str(params.get("speed", "")) if kind == "video" else ""
-    if kind == "image":
-        family = str(params.get("image_model") or ({"split": "gateway", "krea2_upscale": "krea2"}.get(mode, "krea2")))
-    elif kind == "video":
-        family = str(params.get("video_model") or ({"upscale": "ltx2_5", "interpolate": "rife"}.get(mode, "minimax")))
-    elif kind == "music":
-        family = str(params.get("music_model") or "minimax_music3")
-    elif kind == "tts":
-        family = str(payload.get("voice_model") or "qwen3_tts")
-    else:
-        family = "qwen3_tts"
-    if family != "minimax":
-        variant = ""
-    capability_id = str(params.get("capability_id") or f"{kind}.{family}.{mode}")
-    registry = workflow_registry()
-    if capability_id not in registry:
-        simple_id = f"{kind}.{mode}"
-        capability_id = simple_id if simple_id in registry else capability_id
-    config = registered_workflow(
-        kind,
-        mode,
-        str(params.get("image_model", "")) if kind == "image" else str(params.get("video_model", "")) if kind == "video" else str(params.get("music_model", "")) if kind == "music" else "",
-        variant if kind == "video" and family == "minimax" else "",
-    )
-    if kind == "tts":
-        config = registered_workflow("tts", mode, family)
+    if not explicit_id:
+        raise ValueError("必须指定插件 capability_id")
+    config = registry_service().capability(explicit_id, variant)
+    capability_id = str(explicit_id)
+    family = str(config.get("model_family", config.get("model_id", "")))
     executor = str(config.get("executor", "comfyui"))
     execution_plane = str(config.get("execution_plane", "local"))
     native_model = str(params.get("native_model") or config.get("model") or "")
-    model_id = native_model if family == "gpt_image" and native_model else family
-    provider_name = "GrisAI" if executor == "grsai" else "videofree" if executor == "image_split" else "ComfyUI"
+    model_id = native_model or str(config.get("model_id", family))
+    provider_name = str(config.get("provider_name", "ComfyUI" if executor == "comfyui" else executor))
     existing = payload.get("generation") if isinstance(payload.get("generation"), dict) else {}
     return {
         **{key: str(value) for key, value in existing.items() if value is not None},
@@ -387,15 +227,18 @@ def generation_metadata(kind: str, payload: dict[str, Any]) -> dict[str, str]:
         "provider_name": provider_name,
         "model_family": family,
         "model_id": model_id,
-        "model_name": MODEL_NAMES.get(family, family),
+        "model_name": action_model_name or str(config.get("model_name") or config.get("selector_model", {}).get("name") or family),
         "model_version": native_model if native_model and native_model != family else "",
-        "mode_id": mode,
-        "mode_name": MODE_NAMES.get(mode, mode),
+        "mode_id": action_id or mode,
+        "mode_name": action_name or str(config.get("mode_name", config.get("name", mode))),
         "variant_id": variant,
         "variant_name": str(config.get("label", variant)),
         "executor": executor,
         "execution_plane": execution_plane,
         "workflow_id": capability_id,
+        "plugin_id": str(config.get("plugin_id", "")),
+        "plugin_version": str(config.get("plugin_version", "")),
+        "plugin_revision": str(config.get("plugin_revision", "")),
     }
 
 
@@ -406,9 +249,10 @@ def job_execution_plane(job: dict[str, Any]) -> str:
     if plane:
         return plane
     try:
-        if job.get("kind") == "tts":
-            return "local"
-        config = generation_config(str(job.get("kind", "")), GenerateRequest(**request))
+        if job.get("kind") == "tts" and "text" in request:
+            config = tts_config(TTSRequest(**request))
+        else:
+            config = generation_config(str(job.get("kind", "")), GenerateRequest(**request))
         return str(config.get("execution_plane", "local"))
     except (FileNotFoundError, RuntimeError, TypeError, ValueError):
         return "local"
@@ -430,117 +274,126 @@ def generation_runtime_health() -> dict[str, Any]:
     }
 
 
-def migrate_generation_metadata() -> None:
-    """Backfill old task snapshots without changing their generation parameters."""
-    for job in context.db.jobs(limit=None):
-        request = dict(job.get("request") or {})
-        if request.get("generation"):
-            continue
-        try:
-            request["generation"] = generation_metadata(job["kind"], request)
-        except (FileNotFoundError, RuntimeError, ValueError):
-            continue
-        context.db.update_job_request(job["id"], request)
-        manifest_path = Path(job.get("manifest_path") or task_directory(job["id"]) / "manifest.json")
-        if manifest_path.is_file():
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                parameters = dict(manifest.get("parameters") or {})
-                parameters["generation"] = request["generation"]
-                manifest["parameters"] = parameters
-                write_json_atomic(manifest_path, manifest)
-                config_path = manifest_path.parent / "config" / "request.json"
-                if config_path.is_file():
-                    write_json_atomic(config_path, request)
-            except (OSError, json.JSONDecodeError):
-                continue
-
-
 def workflow_for(kind: str, name: str | None) -> dict[str, Any]:
     return registry_service().load(kind, name)
 
 
-def configure_h3_latent_upscaler(workflow: dict[str, Any], request: GenerateRequest) -> None:
-    _configure_h3_latent_upscaler(workflow, request, comfy)
+def collect_outputs(job_id: str, outputs, config) -> list[Path]:
+    paths, seen = [], set()
+    media_types = {"images": ".png", "gifs": ".mp4", "audio": ".wav", "videos": ".mp4"}
+    for media_key, value in history_media(outputs, config.get("output_nodes")):
+        identity = (media_key, value.get("filename"), value.get("subfolder", ""), value.get("type", "output"))
+        if identity in seen:
+            continue
+        seen.add(identity)
+        data = download_output(value)
+        if not data:
+            raise RuntimeError(f"ComfyUI 返回了空产物: {value['filename']}")
+        suffix = Path(value["filename"]).suffix.lower() or media_types[media_key]
+        target = ARTIFACTS / f"{job_id}_{len(paths)}{suffix}"
+        target.write_bytes(data)
+        paths.append(target)
+    if not paths:
+        raise RuntimeError("ComfyUI 执行完成，但注册的最终输出节点没有返回素材")
+    return paths
 
 
-def run_tts(job_id: str, request: TTSRequest) -> None:
-    config = registered_workflow("tts", request.mode, request.voice_model)
-    workflow_path = WORKFLOWS / config["file"]
-    if workflow_path.exists():
-        workflow = workflow_for("tts", config["file"])
-        validate_reference_counts(config, 0, 0, 1 if request.reference_audio else 0)
-        if request.mode == "describe" and not request.instruction.strip():
-            raise ValueError("voice description is required")
-        preset = context.db.preset(request.character) or VOICE_PRESETS.get(request.character, {})
-        instruction = request.instruction.strip() if request.mode == "describe" else preset.get("instruction", "")
-        reference_source = request.reference_audio
-        if request.voice_model == "cosyvoice3" and request.mode == "preset":
-            sample_name = Path(str(preset.get("sample_audio_name", ""))).name
-            sample_path = context.paths.voice_samples / sample_name if sample_name else None
-            if sample_path and sample_path.is_file():
-                reference_source = str(sample_path)
-            elif not request.speaker_preset:
-                raise ValueError("CosyVoice3 预设缺少参考音频或可用 speaker preset")
-        reference_audio = (
-            upload_local_file(Path(reference_source), job_id, 0)
-            if reference_source and Path(reference_source).is_file()
-            else upload_file(reference_source, job_id, 0, "audio") if reference_source else None
-        )
-        for node in workflow.values():
-            if node.get('class_type') == 'Qwen3VoiceClone':
-                node['inputs']['text'] = request.text
-            if node.get("class_type") == "Qwen3VoiceDesign":
-                node["inputs"]["text"] = request.text
-                node["inputs"]["instruct"] = instruction or node["inputs"].get("instruct", "")
-            if node.get("class_type") in {"FL_CosyVoice3_ZeroShot", "FL_CosyVoice3_Instruct2"}:
-                node["inputs"]["text"] = request.text
-                node["inputs"]["speed"] = request.speed
-                if node.get("class_type") == "FL_CosyVoice3_Instruct2":
-                    node["inputs"]["instruct_text"] = instruction or "请自然、清楚地说这句话。"
-            if node.get("class_type") in {"FL_CosyVoice3_SpeakerClone", "FL_CosyVoice3_SpeakerInstruct2"}:
-                node["inputs"]["text"] = request.text
-                node["inputs"]["speed"] = request.speed
-                node["inputs"]["speaker_preset"] = request.speaker_preset
-            if reference_audio and node.get("class_type") == "LoadAudio":
-                node["inputs"]["audio"] = reference_audio
-        pid = context.jobs[job_id].get("comfy_prompt_id")
+def validate_voice_preset(config: dict[str, Any], character: str) -> dict[str, Any]:
+    if config.get("mode") != "preset":
+        return {}
+    presets = VoicePresets(context)
+    preset = presets.get(character)
+    if not preset:
+        raise ValueError("声音预设不存在")
+    if preset.get("plugin_id") != config.get("plugin_id"):
+        raise ValueError("声音预设不属于当前插件")
+    sample = presets.sample_path(preset)
+    if not sample or not sample.is_file():
+        raise ValueError("声音预设缺少可用参考音频")
+    return preset
+
+
+def tts_config(request: TTSRequest) -> dict[str, Any]:
+    explicit = request.params.get("capability_id")
+    if not explicit:
+        raise ValueError("必须指定插件 capability_id")
+    config = registry_service().capability(explicit)
+    if config.get("kind", "tts") != "tts" or config.get("mode", request.mode) != request.mode:
+        raise ValueError("声音能力与生成类型或模式不匹配")
+    return config
+
+
+def run_tts(job_id: str, request: TTSRequest) -> list[Path]:
+    config = tts_config(request)
+    PluginCatalog(WORKFLOWS, context).assert_current(config)
+    pinned = request.generation.get("plugin_revision")
+    if pinned and config.get("plugin_revision") != pinned:
+        raise ValueError("插件已更新，请重新提交生成任务")
+    validate_reference_counts(config, 0, 0, 1 if request.reference_audio else 0)
+    preset = validate_voice_preset(config, request.character)
+    speech = PluginCatalog(WORKFLOWS, context).speech(config)
+    if speech:
+        request = speech(request, preset, plugin_runtime(config, job_id))
+        if not isinstance(request, TTSRequest):
+            raise ValueError("Plugin speech_handler must return TTSRequest")
+    instruction = request.instruction.strip() or preset.get("instruction", "")
+    request = request.model_copy(update={"instruction": instruction})
+    if config.get("executor", "comfyui") != "comfyui":
+        params = {**request.params, "instruction": instruction, "voice_id": request.character,
+                  "voice_speed": request.speed, "speaker_preset": request.speaker_preset,
+                  "audios": [request.reference_audio] if request.reference_audio else []}
+        return run_native(job_id, "tts", GenerateRequest(
+            prompt=request.text, mode=request.mode, params=params, generation=request.generation,
+        ), config)
+    workflow = workflow_for("tts", config["file"])
+    reference_source = request.reference_audio
+    reference_audio = (
+        upload_local_file(Path(reference_source), job_id, 0)
+        if reference_source and Path(reference_source).is_file()
+        else upload_file(reference_source, job_id, 0, "audio") if reference_source else None
+    )
+    apply_parameter_bindings(workflow, config, GenerateRequest(prompt=request.text, params=request.params))
+    apply_media_bindings(workflow, config, {"audio": [reference_audio] if reference_audio else []})
+    for binding in config.get("prompt_bindings", []):
+        inputs = workflow[str(binding["node"])]["inputs"]
+        key, source = binding["input"], binding.get("source", "prompt")
+        value = request.text if source == "prompt" else str(request.params.get(source, request.params.get("plugin_parameters", {}).get(source, "")))
+        inputs[key] = str(inputs.get(key, "")) + "\n" + value if binding.get("append") else value
+    PluginCatalog(WORKFLOWS, context).prepare(
+        config, workflow, request, {"audio": [reference_audio] if reference_audio else []},
+        job_id, request.text, plugin_runtime(config, job_id),
+    )
+    for binding in config.get("output_bindings", []):
+        workflow[str(binding["node"])]["inputs"][binding["input"]] = ProjectService(context).output_prefix(context.jobs[job_id], "tts")
+    if config.get("prune_to_outputs"):
+        prune_workflow(workflow, config.get("output_nodes", []))
+    pid = context.jobs[job_id].get("comfy_prompt_id")
+    if not pid:
+        result = comfy("/prompt", "POST", json.dumps({"prompt": workflow, "client_id": job_id}).encode())
+        pid = result.get("prompt_id")
         if not pid:
-            result = comfy("/prompt", "POST", json.dumps({"prompt": workflow, "client_id": job_id}).encode())
-            pid = result.get("prompt_id")
-            if not pid:
-                raise RuntimeError(f"ComfyUI rejected prompt: {result}")
-            set_status(job_id, "running", comfy_prompt_id=pid)
-        deadline=time.time()+600
-        while time.time()<deadline:
-            if context.jobs[job_id].get("status") == "cancelled":
-                raise JobCancelled()
-            item=comfy(f"/history/{pid}").get(pid,{})
-            if item.get("status", {}).get("status_str") == "error": raise RuntimeError(json.dumps(item.get("status"), ensure_ascii=False))
-            for _, value in history_media(item.get("outputs", {})):
-                name = value["filename"]
-                target = ARTIFACTS / f"{job_id}_{Path(name).name}"
-                target.write_bytes(download_output(value))
-                return target
-            time.sleep(2)
-        raise TimeoutError("TTS job timed out")
-    preset = VOICE_PRESETS.get(request.voice)
-    command = preset.get("command") if preset else os.getenv("TTS_COMMAND")
-    if not command:
-        raise RuntimeError("TTS is not configured: set TTS_COMMAND or VOICE_PRESETS_JSON")
-    out = ARTIFACTS / f"{job_id}.{request.format}"
-    rendered = command.format(text=request.text, output=str(out), voice=request.voice)
-    subprocess.run(shlex.split(rendered, posix=os.name != "nt"), shell=False, check=True, timeout=600)
-    return out
+            raise RuntimeError(f"ComfyUI rejected prompt: {result}")
+        set_status(job_id, "running", comfy_prompt_id=pid)
+    deadline = time.time() + 600
+    while time.time() < deadline:
+        if context.jobs[job_id].get("status") == "cancelled":
+            raise JobCancelled()
+        item = comfy(f"/history/{pid}").get(pid, {})
+        if item.get("status", {}).get("status_str") == "error":
+            raise RuntimeError(json.dumps(item.get("status"), ensure_ascii=False))
+        if history_is_complete(item.get("status", {}), item.get("outputs", {})):
+            return collect_outputs(job_id, item.get("outputs", {}), config)
+        time.sleep(2)
+    raise TimeoutError("TTS job timed out")
 
 
 def generation_config(kind: str, request: GenerateRequest) -> dict[str, Any]:
-    config = registered_workflow(
-        kind,
-        request.mode,
-        request.params.get('image_model', '') if kind == 'image' else request.params.get('video_model', '') if kind == 'video' else request.params.get('music_model', '') if kind == 'music' else '',
-        request.params.get('speed', '') if kind == 'video' and request.params.get('video_model', 'minimax') != 'ltx2_5' else '',
-    )
+    explicit = request.params.get("capability_id")
+    if not explicit:
+        raise ValueError("必须指定插件 capability_id")
+    config = registry_service().capability(explicit, request.params.get("speed", "") if kind == "video" else "")
+    if config.get("kind") != kind or config.get("mode") != request.mode:
+        raise ValueError("能力与生成类型或模式不匹配")
     native_model = str(request.params.get("native_model", "")).strip()
     if native_model and config.get("executor", "comfyui") != "comfyui":
         allowed = config.get("models", [config.get("model")])
@@ -564,24 +417,34 @@ def run_native(job_id: str, kind: str, request: GenerateRequest, config: dict[st
         selected = next((item for item in style_items()[0] if item["id"] == request.params["style_id"]), None)
         if selected is None:
             raise ValueError("Selected style no longer exists; refresh the style library")
-        prompt = apply_style({}, selected, prompt)
+        prompt = apply_style(selected, prompt)
     snapshot = task_directory(job_id) / "config" / "executor_snapshot.json"
     snapshot.write_text(json.dumps({"registry": config, "prompt": prompt}, ensure_ascii=False, indent=2), encoding="utf-8")
     update_task_manifest(job_id, executor=config["executor"], executor_model=config.get("model", ""))
+    runtime_config = PluginSettings(context).runtime(config["plugin_id"])
+    api_key = str(runtime_config.pop("api_key", ""))
     try:
-        result = execute_native(config["executor"], NativeExecutionContext(
+        from .plugins import PluginCatalog
+        executor = PluginCatalog(WORKFLOWS, context).execution(config)
+        if executor is None:
+            raise ValueError("Plugin has no registered native executor")
+        result = executor(NativeExecutionContext(
             job_id=job_id,
-            config=config,
+            config={**config, **runtime_config},
             prompt=prompt,
             references=request.references,
             params=request.params,
-            api_key=configured_grsai_key() if config["executor"] == "grsai" else "",
+            api_key=api_key,
             output_dir=ARTIFACTS,
             media_loader=lambda value: media_value(value, job_id),
             cancelled=lambda: context.jobs[job_id].get("status") == "cancelled",
         ))
     except NativeExecutionCancelled as exc:
         raise JobCancelled() from exc
+    if not isinstance(result, NativeExecutionResult):
+        raise ValueError("Plugin executor must return NativeExecutionResult")
+    if not result.paths or any(not path.is_file() or not path.resolve().is_relative_to(ARTIFACTS.resolve()) for path in result.paths):
+        raise ValueError("Plugin executor must return existing files inside its output directory")
     if result.width and result.height:
         set_status(job_id, "running", width=result.width, height=result.height)
     return result.paths
@@ -589,6 +452,10 @@ def run_native(job_id: str, kind: str, request: GenerateRequest, config: dict[st
 
 def run_generation(job_id: str, kind: str, request: GenerateRequest) -> list[Path]:
     config = generation_config(kind, request)
+    PluginCatalog(WORKFLOWS, context).assert_current(config)
+    pinned = request.generation.get("plugin_revision") if request.generation else None
+    if pinned and pinned != config.get("plugin_revision"):
+        raise ValueError("插件已更新，请重新提交任务，避免排队任务使用不同的工作流")
     if config.get("executor", "comfyui") == "comfyui":
         return run_comfy(job_id, kind, request, config)
     return run_native(job_id, kind, request, config)
@@ -596,172 +463,52 @@ def run_generation(job_id: str, kind: str, request: GenerateRequest) -> list[Pat
 
 def run_comfy(job_id: str, kind: str, request: GenerateRequest, config: dict[str, Any] | None = None) -> list[Path]:
     config = config or generation_config(kind, request)
-    if config.get("h3_checkpoint_kind"):
-        request.params.update(
-            h3_checkpoint_kind=config["h3_checkpoint_kind"],
-            h3_resume_stage=config.get("h3_resume_stage", config["h3_checkpoint_kind"]),
-            h3_resume_step=int(config.get("h3_resume_step", 0)),
-            h3_total_steps=int(config.get("h3_total_steps", 0)),
-            h3_sigma_schedule_persisted=True,
-        )
     if request.workflow and request.workflow != config["file"]:
         raise ValueError("custom workflow selection is disabled; use a registered mode")
-    validate_reference_counts(
-        config,
-        len(request.references),
-        len(request.params.get("videos", [])),
-        len(request.params.get("audios", [])),
-    )
-    if kind == "video" and request.params.get("video_model", "minimax") in {"", "minimax", "minimax-h3"}:
-        multiple = 64 if config.get("variant") == "latent_ultra_refine" else 32
-        width, height = fit_aligned_dimensions(
-            request.params.get("width", 768), request.params.get("height", 432), multiple,
-        )
+    validate_reference_counts(config, len(request.references), len(request.params.get("videos", [])), len(request.params.get("audios", [])))
+    if config.get("dimension_alignment"):
+        width, height = fit_aligned_dimensions(request.params.get("width", 768), request.params.get("height", 432), int(config["dimension_alignment"]))
         request.params.update(width=width, height=height)
     prompt = request.prompt
-    if config.get('task_instruction'):
-        prompt = config['task_instruction'] + '\n用户需求：\n' + prompt
+    if config.get("task_instruction"):
+        prompt = config["task_instruction"] + "\n用户需求：\n" + prompt
     if kind == "image" and request.params.get("style_prompt"):
-        prompt = f"{prompt}\n\n风格要求：{request.params['style_prompt']}"
-    workflow = workflow_for(kind, config['file'])
-    task_config = task_directory(job_id) / "config" / "workflow_snapshot.json"
-    if task_config.parent.is_dir():
-        task_config.write_text(json.dumps({"registry": config, "workflow": workflow}, ensure_ascii=False, indent=2), encoding="utf-8")
-        update_task_manifest(job_id, workflow_file=config.get("file"), workflow_variant=config.get("variant", ""))
-    if kind == 'image':
-        from ..presets.style_library import apply_style
-        selected = None
-        if request.params.get('style_id'):
-            selected = next((s for s in style_items()[0] if s['id'] == request.params['style_id']), None)
-            if selected is None:
-                raise ValueError('Selected style no longer exists; refresh the style library')
-        prompt = apply_style(workflow, selected, prompt)
+        prompt += "\n\n风格要求：" + request.params["style_prompt"]
+    workflow = workflow_for(kind, config["file"])
+    if kind == "image":
+        selected = next((s for s in style_items()[0] if s["id"] == request.params.get("style_id")), None)
+        if request.params.get("style_id") and selected is None:
+            raise ValueError("Selected style no longer exists; refresh the style library")
+        prompt = apply_style(selected, prompt)
     workflow = replace_prompt(workflow, prompt)
     apply_input_overrides(workflow, config)
-    if kind == "image":
-        apply_image_dimensions(workflow, config, request)
-    if config.get('shot_nodes'):
-        from ..presets.style_library import apply_style
-        shots = request.params.get('shots', [])
-        if not isinstance(shots, list) or len(shots) != len(config['shot_nodes']) or any(not isinstance(s, str) or not s.strip() for s in shots):
-            raise ValueError('Four nonempty shot descriptions are required')
-        shot_instruction = config.get(
-            'shot_instruction',
-            'Generate one cinematic frame. Image1 is the scene reference, image2 is character A, image3 is character B. Preserve identity, clothing and scene geometry. No collage, no text.',
-        )
-        for node_id, shot in zip(config['shot_nodes'], shots):
-            styled = apply_style({}, selected, shot)
-            workflow[node_id]['inputs']['prompt'] = shot_instruction + ' ' + styled
-    for binding in config.get('prompt_bindings', []):
-        inputs = workflow[binding['node']]['inputs']
-        key = binding['input']
-        source = binding.get('source', 'prompt')
-        value = prompt if source == 'prompt' else str(request.params.get(source, ''))
-        inputs[key] = str(inputs.get(key, '')) + '\n' + value if binding.get('append') else value
-    if kind == 'music':
-        for node in workflow.values():
-            if node.get('class_type') == 'MiniMaxMusic3TextEncode':
-                node['inputs']['max_duration'] = float(request.duration_seconds)
-            elif node.get('class_type') == 'TextEncodeAceStepAudio1.5':
-                node['inputs']['duration'] = float(request.duration_seconds)
-                node['inputs']['lyrics'] = ''
-            elif node.get('class_type') == 'EmptyAceStep1.5LatentAudio':
-                node['inputs']['seconds'] = float(request.duration_seconds)
-    if kind == "video": free_comfy_memory()
-    uploaded = [upload_reference(value, job_id, i) for i, value in enumerate(request.references)]
-    audios = [upload_file(value, job_id, i, "audio") for i, value in enumerate(request.params.get("audios", []))]
-    videos = [upload_file(value, job_id, i, "video") for i, value in enumerate(request.params.get("videos", []))]
-    apply_media_bindings(workflow, config, {"image": uploaded, "video": videos, "audio": audios})
-    configure_qwen_image21_references(workflow, config, request, uploaded)
-    for node in workflow.values():
-        if config.get('prompt', {}).get('preserve_all'):
-            continue
-        if node.get("class_type") in {"CLIPTextEncode", "easy showAnything", "PrimitiveStringMultiline", "Krea2EditGroundedEncode"}:
-            for key in ("text", "string", "value"):
-                if key in node["inputs"]:
-                    current = node["inputs"][key]
-                    # Character four-view workflows intentionally carry a fixed
-                    # layout/instruction suffix.  Do not erase it when the API
-                    # injects the user's subject prompt; the workflow loader has
-                    # already expanded {{prompt}} in that template.
-                    if not (
-                        node.get("class_type") == "PrimitiveStringMultiline"
-                        and isinstance(current, str)
-                        and "character reference sheet" in current.lower()
-                        and "four" in current.lower()
-                    ):
-                        node["inputs"][key] = prompt
-                    break
-        if node.get("class_type") == "CreateVideo":
-            node["inputs"].update(fps=24, bit_depth=8)
-        if node.get("class_type") == "SaveVideo":
-            # Current ComfyUI releases require this dynamic combo even if the
-            # workflow was exported by an older release that omitted it.
-            node["inputs"].setdefault("codec", "auto")
-        if kind == "image" and node.get("class_type") == "SaveImage":
-            node["inputs"]["filename_prefix"] = config.get("output_prefix", "MediaGateway/image")
-    if uploaded and not config.get("media_bindings", {}).get("image"):
-        loaders = [node for node in workflow.values() if node.get("class_type") == "LoadImage"]
-        for node, filename in zip(loaders, uploaded):
-            node["inputs"]["image"] = filename
-    frame_nodes = [n for n in workflow.values() if n.get('class_type') == 'MiniMaxH3ImageToVideo']
-    for frame_index, frame_node in enumerate(frame_nodes):
-        frames = max(5, round(request.duration_seconds * 24))
-        width, height = fit_aligned_dimensions(
-            request.params.get('width', 768), request.params.get('height', 432), 32,
-        )
-        dimensions = {'width': width, 'height': height}
-        for key, value in dimensions.items():
-            frame_node['inputs'][key] = value
-        frame_node['inputs']['length'] = frames + (5 - frames % 17) % 17
-        for key in ('first_frame', 'last_frame'):
-            frame_node['inputs'].pop(key, None)
-        for i, filename in enumerate(uploaded):
-            node_id = f'gateway_frame_{frame_index}_{i}'
-            workflow[node_id] = {'class_type':'LoadImage', 'inputs':{'image':filename}}
-            frame_node['inputs'][('first_frame','last_frame')[i]] = [node_id,0]
-    apply_h3_reference_bindings(workflow, config, request, uploaded, videos, audios)
-    apply_parameter_bindings(workflow, config, request)
-    configure_h3_lms_guide(workflow, request)
-    configure_h3_generation_loras(workflow, request)
-    configure_h3_latent_upscaler(workflow, request)
-    inject_h3_checkpoint_save(workflow, config, job_id)
-    replace_h3_video_savers(workflow)
-    for node in workflow.values():
-        if node.get("class_type") == "MiniMaxH3NativeLatentCheckpointSaveT8Advanced":
-            node["inputs"].update(filename_prefix=job_id, checkpoint_id=job_id)
+    if kind == "video":
+        free_comfy_memory()
+    media = {
+        "image": [upload_reference(value, job_id, i) for i, value in enumerate(request.references)],
+        "audio": [upload_file(value, job_id, i, "audio") for i, value in enumerate(request.params.get("audios", []))],
+        "video": [upload_file(value, job_id, i, "video") for i, value in enumerate(request.params.get("videos", []))],
+    }
+    apply_media_bindings(workflow, config, media)
     output_prefix = ProjectService(context).output_prefix(context.jobs[job_id], kind)
+    request.params["_output_prefix"] = output_prefix
+    for binding in config.get("prompt_bindings", []):
+        inputs = workflow[str(binding["node"])]["inputs"]
+        key, source = binding["input"], binding.get("source", "prompt")
+        value = prompt if source == "prompt" else str(request.params.get(source, request.params.get("plugin_parameters", {}).get(source, "")))
+        inputs[key] = str(inputs.get(key, "")) + "\n" + value if binding.get("append") else value
+    apply_parameter_bindings(workflow, config, request)
+    from .plugins import PluginCatalog
+    PluginCatalog(WORKFLOWS, context).prepare(
+        config, workflow, request, media, job_id, prompt, plugin_runtime(config, job_id),
+    )
+    for binding in config.get("output_bindings", []):
+        workflow[str(binding["node"])].setdefault("inputs", {})[binding["input"]] = output_prefix
     for node in workflow.values():
         if node.get("class_type") in {"SaveImage", "SaveVideo", "SaveAudio", "VHS_VideoCombine"}:
             node.setdefault("inputs", {})["filename_prefix"] = output_prefix
-    apply_storyboard_grid(
-        workflow,
-        config,
-        request.params.get("width", 1024),
-        request.params.get("height", 1024),
-    )
-    ltx_nodes = [node for node in workflow.values() if node.get("class_type") == "EmptyLTXVLatentVideo"]
-    if ltx_nodes and config.get("dynamic_ltx_dimensions", True):
-        # LTX canvas examples wire dimensions through helper nodes.  API input
-        # values may safely replace those links, giving the gateway one stable
-        # width/height/duration contract regardless of the canvas layout.
-        width, height = fit_aligned_dimensions(
-            request.params.get("width", 768), request.params.get("height", 432), 64,
-        )
-        frames = max(9, 1 + (round(request.duration_seconds * 24) // 8) * 8)
-        for node in ltx_nodes:
-            # These values are often linked to canvas helper nodes.  A linked
-            # socket ignores a replacement widget value in API prompts.
-            for key in ("width", "height", "length"):
-                node["inputs"].pop(key, None)
-            node["inputs"].update(width=width, height=height, length=frames)
-        for node in workflow.values():
-            if node.get("class_type") == "LTXVEmptyLatentAudio":
-                node["inputs"].pop("frames_number", None)
-                node["inputs"].pop("frame_rate", None)
-                node["inputs"].update(frames_number=frames, frame_rate=24)
-            if node.get("class_type") == "VHS_VideoCombine":
-                node["inputs"].update(filename_prefix=output_prefix, save_output=True)
+    task_config = task_directory(job_id) / "config" / "workflow_snapshot.json"
+    update_task_manifest(job_id, workflow_file=config.get("file"), workflow_variant=config.get("variant", ""))
     if config.get("prune_to_outputs"):
         prune_workflow(workflow, config.get("output_nodes", []))
     normalize_combo_values(workflow)
@@ -806,38 +553,11 @@ def run_comfy(job_id: str, kind: str, request: GenerateRequest, config: dict[str
             if status_name == "error":
                 raise RuntimeError(json.dumps(status, ensure_ascii=False))
             outputs = item.get("outputs", {})
-            media_types = {"images": "image", "gifs": "video", "audio": "audio", "videos": "video"}
             # Wait for the final history state. LTX and video nodes may expose
             # a preview file before the execution has actually completed.
             completed = history_is_complete(status, outputs)
-            if outputs and completed:
-                paths = []
-                seen = set()
-                for media_key, value in history_media(outputs, config.get("output_nodes")):
-                    identity = (media_key, value.get("filename"), value.get("subfolder", ""), value.get("type", "output"))
-                    if identity in seen:
-                        continue
-                    seen.add(identity)
-                    data = download_output(value)
-                    if not data:
-                        continue
-                    output_kind = media_types[media_key]
-                    name = value["filename"]
-                    suffix = Path(name).suffix.lower() or {"image": ".png", "audio": ".wav", "video": ".mp4"}[output_kind]
-                    target = ARTIFACTS / f"{job_id}_{len(paths)}{suffix}"
-                    target.write_bytes(data)
-                    paths.append(target)
-                if paths:
-                    if config.get("save_h3_latent"):
-                        try:
-                            persist_h3_checkpoint(job_id, request)
-                        except Exception as exc:
-                            request.params["latent_checkpoint_ready"] = False
-                            set_status(job_id, "running", latent_checkpoint_warning=str(exc))
-                            update_task_manifest(job_id, latent_checkpoint_ready=False, latent_checkpoint_warning=str(exc))
-                        finally:
-                            free_comfy_memory()
-                    return paths
+            if completed:
+                return collect_outputs(job_id, outputs, config)
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             connection_failures += 1
             if connection_failures >= failure_limit:
@@ -845,7 +565,39 @@ def run_comfy(job_id: str, kind: str, request: GenerateRequest, config: dict[str
         time.sleep(2)
 
 
+def cancel_generation(job_id: str) -> dict[str, Any]:
+    with context.state_lock:
+        item = context.jobs.get(job_id) or context.db.job(job_id)
+        if not item:
+            raise ValueError("job not found")
+        if item.get("status") not in {"queued", "running"} or item.get("_publishing"):
+            raise RuntimeError("任务已结束或正在归档，无法取消")
+        context.jobs[job_id] = item
+        set_status(job_id, "cancelled")
+    if prompt_id := item.get("comfy_prompt_id"):
+        try:
+            # ComfyUI's global interrupt may kill a different client's running prompt.
+            comfy("/queue", "POST", json.dumps({"delete": [prompt_id]}).encode())
+        except Exception:
+            logger.warning("Could not remove cancelled prompt from ComfyUI queue", exc_info=True)
+    return {"id": job_id, "status": "cancelled"}
+
+
 def process(job_id: str) -> None:
+    with context.state_lock:
+        job = context.jobs.get(job_id)
+        if not job or job.get("status") == "cancelled":
+            return
+        context.executing_jobs.add(job_id)
+    try:
+        _process(job_id)
+    finally:
+        with context.state_lock:
+            job.pop("_publishing", None)
+            context.executing_jobs.discard(job_id)
+
+
+def _process(job_id: str) -> None:
     job = context.jobs[job_id]
     started_at = time.time()
     logger.info("generation started", extra={"job_id": job_id, "stage": "generation", "kind": job.get("kind")})
@@ -856,12 +608,19 @@ def process(job_id: str) -> None:
         if job.get("status") == "cancelled":
             return
         set_status(job_id, "running")
-        if job["kind"] == "tts":
-            paths = [run_tts(job_id, TTSRequest(**job["request"]))]
+        if job["kind"] == "tts" and "text" in job["request"]:
+            request = TTSRequest(**job["request"])
+            paths = run_tts(job_id, request)
+            config = tts_config(request)
         else:
-            paths = run_generation(job_id, job["kind"], GenerateRequest(**job["request"]))
-        if job.get("status") == "cancelled":
-            raise JobCancelled()
+            request = GenerateRequest(**job["request"])
+            config = generation_config(job["kind"], request)
+            paths = run_generation(job_id, job["kind"], request)
+        with context.state_lock:
+            if job.get("status") == "cancelled":
+                raise JobCancelled()
+            job["_publishing"] = True
+        PluginCatalog(WORKFLOWS, context).resource_event("completed", context, job=job, request=request, config=config)
         path = paths[0]
         published = ProjectService(context).publish(job, paths)
         media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
@@ -968,9 +727,8 @@ def start_direct_generation(job_id: str) -> asyncio.Task:
 
 
 def style_items():
-    from ..presets.style_library import catalog
-    root = Path(os.getenv('MEDIA_STYLE_DIR', str(context.comfyui_output_dir.parent / 'custom_nodes' / 'ComfyUI-Easy-Use' / 'styles')))
-    return catalog(root)
+    from ..presets.style_library import items
+    return items(context)
 
 
 def release_job_media(job: dict[str, Any]) -> None:

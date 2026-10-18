@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "id": "cosyvoice3",
+  "version": "1.0.0",
+  "name": "cosyvoice3",
+  "voice_presets": "voices.py:presets",
+  "categories": [
+    {
+      "id": "tts",
+      "name": "声音生成",
+      "icon": "solar:music-note-3-linear"
+    }
+  ],
+  "modes": [
+    {
+      "name": "直接生成",
+      "id": "direct"
+    }
+  ],
+  "capabilities": {
+    "tts.cosyvoice3.preset": {
+      "kind": "tts",
+      "mode": "preset",
+      "file": "workflows/sound/cosyvoice3/preset.json",
+      "references": {
+        "audio": {
+          "min": 0,
+          "max": 1
+        }
+      },
+      "output_nodes": [
+        "4"
+      ],
+      "category": "tts",
+      "compiler": "builtin",
+      "model_family": "cosyvoice3",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "语音文本",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_audio",
+            "component": "media",
+            "media": "audio",
+            "label": "参考声音",
+            "section": "body"
+          },
+          {
+            "bind": "settings.voice_speed",
+            "label": "语速",
+            "section": "submit",
+            "minimum": 0.5,
+            "maximum": 2,
+            "step": 0.1,
+            "default": 1,
+            "normal_chars_per_second": 4.5,
+            "component": "number"
+          },
+          {
+            "bind": "settings.voice_id",
+            "label": "预设音色",
+            "section": "settings",
+            "component": "voice",
+            "required": true
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "CosyVoice3 预设音色",
+      "model_id": "cosyvoice3",
+      "model_name": "CosyVoice3",
+      "speech_handler": "compiler.py:prepare_speech"
+    },
+    "tts.cosyvoice3.clone": {
+      "kind": "tts",
+      "mode": "clone",
+      "file": "workflows/sound/cosyvoice3/clone.json",
+      "references": {
+        "audio": {
+          "min": 1,
+          "max": 1
+        }
+      },
+      "output_nodes": [
+        "4"
+      ],
+      "category": "tts",
+      "compiler": "builtin",
+      "model_family": "cosyvoice3",
+      "processing_modes": [
+        "direct"
+      ],
+      "compiler_handler": "compiler.py:prepare",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {
+            "bind": "prompt",
+            "component": "textarea",
+            "label": "语音文本",
+            "section": "body",
+            "rows": 3,
+            "required": true
+          },
+          {
+            "bind": "settings.reference_audio",
+            "component": "media",
+            "media": "audio",
+            "label": "参考声音",
+            "section": "body"
+          },
+          {
+            "bind": "settings.voice_speed",
+            "label": "语速",
+            "section": "submit",
+            "minimum": 0.5,
+            "maximum": 2,
+            "step": 0.1,
+            "default": 1,
+            "normal_chars_per_second": 4.5,
+            "component": "number"
+          }
+        ]
+      },
+      "input_roles": {},
+      "name": "CosyVoice3 音色克隆",
+      "model_id": "cosyvoice3",
+      "model_name": "CosyVoice3",
+      "speech_handler": "compiler.py:prepare_speech"
+    }
+  },
+  "ui_models": [
+    {
+      "id": "cosyvoice3",
+      "name": "CosyVoice3",
+      "category": "tts",
+      "selector_order": 20,
+      "functions": [
+        {
+          "capability_id": "tts.cosyvoice3.preset",
+          "name": "预设声音"
+        },
+        {
+          "capability_id": "tts.cosyvoice3.clone",
+          "name": "声音克隆"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "speech_preset",
+      "name": "预设声音",
+      "scope": "automation",
+      "automation": true,
+      "capability_id": "tts.cosyvoice3.preset",
+      "handler": "actions.py:speech",
+      "description": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2,
+            "default": 1
+          },
+          "category_id": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "preset_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          }
+        },
+        "required": [
+          "text",
+          "preset_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "speech_clone",
+      "name": "声音克隆",
+      "scope": "automation",
+      "automation": true,
+      "capability_id": "tts.cosyvoice3.clone",
+      "handler": "actions.py:speech",
+      "description": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2,
+            "default": 1
+          },
+          "category_id": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "reference_upload_id": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{32}$"
+          }
+        },
+        "required": [
+          "text",
+          "reference_upload_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "assets": [
+    "samples/calm_female.mp3",
+    "samples/calm_male.mp3",
+    "samples/child_female.mp3",
+    "samples/child_male.mp3",
+    "samples/documentary_female.mp3",
+    "samples/elder_female.mp3",
+    "samples/elder_male.mp3",
+    "samples/energetic_female.mp3",
+    "samples/energetic_male.mp3",
+    "samples/narrator_female.mp3",
+    "samples/narrator_male.mp3",
+    "samples/news_female.mp3",
+    "samples/news_male.mp3",
+    "samples/orion_7.mp3",
+    "samples/warm_female.mp3",
+    "samples/warm_male.mp3",
+    "samples/young_female.mp3",
+    "samples/young_male.mp3"
+  ]
+}

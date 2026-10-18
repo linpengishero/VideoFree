@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import json
 import mimetypes
@@ -7,6 +6,8 @@ import shutil
 from typing import Any
 import uuid
 
+from ..shared.media_inputs import data_url_bytes, upload_path
+
 
 class TaskStore:
     def __init__(self, tasks_path: Path, uploads_path: Path) -> None:
@@ -14,13 +15,7 @@ class TaskStore:
         self.uploads_path = uploads_path
 
     def upload_path(self, value: str) -> Path | None:
-        if not isinstance(value, str) or not value.startswith("upload:"):
-            return None
-        upload_id = value.removeprefix("upload:")
-        if not upload_id or any(char not in "0123456789abcdef" for char in upload_id):
-            return None
-        matches = list(self.uploads_path.glob(f"{upload_id}.*"))
-        return matches[0] if len(matches) == 1 and matches[0].is_file() else None
+        return upload_path(self.uploads_path, value)
 
     def media_value(self, value: str, job_id: str) -> tuple[bytes, str]:
         if value.startswith("data:"):
@@ -38,12 +33,7 @@ class TaskStore:
 
     @staticmethod
     def data_url_bytes(value: str) -> tuple[bytes, str]:
-        header, encoded = value.split(",", 1)
-        media_type = header[5:].split(";", 1)[0] if header.startswith("data:") else "application/octet-stream"
-        try:
-            return base64.b64decode(encoded, validate=True), media_type
-        except ValueError as exc:
-            raise ValueError("Base64 素材格式无效") from exc
+        return data_url_bytes(value)
 
     @staticmethod
     def extension(media_type: str) -> str:
@@ -118,11 +108,12 @@ class TaskStore:
         if isinstance(safe_request.get("params"), dict):
             safe_request["params"] = {key: value for key, value in safe_request["params"].items() if key not in {"videos", "audios"}}
         self.write_json(task_dir / "config" / "request.json", safe_request)
-        self.write_json(task_dir / "manifest.json", {"task_id": job["id"], "kind": job["kind"], "project_id": job.get("project_id", "project-unassigned"), "parent_task_id": parent_job_id, "revision": job.get("revision", 1), "created_at": job["created_at"], "status": job["status"], "inputs": inputs, "outputs": [], "parameters": safe_request})
+        self.write_json(task_dir / "manifest.json", {"task_id": job["id"], "kind": job["kind"], "project_id": job.get("project_id"), "category_id": job.get("category_id", ""), "parent_task_id": parent_job_id, "revision": job.get("revision", 1), "created_at": job["created_at"], "status": job["status"], "inputs": inputs, "outputs": [], "parameters": safe_request})
         return task_dir
 
     def hydrate(self, job: dict[str, Any]) -> dict[str, Any]:
         request = json.loads(json.dumps(job.get("request", {})))
+        request["category_id"] = job.get("category_id") or ""
         manifest_path = Path(job.get("manifest_path") or self.directory(job["id"]) / "manifest.json")
         if not manifest_path.is_file():
             return request
@@ -134,10 +125,10 @@ class TaskStore:
                 grouped[media_type].append(f"task:{item['path']}")
         if grouped["image"]:
             request["references"] = grouped["image"]
-        params = request.setdefault("params", {}) if job.get("kind") != "tts" else request.get("params", {})
+        params = request.setdefault("params", {})
         if grouped["video"]: params["videos"] = grouped["video"]
         if grouped["audio"]:
-            if job.get("kind") == "tts": request["reference_audio"] = grouped["audio"][0]
+            if "text" in request: request["reference_audio"] = grouped["audio"][0]
             else: params["audios"] = grouped["audio"]
         return request
 
