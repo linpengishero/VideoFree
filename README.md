@@ -153,6 +153,10 @@ Use the included skill when asking a coding agent to create, migrate, review, or
 
 ## License and third-party boundaries
 
+Project attribution, release evidence, commercial delivery records, and contributor
+authorization practices are documented in [Source provenance](docs/source-provenance.md).
+See [NOTICE](NOTICE) for project source and copyright notices.
+
 VideoFree-owned source code is released under [GNU AGPL-3.0](LICENSE) ([Chinese explanation](LICENSE_ZH.md)). For closed-source integration, enterprise deployment, white-label use, support, or custom development, see the [commercial licensing notice](COMMERCIAL_LICENSE.md).
 
 ComfyUI, community nodes, models, LoRAs, fonts, FFmpeg, and other third-party resources keep their own licenses. The editor is the `plugins/film-studio/` application plugin; it requires user-installed `ffmpeg` and `ffprobe` on system `PATH` and does not redistribute those binaries. See its [installation guide](plugins/film-studio/INSTALL.md). `.agents/skills/openmontage/` is an independent automation skill and is not a runtime dependency of the editor. See [third-party notices](THIRD_PARTY_NOTICES.md).

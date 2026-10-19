@@ -52,6 +52,8 @@ VideoFree 把工作流转换为带固定能力 ID、输入 Schema 和执行契�
 
 ## 许可证与第三方边界
 
+项目来源标识、发布留证、商业交付记录与贡献者授权流程见[来源与留证规范](docs/source-provenance.md#中文说明)，版权和仓库来源见 [NOTICE](NOTICE)。
+
 VideoFree 自有源代码按 [GNU AGPL-3.0](LICENSE) 发布，可先阅读[中文许可证说明](LICENSE_ZH.md)。需要闭源集成、企业部署、白标、技术支持或定制开发时，可查看[商业授权说明](COMMERCIAL_LICENSE_ZH.md)。
 
 ComfyUI、社区节点、模型、LoRA、字体、FFmpeg 及其他资源不属于 VideoFree 的统一授权范围，请遵守各自许可证。剪辑功能属于 `plugins/film-studio/` 应用插件，要求用户自行安装 FFmpeg/ffprobe 并加入系统 `PATH`，仓库不分发其二进制文件；详见[剪辑插件安装说明](plugins/film-studio/INSTALL.md)。`.agents/skills/openmontage/` 是独立的自动化视频制作技能，不是剪辑插件的运行依赖。详见[第三方组件说明](THIRD_PARTY_NOTICES_ZH.md)。
