@@ -27,7 +27,7 @@ from .v2_schemas import CreateRequest, RegenerateRequest
 
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-MCP_SERVER_INFO = {"name": "zizai-media-gateway", "version": "1.1.0"}
+MCP_SERVER_INFO = {"name": "zizai-media-gateway", "version": "2.0.0"}
 
 
 def _jsonrpc(request_id: Any, result: Any = None, error: dict[str, Any] | None = None) -> dict[str, Any]:

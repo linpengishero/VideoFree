@@ -31,7 +31,7 @@ export async function readMediaBlob(url) {
 }
 
 export const gateway = {
-  styles: () => request('/v1/styles'),
+  styles: (pluginId = '') => request(`/v1/styles${pluginId ? `?plugin_id=${encodeURIComponent(pluginId)}` : ''}`),
   authenticate: (token) => request('/v1/auth/session', { method: 'POST', headers: { 'X-API-Token': token } }),
   plugins: () => request('/api/v2/plugins'),
   capabilities: (operation = 'generate') => request(`/api/v2/capabilities?operation=${encodeURIComponent(operation)}`),

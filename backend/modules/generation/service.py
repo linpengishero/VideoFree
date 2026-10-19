@@ -412,11 +412,13 @@ def run_native(job_id: str, kind: str, request: GenerateRequest, config: dict[st
         prompt = config["task_instruction"] + "\n用户需求：\n" + prompt
     if kind == "image" and request.params.get("style_prompt"):
         prompt = f"{prompt}\n\n风格要求：{request.params['style_prompt']}"
-    if kind == "image" and request.params.get("style_id"):
+    if kind == "image":
         from ..presets.style_library import apply_style
-        selected = next((item for item in style_items()[0] if item["id"] == request.params["style_id"]), None)
-        if selected is None:
+        styles = style_items(config.get("plugin_id"))
+        selected = next((item for item in styles[0] if item["id"] == request.params.get("style_id")), None)
+        if request.params.get("style_id") and selected is None:
             raise ValueError("Selected style no longer exists; refresh the style library")
+        selected = selected or next((item for item in styles[0] if item.get("default")), None)
         prompt = apply_style(selected, prompt)
     snapshot = task_directory(job_id) / "config" / "executor_snapshot.json"
     snapshot.write_text(json.dumps({"registry": config, "prompt": prompt}, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -476,9 +478,11 @@ def run_comfy(job_id: str, kind: str, request: GenerateRequest, config: dict[str
         prompt += "\n\n风格要求：" + request.params["style_prompt"]
     workflow = workflow_for(kind, config["file"])
     if kind == "image":
-        selected = next((s for s in style_items()[0] if s["id"] == request.params.get("style_id")), None)
+        styles = style_items(config.get("plugin_id"))
+        selected = next((s for s in styles[0] if s["id"] == request.params.get("style_id")), None)
         if request.params.get("style_id") and selected is None:
             raise ValueError("Selected style no longer exists; refresh the style library")
+        selected = selected or next((s for s in styles[0] if s.get("default")), None)
         prompt = apply_style(selected, prompt)
     workflow = replace_prompt(workflow, prompt)
     apply_input_overrides(workflow, config)
@@ -726,9 +730,9 @@ def start_direct_generation(job_id: str) -> asyncio.Task:
     return task
 
 
-def style_items():
+def style_items(plugin_id=None):
     from ..presets.style_library import items
-    return items(context)
+    return items(context, plugin_id)
 
 
 def release_job_media(job: dict[str, Any]) -> None:

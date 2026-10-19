@@ -1,0 +1,51 @@
+[
+  {
+    "id": "qwen-realistic",
+    "name": "Photorealistic",
+    "name_cn": "写实摄影",
+    "category": "基础风格",
+    "default": true,
+    "thumbnail": "qwen-realistic.png",
+    "prompt": "{prompt}\n\nRender as a natural photorealistic image with lifelike materials, anatomically plausible forms, physically coherent lighting, realistic camera optics, fine natural texture, and clear focus."
+  },
+  {
+    "id": "qwen-cinematic",
+    "name": "Cinematic",
+    "name_cn": "电影质感",
+    "category": "基础风格",
+    "thumbnail": "qwen-cinematic.png",
+    "prompt": "{prompt}\n\nUse grounded cinematic live-action photography, motivated film lighting, balanced contrast, natural skin and materials, subtle depth, and a restrained film color grade."
+  },
+  {
+    "id": "qwen-product-photo",
+    "name": "Product Photography",
+    "name_cn": "商业摄影",
+    "category": "基础风格",
+    "thumbnail": "qwen-product-photo.png",
+    "prompt": "{prompt}\n\nUse polished commercial photography with accurate product geometry, realistic materials, controlled reflections, clean studio lighting, crisp edges, and a simple professional background."
+  },
+  {
+    "id": "qwen-3d-render",
+    "name": "3D Render",
+    "name_cn": "3D渲染",
+    "category": "创作风格",
+    "thumbnail": "qwen-3d-render.png",
+    "prompt": "{prompt}\n\nRender as a high-quality three-dimensional image with coherent volume, physically plausible materials, soft global illumination, clean geometry, and carefully controlled studio lighting."
+  },
+  {
+    "id": "qwen-digital-illustration",
+    "name": "Digital Illustration",
+    "name_cn": "数字插画",
+    "category": "创作风格",
+    "thumbnail": "qwen-digital-illustration.png",
+    "prompt": "{prompt}\n\nCreate a polished digital illustration with deliberate shape design, clean edges, a considered color palette, expressive but controlled shading, and a clearly illustrated finish."
+  },
+  {
+    "id": "qwen-anime",
+    "name": "Anime Illustration",
+    "name_cn": "动漫插画",
+    "category": "创作风格",
+    "thumbnail": "qwen-anime.png",
+    "prompt": "{prompt}\n\nCreate a refined anime-style illustration with intentional linework, expressive but proportionate features, clean cel-aware shading, coherent anatomy, and a deliberate color palette."
+  }
+]

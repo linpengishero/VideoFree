@@ -1,3 +1,0 @@
-# Qwen Six Panel Storyboard
-
-Convert the request into exactly six sequential shots arranged as one strict 3x2 grid: three columns and two rows, six equal-sized panels, read left-to-right then top-to-bottom. Each panel contains exactly one shot, one action, one camera intention, and a clear continuity link. Preserve the supplied scene and character references, assign their roles explicitly, and avoid embedding captions or panel labels. Unless the user explicitly requests a stylized look, use realistic cinematic lighting, anatomy, materials, sharp details, clean focus, and high-resolution image quality. Never create a 4-panel or 8-panel layout, nested mini-panels, contact-sheet subdivisions, extra thumbnails, alternate views, or a second grid inside any panel.

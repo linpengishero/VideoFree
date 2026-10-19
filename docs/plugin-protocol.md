@@ -98,7 +98,7 @@ plugins/example-image/
 | compiler_handler | `prepare(workflow, config, request, media, job_id, prompt, runtime=None)`，原地修改工作流；显式声明 runtime 才注入系统服务 |
 | executor_handler | `execute(context)`，同步返回 `NativeExecutionResult`；所有非 comfyui 执行器必须声明，无供应商白名单 |
 | speech_handler | `prepare_speech(request, preset, runtime)`，返回 `TTSRequest`，用于选择插件音色参考样本 |
-| confirmation_handler | `confirmation(source, result, runtime)`，返回包含 settings、parameters、lyrics 中部分字段的字典 |
+| confirmation_handler | `confirmation(source, result, runtime)`，返回 settings、parameters、lyrics 的可选覆盖；需要时可返回 capability_id，但框架只允许切换到同一插件注册的生成能力 |
 
 原生执行契约从 `backend.integrations.native` 导入。`NativeExecutionContext` 提供 job_id、config、
 prompt、references、params、api_key、output_dir、media_loader 和 cancelled；执行器应检查取消，
@@ -107,7 +107,7 @@ prompt、references、params、api_key、output_dir、media_loader 和 cancelled
 
 `runtime.comfyui_request` 调用系统配置的 ComfyUI，`runtime.voice_sample(preset)` 只读定位声音样本。
 协作的 `runtime.repair_result` 可接受插件 validator，模型专用格式校验应留在插件。
-确认钩子不能替换项目、能力或会话身份，也不代表自动同意用户确认。
+确认钩子不能替换项目或会话身份，也不代表自动同意用户确认。能力切换必须显式返回 capability_id，并限制在同一插件内已注册的生成能力。
 
 ### 当前迁移边界
 
@@ -408,7 +408,7 @@ async def review(request, runtime):
 
 可在插件顶层或单个能力声明 `prompt_translation_action`，引用本插件的非 resource 动作。任务编辑器仅在存在该声明时显示直接翻译；动作接收 `text`、`mode`，结果返回 `english_prompt`。框架不维护模型专用动作 ID。
 
-需要读取用户 ComfyUI 风格库的插件可以声明顶层 `style_library`：`comfyui_directory` 为 ComfyUI 安装目录内相对路径，`category_prefix` 为展示时去掉的分类前缀。禁用或移除插件后不再自动发现该目录。用户显式设置 `MEDIA_STYLE_DIR` 时优先使用该路径。框架仅查询目录和套用文本模板，不删除或改写任何风格节点。
+图片风格必须由插件自己提供，声明顶层 `style_library` 的 `directory` 指向插件目录内包含风格 JSON 的文件夹，并用稳定的 `default_id` 指定默认风格。风格提示词、预览图和其它固定素材均随插件放在该目录并列入顶层 `assets`；框架只负责按插件隔离发现、展示和套用，不扫描 ComfyUI 安装目录、环境变量或运行数据中的风格。插件未声明风格库时返回空目录，不会回退到其它插件的风格。
 
 ### 工作台应用插件
 

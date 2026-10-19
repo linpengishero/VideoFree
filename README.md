@@ -2,7 +2,7 @@
 
 **English** · [中文](README_ZH.md)
 
-Current version: `1.1.0`
+Current version: `2.0.0`
 
 **Turn fragmented local AI workflows into complete creative capabilities that people can use, developers can distribute, and agents can call reliably.**
 

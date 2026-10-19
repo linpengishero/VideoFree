@@ -27,7 +27,7 @@ UPLOAD_CACHE = context.paths.uploads
 WORKFLOWS = context.paths.plugins
 
 
-app = FastAPI(title="videofree", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="videofree", version="2.0.0", lifespan=lifespan)
 
 
 @app.exception_handler(GatewayError)

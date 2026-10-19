@@ -1,6 +1,11 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
-const props = defineProps({ open: Boolean, anchor: Object, role: String });
+const props = defineProps({
+  open: Boolean,
+  anchor: Object,
+  role: String,
+  autoFocus: { type: Boolean, default: true },
+});
 const emit = defineEmits(['close']);
 const panel = ref(null);
 function position() {
@@ -39,7 +44,9 @@ watch(() => props.open, async open => {
   if (!props.open || !panel.value) return;
   panel.value.showPopover();
   position();
-  (panel.value.querySelector('input') || panel.value.querySelector('[aria-selected="true"]') || panel.value.querySelector('button') || panel.value).focus();
+  if (props.autoFocus) {
+    (panel.value.querySelector('input') || panel.value.querySelector('[aria-selected="true"]') || panel.value.querySelector('button') || panel.value).focus();
+  }
 }, { immediate: true });
 document.addEventListener('pointerdown', outside);
 window.addEventListener('resize', position);

@@ -132,25 +132,64 @@ class PluginBoundaryTests(unittest.TestCase):
     def test_style_library_is_discovered_from_enabled_plugin(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            library = root / 'custom/styles'
+            plugin_root = root / 'plugins/test'
+            library = plugin_root / 'assets/styles'
             library.mkdir(parents=True)
-            (library / 'vendor-cinematic.json').write_text(json.dumps([
-                {'name': 'Cinema', 'prompt': 'Cinema {prompt}'}]), encoding='utf8')
+            (library / 'styles.json').write_text(json.dumps([
+                {'id': 'test-realistic', 'name': 'Realistic', 'prompt': 'Realistic {prompt}'}]), encoding='utf8')
             ctx = SimpleNamespace(paths=SimpleNamespace(plugins=root / 'plugins'), comfyui_output_dir=root / 'output')
-            declaration = {'style_library': {'comfyui_directory': 'custom/styles', 'category_prefix': 'vendor-'}}
+            declaration = {'id': 'test', '_plugin_folder': 'test', 'style_library': {'directory': 'assets/styles', 'default_id': 'test-realistic'}}
             with patch.dict('os.environ', {}, clear=True), patch.object(PluginCatalog, 'scan', return_value=([declaration], [])):
                 rows, errors = PluginRuntime('test', {}, ctx).style_items()
                 self.assertFalse(errors)
-                self.assertEqual(rows[0]['category'], 'cinematic')
+                self.assertEqual(rows[0]['id'], 'test-realistic')
+                self.assertTrue(rows[0]['default'])
+                declaration['style_library']['default_id'] = 'missing-style'
+                rows, errors = PluginRuntime('test', {}, ctx).style_items()
+                self.assertFalse(any(row['default'] for row in rows))
+                self.assertIn('default_id is not present', errors[0])
             with patch.dict('os.environ', {}, clear=True), patch.object(PluginCatalog, 'scan', return_value=([], [])):
                 self.assertEqual(items(ctx), ([], []))
+
+    def test_style_library_does_not_fall_back_to_another_plugin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            plugin_root = root / 'plugins/test'
+            library = plugin_root / 'assets/styles'
+            library.mkdir(parents=True)
+            (library / 'styles.json').write_text(json.dumps([{'id': 'test-style', 'name': 'Test', 'prompt': 'Test'}]), encoding='utf8')
+            ctx = SimpleNamespace(paths=SimpleNamespace(plugins=root / 'plugins'), comfyui_output_dir=root / 'output')
+            plugins = [
+                {'id': 'test', '_plugin_folder': 'test', 'style_library': {'directory': 'assets/styles', 'default_id': 'test-style'}},
+                {'id': 'plain', '_plugin_folder': 'plain'},
+            ]
+            with patch.dict('os.environ', {'MEDIA_STYLE_DIR': str(root / 'legacy-styles')}), patch.object(PluginCatalog, 'scan', return_value=(plugins, [])):
+                rows, errors = items(ctx, 'plain')
+                self.assertEqual(rows, [])
+                self.assertEqual(errors, [])
+
+    def test_qwen_and_krea_styles_are_self_contained_and_isolated(self):
+        context = SimpleNamespace(paths=SimpleNamespace(plugins=ROOT / 'plugins'))
+        qwen, qwen_errors = items(context, 'qwen-image')
+        krea, krea_errors = items(context, 'krea2')
+        self.assertFalse(qwen_errors)
+        self.assertFalse(krea_errors)
+        self.assertEqual(len(qwen), 6)
+        self.assertEqual(len(krea), 6)
+        self.assertEqual([row['id'] for row in qwen if row['default']], ['qwen-realistic'])
+        self.assertEqual([row['id'] for row in krea if row['default']], ['krea2-realistic'])
+        self.assertFalse({row['id'] for row in qwen} & {row['id'] for row in krea})
+        self.assertTrue(all(Path(row['thumbnail_path']).is_file() for row in qwen + krea))
+        self.assertEqual({row['plugin_id'] for row in qwen}, {'qwen-image'})
+        self.assertEqual({row['plugin_id'] for row in krea}, {'krea2'})
 
     def test_invalid_style_library_declarations_are_isolated(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             plugin = root / 'test'
             plugin.mkdir()
-            for declaration in ({'comfyui_directory': '../escape'}, {'comfyui_directory': 'ok', 'category_prefix': 5}, []):
+            (plugin / 'ok').mkdir(exist_ok=True)
+            for declaration in ({'directory': '../escape'}, {'directory': 'ok', 'default_id': 5}, {'comfyui_directory': 'ok'}, []):
                 (plugin / 'plugin.json').write_text(json.dumps({
                     'schema_version': 1, 'id': 'test', 'version': '1', 'style_library': declaration}), encoding='utf8')
                 plugins, errors = PluginCatalog(root).scan()

@@ -5,7 +5,10 @@ import uuid
 from backend.modules.shared.plugin_runtime import AgentChatRequest, PluginError
 from backend.modules.shared.plugin_runtime import parse_agent_result
 from backend.modules.shared.plugin_runtime import agent_skill_prompt
-from .analysis import parse_requirements_result, agent_prompt_issues, normalize_reference_mode_questions
+from .analysis import (
+    parse_requirements_result, agent_prompt_issues, normalize_reference_mode_questions,
+    selected_text_fallback,
+)
 from .prompts import AGENT_MODEL_ALIASES
 from .prompts import h3_quick_prompt, requirements_stage_prompt
 from .pipeline import run_h3_production_pipeline
@@ -48,6 +51,16 @@ async def handle(request: AgentChatRequest, runtime):
             session = runtime.session(request.session_id)
             if not session:
                 raise ValueError("智能体会话已失效，请重新发送生成需求")
+            if selected_text_fallback(request.message, session.get("generation", {})):
+                session["generation"]["mode"] = "text_to_video"
+                session["mode"] = "text_to_video"
+                session["submission_capability_id"] = "video.text_to_video"
+                if session.get("pipeline") == "h3-quick":
+                    session["messages"][0]["content"] = h3_quick_prompt("text_to_video")
+                session["requirements_messages" if session.get("pipeline") == "h3-staged" else "messages"].append({
+                    "role": "user",
+                    "content": "用户已明确选择切换到纯文字生成 T2VA。不要再询问参考素材或模式；按 T2VA 继续，并在确认后提交到 video.text_to_video。",
+                })
             message_key = "requirements_messages" if session.get("pipeline") == "h3-staged" else "messages"
             session[message_key].append({"role": "user", "content": request.message})
             if session.get("pipeline") == "h3-staged" and session.get("last_final_result"):
@@ -156,6 +169,9 @@ async def handle(request: AgentChatRequest, runtime):
                 }
             progress_callback = lambda stage_id, status, message="": runtime.update_progress(progress_id, stage_id, status, message)
             result = await asyncio.to_thread(run_h3_production_pipeline, session, requirements, progress_callback, runtime.call_model)
+            if session.get("submission_capability_id"):
+                result["generation_payload"] = {**result.get("generation_payload", {}),
+                                                 "capability_id": session["submission_capability_id"]}
             session["production_plan"] = result.get("production_plan")
             session["last_final_result"] = {
                 "optimized_prompt_zh": result.get("optimized_prompt_zh", ""),
@@ -179,6 +195,9 @@ async def handle(request: AgentChatRequest, runtime):
             session.get("mode", request.mode),
             agent_prompt_issues,
         )
+        if session.get("submission_capability_id"):
+            result["generation_payload"] = {**result.get("generation_payload", {}),
+                                             "capability_id": session["submission_capability_id"]}
         session["messages"].append({"role": "assistant", "content": content})
         runtime.update_progress(progress_id, stage_id, "completed", "H3 提示词转换已完成" if stage_id == "quick_convert" else "提示词方案已完成")
         runtime.finish_progress(progress_id, "completed" if result.get("status") == "ready" else "awaiting_input")

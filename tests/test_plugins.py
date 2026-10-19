@@ -20,6 +20,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PluginTests(unittest.TestCase):
+    def test_gpt_image_version_selector_precedes_image_settings(self):
+        capabilities = PluginCatalog(ROOT / 'plugins').capabilities()
+        configs = [config for config in capabilities.values() if config['plugin_id'] == 'gpt-image']
+        self.assertEqual(len(configs), 6)
+        for config in configs:
+            binds = [field['bind'] for field in config['ui']['fields']]
+            self.assertLess(binds.index('settings.native_model'), binds.index('settings.ratio'))
+
+    def test_gpt_image_character_supports_text_only_and_optional_identity_reference(self):
+        config = PluginCatalog(ROOT / 'plugins').capabilities()['image.gpt_image.character']
+        self.assertEqual(config['references']['image'], {'min': 0, 'max': 1})
+        instruction = config['task_instruction']
+        self.assertIn('提供参考图时', instruction)
+        self.assertIn('未提供参考图时', instruction)
+
+    def test_h3_full_reference_does_not_require_a_video(self):
+        capability_config = PluginCatalog(ROOT / 'plugins').capabilities()['video.reference']
+        self.assertEqual(capability_config['references']['video'], {'min': 0, 'max': 3})
+
     def test_ltx_requirements_declare_models_without_permanent_missing_state(self):
         capabilities = PluginCatalog(ROOT / 'plugins').capabilities()
         for capability_id in ('video.ltx2_5.text_to_video', 'video.ltx2_5.image_to_video'):
@@ -407,7 +426,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(len(plugins), 13)
         self.assertEqual(catalog.public()['applications'][0]['id'], 'film-studio')
         self.assertIn('ai-project-progress', [item['id'] for item in catalog.public()['project_tools']])
-        self.assertEqual(sum(len(p['capabilities']) for p in plugins), 37)
+        self.assertEqual(sum(len(p['capabilities']) for p in plugins), 35)
         registry = WorkflowRegistry(ROOT / 'plugins', lambda names: {})
         for plugin in plugins:
             for key, config in plugin['capabilities'].items():
@@ -484,12 +503,11 @@ class PluginTests(unittest.TestCase):
         from backend.modules.collaboration.prompts import agent_skill_prompt, agent_capability
         self.assertTrue(agent_skill_prompt('music3', 'creative'))
         self.assertTrue(agent_skill_prompt('music3', 'preset'))
-        self.assertTrue(agent_skill_prompt('qwen', 'scene'))
         self.assertEqual(agent_capability('music3', 'preset')['skill_mode'], 'preset')
         with self.assertRaises(ValueError):
             agent_capability('unregistered-model', 'unknown')
         with self.assertRaises(ValueError):
-            agent_capability('qwen', 'scene', 'image.qwen.scene', kind='video')
+            agent_capability('qwen', 'scene')
 
     def test_invalid_capability_metadata_is_isolated(self):
         config = self.manifest['capabilities']['example.create']

@@ -9,9 +9,10 @@ import MediaDialog from './MediaDialog.vue';
 import MediaPreview from './MediaPreview.vue';
 import {defaults,getValue,setValue} from '../config/pluginForm';
 import {gateway} from '../services/api';
+import {notify} from '../services/notifications';
 const props=defineProps({selected:Object,categories:Array,capabilities:Array,projectId:String,categoryId:String,voices:Array});
 const emit=defineEmits(['select-capability','submitted']);
-const values=ref({settings:{},parameters:{}}),inputs=ref([]),processing=ref('direct'),busy=ref(false),error=ref(''),session=ref(null),answer=ref('');
+const values=ref({settings:{},parameters:{}}),inputs=ref([]),processing=ref('direct'),busy=ref(false),session=ref(null),answer=ref('');
 const activities=ref([]),activityId=ref('');
 const referencesOpen=ref(false),preview=ref(null),collaborationOpen=ref(true);
 const collaborationEntries=import.meta.glob('../../../plugins/*/ui/*.vue');
@@ -24,6 +25,16 @@ const collaborationComponent=computed(()=>{
 const fields=computed(()=>props.selected?.ui?.fields || []);
 const section=name=>fields.value.filter(field=>(field.section || 'settings')===name&&field.component!=='media');
 const mediaFields=computed(()=>fields.value.filter(field=>field.component==='media'));
+function mentionsFor(items){
+  const counts={image:0,video:0,audio:0};
+  const names={image:['参考图','Picture'],video:['参考视频','Video'],audio:['参考音频','Audio']};
+  return items.filter(item=>names[item.type]).map(item=>{
+    const index=++counts[item.type],namesForType=names[item.type];
+    return {...item,id:item.upload_id,alias:`@${namesForType[0]}${index}`,label:`<${namesForType[1]} ${index}>`};
+  });
+}
+const referenceMentions=computed(()=>mentionsFor(inputs.value));
+const firstInput=computed(()=>inputs.value[0] || null);
 const pending=computed(()=>['queued','running'].includes(session.value?.status));
 const activeSession=computed(()=>session.value && !['failed','cancelled','submitted','deleted'].includes(session.value.status));
 const canAnswer=computed(()=>!!session.value && ['needs_input','awaiting_confirmation','failed'].includes(session.value.status) && !busy.value);
@@ -31,6 +42,9 @@ const canAnswer=computed(()=>!!session.value && ['needs_input','awaiting_confirm
 const locked=computed(()=>busy.value);
 const sessionKey=computed(()=>`videofree-form-session-${props.projectId}-${props.categoryId || 'all'}-${props.selected?.id}`);
 let timer,activityTimer,revision=0;
+function reportError(error,title='操作失败'){
+  notify(error?.message || error || '操作失败',{type:'error',title});
+}
 async function refreshActivities(){
   const projectId=props.projectId;
   try{const result=await gateway.collaborations(projectId);if(projectId===props.projectId)activities.value=result.items || [];}catch{/* The current form remains usable during a temporary network failure. */}
@@ -40,11 +54,11 @@ async function openActivity(){
   const item=activities.value.find(item=>item.id===activityId.value);activityId.value='';
   if(!item)return;
   emit('select-capability',item.capability_id);await nextTick();
-  revision++;clearTimeout(timer);error.value='';await resume(item,revision);
+  revision++;clearTimeout(timer);await resume(item,revision);
 }
 async function cancelActivity(id){
   try{await gateway.cancelCollaboration(id);await refreshActivities();if(session.value?.id===id)await newTask();}
-  catch(e){if(session.value?.id===id)error.value=e.message;}
+  catch(e){if(session.value?.id===id)reportError(e,'无法取消协作');}
 }
 async function cancelAllActivities(){
   const active=activities.value.filter(item=>!['cancelled','deleted'].includes(item.status));
@@ -54,7 +68,7 @@ async function cancelAllActivities(){
 }
 function clearInputs(){for(const item of inputs.value)URL.revokeObjectURL(item.preview);inputs.value=[];}
 watch([()=>props.selected?.id,()=>props.projectId,()=>props.categoryId],()=>{
-  revision++;clearTimeout(timer);clearInputs();referencesOpen.value=false;preview.value=null;error.value='';answer.value='';busy.value=false;
+  revision++;clearTimeout(timer);clearInputs();referencesOpen.value=false;preview.value=null;answer.value='';busy.value=false;
   values.value=defaults(props.selected?.ui);processing.value=props.selected?.processing_modes?.[0]?.id || 'direct';session.value=null;collaborationOpen.value=true;
   try{const saved=JSON.parse(localStorage.getItem(sessionKey.value)||'null');if(saved?.id)void resume(saved,revision);}catch{/* Ignore malformed local preferences. */}
 },{immediate:true});
@@ -79,14 +93,14 @@ async function startRequest(request,references=[]){
   clearInputs();inputs.value=references;
   values.value={...request,settings:{...request.settings},parameters:{...request.parameters}};
   processing.value=request.prompt_processing;
-  busy.value=true;error.value='';const token=revision;
+  busy.value=true;const token=revision;
   try{await accept(await gateway.createGeneration(request),token);}
   finally{if(token===revision)busy.value=false;}
 }
 defineExpose({addFile,startRequest});
 async function addFilesList(files){
   if(locked.value)return;
-  busy.value=true;error.value='';const token=revision;
+  busy.value=true;const token=revision;
   try{for(const file of files){
     const type=file.type.split('/')[0];
     if(!mediaFields.value.some(field=>field.media===type))throw Error('当前功能不接受此类参考素材');
@@ -95,16 +109,36 @@ async function addFilesList(files){
     const uploaded=await gateway.upload(file);if(token!==revision)return;
     const roles=props.selected.input_roles?.[type] || [];
     inputs.value.push({type,upload_id:uploaded.upload_id,name:file.name,preview:URL.createObjectURL(file),role:roles.find(role=>!same.some(item=>item.role===role)) || 'reference'});
-  }}catch(e){if(token===revision)error.value=e.message;}finally{if(token===revision)busy.value=false;}
+  }}catch(e){if(token===revision)reportError(e,'无法添加参考素材');}finally{if(token===revision)busy.value=false;}
 }
-function remove(item){inputs.value.splice(inputs.value.indexOf(item),1);URL.revokeObjectURL(item.preview);}
-async function resume(saved,token){session.value=saved;try{await accept(await gateway.collaboration(saved.id),token);}catch(e){if(token===revision){error.value=e.message;session.value=null;localStorage.removeItem(sessionKey.value);}}}
+function remove(item){
+  const before=referenceMentions.value,index=inputs.value.indexOf(item);
+  if(index<0)return;
+  inputs.value.splice(index,1);if(item.preview)URL.revokeObjectURL(item.preview);
+  const after=mentionsFor(inputs.value),markers=[];
+  let prompt=String(values.value.prompt || '');
+  before.forEach((mention,position)=>{
+    const marker=`\uE000vf-reference-${position}\uE001`;markers.push(marker);
+    prompt=prompt.split(mention.alias).join(marker);
+  });
+  before.forEach((mention,position)=>{
+    const replacement=after.find(candidate=>candidate.upload_id===mention.upload_id)?.alias || '';
+    prompt=prompt.split(markers[position]).join(replacement);
+  });
+  values.value.prompt=prompt;
+}
+function serializedPrompt(){
+  let prompt=String(values.value.prompt || '');
+  for(const mention of [...referenceMentions.value].sort((a,b)=>b.alias.length-a.alias.length))prompt=prompt.split(mention.alias).join(mention.label);
+  return prompt;
+}
+async function resume(saved,token){session.value=saved;try{await accept(await gateway.collaboration(saved.id),token);}catch(e){if(token===revision){reportError(e,'无法恢复智能协作');session.value=null;localStorage.removeItem(sessionKey.value);}}}
 async function accept(result,token){
   if(token!==revision)return;
   if(result.job_id){localStorage.removeItem(sessionKey.value);session.value=null;delete values.value.parent_job_id;emit('submitted',result.job_id);return;}
   if(!result.id)throw Error('服务未返回任务或协作会话标识');
   session.value=result;collaborationOpen.value=true;localStorage.setItem(sessionKey.value,JSON.stringify(result));
-  if(['queued','running'].includes(result.status))timer=setTimeout(async()=>{try{await accept(await gateway.collaboration(result.id),token);}catch(e){if(token===revision)error.value=e.message;}},1200);
+  if(['queued','running'].includes(result.status))timer=setTimeout(async()=>{try{await accept(await gateway.collaboration(result.id),token);}catch(e){if(token===revision)reportError(e,'智能协作中断');}},1200);
 }
 function onComposerKeydown(event){
   if(event.key!=='Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey ||
@@ -117,19 +151,19 @@ async function submit(action='create'){
   if(busy.value)return;
   if(action==='answer' && !canAnswer.value)return;
   if(action==='confirm' && (!session.value || session.value.status!=='awaiting_confirmation'))return;
-  if(action==='create' && activeSession.value){error.value='请先完成或取消当前协作任务';return;}
-  busy.value=true;error.value='';const token=revision;
+  if(action==='create' && activeSession.value){reportError('请先完成或取消当前协作任务','暂时无法提交');return;}
+  busy.value=true;const token=revision;
   try{
     let result;
     if(action==='confirm')result=await gateway.confirmCollaboration(session.value.id,session.value.revision);
     else if(action==='answer'){result=await gateway.answerCollaboration(session.value.id,answer.value);answer.value='';}
-    else{validate();result=await gateway.createGeneration({...values.value,project_id:props.projectId,category_id:props.categoryId || '',capability_id:props.selected.id,prompt_processing:processing.value,inputs:inputs.value.map(({type,upload_id,role})=>({type,upload_id,role}))});}
+    else{validate();result=await gateway.createGeneration({...values.value,prompt:serializedPrompt(),project_id:props.projectId,category_id:props.categoryId || '',capability_id:props.selected.id,prompt_processing:processing.value,inputs:inputs.value.map(({type,upload_id,role})=>({type,upload_id,role}))});}
     await accept(result,token);
-  }catch(e){if(token===revision)error.value=e.message;}finally{if(token===revision)busy.value=false;}
+  }catch(e){if(token===revision)reportError(e,action==='create'?'无法提交任务':'智能协作操作失败');}finally{if(token===revision)busy.value=false;}
 }
 async function newTask(){
   if(session.value?.id && session.value.status !== 'cancelled'){
-    try{await gateway.cancelCollaboration(session.value.id);}catch(e){error.value=e.message;return;}
+    try{await gateway.cancelCollaboration(session.value.id);}catch(e){reportError(e,'无法取消当前任务');return;}
   }
   revision++;clearTimeout(timer);
   localStorage.removeItem(sessionKey.value);session.value=null;
@@ -143,15 +177,15 @@ onBeforeUnmount(()=>{revision++;clearTimeout(timer);clearInterval(activityTimer)
     <header class="composer-top"><PluginFunctionSwitch :capabilities="capabilities" :selected="selected" :disabled="locked" @select="emit('select-capability',$event)"/><div v-if="selected?.processing_modes?.length>1" class="plugin-processing" role="group" aria-label="处理模式"><button v-for="mode in selected.processing_modes" :key="mode.id" type="button" :class="{active:processing===mode.id}" :aria-pressed="processing===mode.id" :disabled="locked" @click="processing=mode.id">{{mode.name}}</button></div></header>
     <fieldset :disabled="locked" :inert="locked || undefined">
       <div class="plugin-content">
-        <button v-if="mediaFields.length" type="button" class="plugin-reference-trigger" aria-label="添加参考素材" title="添加参考素材" @click="referencesOpen=true"><Icon icon="solar:add-circle-linear" width="25"/><b v-if="inputs.length">{{inputs.length}}</b></button>
-        <div class="plugin-body"><PluginField v-for="field in section('body')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :voices="voices" :plugin-id="selected?.plugin_id" @update:model-value="setValue(values,field.bind,$event)"/></div>
+        <button v-if="mediaFields.length" type="button" class="plugin-reference-trigger" :class="{'has-references':inputs.length}" :aria-label="inputs.length?`管理${inputs.length}个参考素材`:'添加参考素材'" :title="inputs.length?`已选择 ${inputs.length} 个素材`:'添加参考素材'" @click="referencesOpen=true"><img v-if="firstInput?.type==='image' && firstInput.preview" :src="firstInput.preview" alt=""/><Icon v-else :icon="!firstInput?'solar:add-circle-linear':firstInput.type==='video'?'solar:videocamera-record-linear':firstInput.type==='audio'?'solar:music-note-linear':'solar:gallery-linear'" width="25"/><span v-if="inputs.length" class="plugin-reference-add"><Icon icon="solar:add-circle-bold" width="16"/></span><b v-if="inputs.length">{{inputs.length}}</b></button>
+        <div class="plugin-body"><PluginField v-for="field in section('body')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :voices="voices" :plugin-id="selected?.plugin_id" :mentions="field.bind==='prompt'?referenceMentions:[]" @update:model-value="setValue(values,field.bind,$event)"/></div>
       </div>
       <footer class="plugin-toolbar">
         <div class="plugin-settings"><PluginCapabilitySelect :categories="categories" :capabilities="capabilities" :selected="selected" :disabled="locked" @select="emit('select-capability',$event)"/><PluginField v-for="field in section('settings')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :voices="voices" :plugin-id="selected?.plugin_id" @update:model-value="setValue(values,field.bind,$event)"/></div>
         <div class="plugin-submit"><PluginField v-for="field in section('submit')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :text="values.prompt" @update:model-value="setValue(values,field.bind,$event)"/><button v-if="!session" class="plugin-send" type="submit" :disabled="busy || !selected?.ui" aria-label="开始生成" :title="busy?'正在提交':'开始生成'"><Icon :icon="busy?'solar:refresh-circle-linear':'solar:arrow-up-linear'" width="21"/></button></div>
       </footer>
     </fieldset>
-    <p v-if="error" role="alert" class="plugin-error">{{error}}</p><p v-if="selected && !selected.ui" role="alert" class="plugin-error">此插件尚未声明 UI 表单，请更新插件。</p>
+    <p v-if="selected && !selected.ui" role="alert" class="plugin-error">此插件尚未声明 UI 表单，请更新插件。</p>
   </form></section>
   <Teleport to="body">
     <button v-if="session && !collaborationOpen" class="plugin-collaboration-reopen" type="button" aria-label="打开智能协作" @click="collaborationOpen=true"><Icon icon="solar:stars-minimalistic-bold-duotone" width="19"/><span>智能协作</span></button>
@@ -192,7 +226,7 @@ onBeforeUnmount(()=>{revision++;clearTimeout(timer);clearInterval(activityTimer)
           </div>
         </section>
       </div>
-      <p v-if="busy" class="plugin-reference-status" role="status">正在上传…</p><p v-if="error" class="plugin-reference-status" role="alert">{{error}}</p>
+      <p v-if="busy" class="plugin-reference-status" role="status">正在上传…</p>
       <footer><button type="button" :disabled="busy" @click="referencesOpen=false">完成</button></footer>
     </section>
   </MediaDialog>
@@ -234,6 +268,7 @@ onBeforeUnmount(()=>{revision++;clearTimeout(timer);clearInterval(activityTimer)
 .plugin-content { display: flex; align-items: flex-start; min-width: 0; }
 .plugin-reference-trigger { position: relative; flex: none; display: grid; place-items: center; width: 58px; height: 58px; margin: 18px 0 0 20px; padding: 0; border: 1px dashed #666b65; border-radius: 8px; background: #171819; color: #aeb3ad; cursor: pointer; }
 .plugin-reference-trigger:hover { color: var(--lime); border-color: var(--lime); }
+.plugin-reference-trigger.has-references{overflow:visible;border-style:solid;border-color:#ffffff2c;background:#111315;color:#c4cdc5}.plugin-reference-trigger.has-references:hover{border-color:#b7f34a99}.plugin-reference-trigger>img{width:100%;height:100%;overflow:hidden;border-radius:7px;object-fit:cover}.plugin-reference-add{position:absolute;right:-6px;bottom:-6px;display:grid;place-items:center;width:20px;height:20px;border:2px solid #1c1d1f;border-radius:50%;background:var(--lime);color:#172014}.plugin-reference-add svg{display:block}
 .plugin-reference-trigger b { position: absolute; right: -5px; top: -6px; min-width: 18px; padding: 2px; border-radius: 10px; background: var(--lime); color: #171819; font-size: 11px; }
 .plugin-body {
   flex: 1;
@@ -266,6 +301,7 @@ onBeforeUnmount(()=>{revision++;clearTimeout(timer);clearInterval(activityTimer)
   line-height: 24px;
   color: var(--text);
 }
+.plugin-body :deep(.mention-mirror) { padding: 6px 2px; font-size: 15px; line-height: 24px; }
 .plugin-body :deep(textarea::placeholder) { color: #686e66; }
 .plugin-body :deep(.field-body:only-child label > span) { display: none; }
 .plugin-toolbar {

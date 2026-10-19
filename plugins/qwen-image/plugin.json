@@ -1,9 +1,22 @@
 {
   "schema_version": 1,
   "id": "qwen-image",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "name": "qwen-image",
   "collaboration_ui": "ui/Collaboration.vue",
+  "style_library": {
+    "directory": "assets/styles",
+    "default_id": "qwen-realistic"
+  },
+  "assets": [
+    "assets/styles/styles.json",
+    "assets/styles/qwen-realistic.png",
+    "assets/styles/qwen-cinematic.png",
+    "assets/styles/qwen-product-photo.png",
+    "assets/styles/qwen-3d-render.png",
+    "assets/styles/qwen-digital-illustration.png",
+    "assets/styles/qwen-anime.png"
+  ],
   "categories": [
     {
       "id": "image",
@@ -471,7 +484,7 @@
       "input_roles": {
         "image": []
       },
-      "task_instruction": "默认生成写实、高分辨率、清晰细节的单一角色设定板，背景简洁、排版清晰。参考图存在时严格保持人物身份、年龄、体型、脸部、发型、服装、装备、材质和颜色一致；没有参考图时根据用户文字完整设计角色。画面包含动态全身主视图、正面、背面、侧面、六个头部或胸像研究、四个关键细节面板、一个重要道具、两个剪影和四色配色样本。所有区域只服务同一角色，禁止自动变成动漫或卡通风、低清模糊、塑料材质、额外角色、无关道具、复杂场景、Logo、水印和无关文字。",
+      "task_instruction": "生成一张简洁、写实、高分辨率的单一角色设定图。画面左侧放置一张占比明显更大的半身主视图，完整呈现头部、面部、发型、肩部、上身服装和腰部细节；画面右侧并排放置三个等高、等比例、完整可见的全身视图，按从左到右依次为正面、右侧严格90度侧面、背面。四个形象必须是同一角色，保持相同的人物身份、年龄、体型、脸部、发型、服装、装备、材质、颜色和光照；三个全身视图使用相同的中立站姿。使用纯白或浅灰背景，半身主视图与三视图分区清楚、间距均匀，但不要添加边框或文字标签。参考图存在时严格以参考人物为身份锚点；没有参考图时根据用户文字完整设计角色。禁止添加额外头像、细节面板、道具展示、剪影、色卡、第五个形象、四分之三角度全身图、复杂场景、Logo或水印；除非用户明确要求，不得自动改成动漫或卡通风。",
       "category": "image",
       "compiler": "builtin",
       "confirmation_handler": "collaboration/confirmation.py:confirm",
@@ -574,290 +587,7 @@
           }
         ]
       },
-      "name": "Qwen 角色多视图",
-      "model_id": "qwen",
-      "model_name": "Qwen Image 2.1"
-    },
-    "image.qwen.scene": {
-      "kind": "image",
-      "mode": "scene",
-      "file": "workflows/img/qwen/image_2_1_api.json",
-      "references": {
-        "image": {
-          "min": 0,
-          "max": 8
-        }
-      },
-      "prompt": {
-        "preserve_all": true
-      },
-      "prompt_bindings": [
-        {
-          "node": "497",
-          "input": "prompt"
-        }
-      ],
-      "output_nodes": [
-        "487"
-      ],
-      "parameter_bindings": {
-        "seed": [
-          {
-            "node": "481",
-            "input": "seed"
-          }
-        ]
-      },
-      "qwen_image21_multi_reference": true,
-      "input_roles": {
-        "image": []
-      },
-      "task_instruction": "默认根据用户描述生成写实、高分辨率、清晰细节的电影级场景概念图。参考图存在时保持地点、时代、建筑或地貌、道路、水系、植被、天气、时间、光照、色彩、氛围和关键地标一致；没有参考图时根据文字完整创建场景。建立清楚的前中后景、可信比例、明确视觉锚点、真实材质和电影级纵深。默认不出现近景人物，禁止自动变成动漫或卡通风、低清模糊、塑料感、文字、UI、Logo、水印、无关标注和多余边框。",
-      "category": "image",
-      "compiler": "builtin",
-      "confirmation_handler": "collaboration/confirmation.py:confirm",
-      "model_family": "qwen",
-      "processing_modes": [
-        "direct",
-        "director"
-      ],
-      "compiler_handler": "compiler.py:prepare",
-      "ui": {
-        "version": 1,
-        "fields": [
-          {
-            "bind": "prompt",
-            "component": "textarea",
-            "label": "描述词",
-            "section": "body",
-            "rows": 3,
-            "required": true
-          },
-          {
-            "bind": "settings.reference_image",
-            "component": "media",
-            "media": "image",
-            "label": "参考图片",
-            "section": "body"
-          },
-          {
-            "bind": "settings.ratio",
-            "label": "比例",
-            "section": "settings",
-            "options": [
-              {
-                "value": "16:9",
-                "label": "16:9 横屏"
-              },
-              {
-                "value": "9:16",
-                "label": "9:16 竖屏"
-              },
-              {
-                "value": "1:1",
-                "label": "1:1 方形"
-              },
-              {
-                "value": "4:3",
-                "label": "4:3 标准"
-              },
-              {
-                "value": "3:4",
-                "label": "3:4 竖版"
-              },
-              {
-                "value": "21:9",
-                "label": "21:9 超宽"
-              },
-              {
-                "value": "2:3",
-                "label": "2:3 海报"
-              },
-              {
-                "value": "3:2",
-                "label": "3:2 相机"
-              }
-            ],
-            "component": "select",
-            "default": "16:9"
-          },
-          {
-            "bind": "settings.resolution",
-            "label": "分辨率",
-            "section": "settings",
-            "options": [
-              {
-                "value": "768P",
-                "label": "自适应"
-              },
-              {
-                "value": "1K",
-                "label": "1K"
-              },
-              {
-                "value": "1440P",
-                "label": "1440P"
-              },
-              {
-                "value": "2K",
-                "label": "2K"
-              }
-            ],
-            "component": "select",
-            "default": "1K"
-          },
-          {
-            "bind": "settings.style_id",
-            "label": "画面风格",
-            "section": "settings",
-            "component": "style",
-            "default": ""
-          }
-        ]
-      },
-      "name": "Qwen 场景图",
-      "model_id": "qwen",
-      "model_name": "Qwen Image 2.1",
-      "skill_mode": "text_to_image"
-    },
-    "image.qwen.storyboard_6": {
-      "kind": "image",
-      "mode": "storyboard_6",
-      "file": "workflows/img/qwen/image_2_1_api.json",
-      "references": {
-        "image": {
-          "min": 0,
-          "max": 8
-        }
-      },
-      "prompt": {
-        "preserve_all": true
-      },
-      "prompt_bindings": [
-        {
-          "node": "497",
-          "input": "prompt"
-        }
-      ],
-      "output_nodes": [
-        "487"
-      ],
-      "parameter_bindings": {
-        "seed": [
-          {
-            "node": "481",
-            "input": "seed"
-          }
-        ]
-      },
-      "qwen_image21_multi_reference": true,
-      "input_roles": {
-        "image": []
-      },
-      "task_instruction": "默认生成写实电影质感的完整3x2六宫格电影分镜图，共且仅共6格，固定为3列2行，严格按左上、中央上、右上、左下、中央下、右下阅读顺序推进用户故事。参考图仅用于保持人物身份、服装、道具、场景和视觉风格一致；没有参考图时根据文字创建。每格完整填满自己的等大单元格，只呈现画面，禁止任何额外小格、嵌套分格、缩略图、替代视图、联系表、镜号、标题、字幕、气泡、UI、箭头、Logo、水印、外框和粗分隔线。画面保持真实材质、自然光影、清晰边缘、连贯透视和高分辨率细节。",
-      "category": "image",
-      "compiler": "builtin",
-      "confirmation_handler": "collaboration/confirmation.py:confirm",
-      "model_family": "qwen",
-      "processing_modes": [
-        "direct",
-        "director"
-      ],
-      "compiler_handler": "compiler.py:prepare",
-      "ui": {
-        "version": 1,
-        "fields": [
-          {
-            "bind": "prompt",
-            "component": "textarea",
-            "label": "描述词",
-            "section": "body",
-            "rows": 3,
-            "required": true
-          },
-          {
-            "bind": "settings.reference_image",
-            "component": "media",
-            "media": "image",
-            "label": "参考图片",
-            "section": "body"
-          },
-          {
-            "bind": "settings.ratio",
-            "label": "比例",
-            "section": "settings",
-            "options": [
-              {
-                "value": "16:9",
-                "label": "16:9 横屏"
-              },
-              {
-                "value": "9:16",
-                "label": "9:16 竖屏"
-              },
-              {
-                "value": "1:1",
-                "label": "1:1 方形"
-              },
-              {
-                "value": "4:3",
-                "label": "4:3 标准"
-              },
-              {
-                "value": "3:4",
-                "label": "3:4 竖版"
-              },
-              {
-                "value": "21:9",
-                "label": "21:9 超宽"
-              },
-              {
-                "value": "2:3",
-                "label": "2:3 海报"
-              },
-              {
-                "value": "3:2",
-                "label": "3:2 相机"
-              }
-            ],
-            "component": "select",
-            "default": "16:9"
-          },
-          {
-            "bind": "settings.resolution",
-            "label": "分辨率",
-            "section": "settings",
-            "options": [
-              {
-                "value": "768P",
-                "label": "自适应"
-              },
-              {
-                "value": "1K",
-                "label": "1K"
-              },
-              {
-                "value": "1440P",
-                "label": "1440P"
-              },
-              {
-                "value": "2K",
-                "label": "2K"
-              }
-            ],
-            "component": "select",
-            "default": "1K"
-          },
-          {
-            "bind": "settings.style_id",
-            "label": "画面风格",
-            "section": "settings",
-            "component": "style",
-            "default": ""
-          }
-        ]
-      },
-      "name": "Qwen 六宫格分镜",
+      "name": "Qwen 角色设定图",
       "model_id": "qwen",
       "model_name": "Qwen Image 2.1"
     }
@@ -885,14 +615,6 @@
         {
           "capability_id": "image.qwen.character",
           "name": "角色版"
-        },
-        {
-          "capability_id": "image.qwen.scene",
-          "name": "场景图"
-        },
-        {
-          "capability_id": "image.qwen.storyboard_6",
-          "name": "六宫格分镜"
         }
       ]
     }

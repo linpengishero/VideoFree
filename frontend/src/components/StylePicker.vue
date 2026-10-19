@@ -1,9 +1,9 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import PluginDialog from './PluginDialog.vue';
 import { gateway } from '../services/api';
-const props = defineProps({ modelValue: String });
+const props = defineProps({ modelValue: String, pluginId: String });
 const emit = defineEmits(["update:modelValue"]);
 const open = ref(false),
   items = ref([]),
@@ -13,7 +13,7 @@ const open = ref(false),
   error = ref(""),
   busy = ref(false);
 const selected = computed(() =>
-  items.value.find((x) => x.id === props.modelValue),
+  items.value.find((x) => x.id === props.modelValue) || items.value.find((x) => x.default),
 );
 const categories = computed(() => [
   ...new Set(items.value.map((x) => x.category)),
@@ -32,10 +32,13 @@ const pages = computed(() =>
 );
 async function show() {
   open.value = true;
+  await loadStyles();
+}
+async function loadStyles() {
   busy.value = true;
   error.value = "";
   try {
-    const data = await gateway.styles();
+    const data = await gateway.styles(props.pluginId || '');
     items.value = data.items || [];
     if (data.errors?.length)
       error.value = data.errors.join("；");
@@ -49,6 +52,7 @@ function choose(id) {
   emit("update:modelValue", id);
   open.value = false;
 }
+onMounted(loadStyles);
 </script>
 <template>
   <button class="style-trigger" type="button" @click="show">
@@ -73,7 +77,7 @@ function choose(id) {
             autofocus
             placeholder="搜索风格名称…"
             @input="page = 1"
-          /><button @click="choose('')">不限定风格</button>
+          /><button @click="choose(items.find(x => x.default)?.id || '')">默认写实</button>
         </div>
         <div class="style-body">
           <nav>
@@ -103,7 +107,7 @@ function choose(id) {
             <button
               v-for="item in filtered.slice((page - 1) * 36, page * 36)"
               :key="item.id"
-              :class="{ active: modelValue === item.id }"
+              :class="{ active: (modelValue || items.find(x => x.default)?.id) === item.id }"
               @click="choose(item.id)"
             >
               <img

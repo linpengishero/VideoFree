@@ -1,6 +1,6 @@
 {
   "../plugins/ace-step/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-D_f8zXX6.js",
+    "file": "assets/Collaboration-BlFYWsGt.js",
     "name": "Collaboration",
     "src": "../plugins/ace-step/ui/Collaboration.vue",
     "isDynamicEntry": true,
@@ -9,7 +9,7 @@
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-D5NoSNVV.css"
+      "assets/Collaboration-DGGlkHaM.css"
     ]
   },
   "../plugins/ai-project-progress/ui/Progress.vue": {
@@ -25,28 +25,28 @@
     ]
   },
   "../plugins/film-studio/ui/FilmSelection.vue": {
-    "file": "assets/FilmSelection-CCex2-0w.js",
+    "file": "assets/FilmSelection-D8dQwv8S.js",
     "name": "FilmSelection",
     "src": "../plugins/film-studio/ui/FilmSelection.vue",
     "isDynamicEntry": true,
     "imports": [
       "__plugin-vue_export-helper-BAHkH64h.js",
       "index.html",
-      "_api-Oz8kiViB.js"
+      "_api-Czx7jAVk.js"
     ],
     "css": [
       "assets/FilmSelection-BKwFTerW.css"
     ]
   },
   "../plugins/film-studio/ui/FilmStudio.vue": {
-    "file": "assets/FilmStudio-4v1ELLWe.js",
+    "file": "assets/FilmStudio-KEFWL841.js",
     "name": "FilmStudio",
     "src": "../plugins/film-studio/ui/FilmStudio.vue",
     "isDynamicEntry": true,
     "imports": [
       "__plugin-vue_export-helper-BAHkH64h.js",
       "index.html",
-      "_api-Oz8kiViB.js",
+      "_api-Czx7jAVk.js",
       "../plugins/film-studio/ui/Timeline.vue"
     ],
     "css": [
@@ -54,7 +54,7 @@
     ]
   },
   "../plugins/film-studio/ui/Timeline.vue": {
-    "file": "assets/Timeline-B7N_9WUp.js",
+    "file": "assets/Timeline-DkINsEUK.js",
     "name": "Timeline",
     "src": "../plugins/film-studio/ui/Timeline.vue",
     "isDynamicEntry": true,
@@ -66,28 +66,54 @@
       "assets/Timeline-Bed2Kn9Y.css"
     ]
   },
+  "../plugins/krea2/assets/styles/krea2-3d-render.png": {
+    "file": "assets/krea2-3d-render-CvzBEcIi.png",
+    "src": "../plugins/krea2/assets/styles/krea2-3d-render.png"
+  },
+  "../plugins/krea2/assets/styles/krea2-anime.png": {
+    "file": "assets/krea2-anime-CO2xxp-j.png",
+    "src": "../plugins/krea2/assets/styles/krea2-anime.png"
+  },
+  "../plugins/krea2/assets/styles/krea2-cinematic.png": {
+    "file": "assets/krea2-cinematic-DdpCMNtA.png",
+    "src": "../plugins/krea2/assets/styles/krea2-cinematic.png"
+  },
+  "../plugins/krea2/assets/styles/krea2-digital-illustration.png": {
+    "file": "assets/krea2-digital-illustration-By_dcTjA.png",
+    "src": "../plugins/krea2/assets/styles/krea2-digital-illustration.png"
+  },
+  "../plugins/krea2/assets/styles/krea2-product-photo.png": {
+    "file": "assets/krea2-product-photo-Br2wUCdC.png",
+    "src": "../plugins/krea2/assets/styles/krea2-product-photo.png"
+  },
+  "../plugins/krea2/assets/styles/krea2-realistic.png": {
+    "file": "assets/krea2-realistic-Be-V7mk3.png",
+    "src": "../plugins/krea2/assets/styles/krea2-realistic.png"
+  },
   "../plugins/krea2/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-DaKnu16j.js",
+    "file": "assets/Collaboration-Bs5g7Fq6.js",
     "name": "Collaboration",
     "src": "../plugins/krea2/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js"
+      "__plugin-vue_export-helper-BAHkH64h.js",
+      "index.html"
     ],
     "css": [
-      "assets/Collaboration-BsXIge1K.css"
+      "assets/Collaboration-IY6Ecdw3.css"
     ]
   },
   "../plugins/ltx-2.5/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-eNC2V-Ek.js",
+    "file": "assets/Collaboration-BEJbVjHU.js",
     "name": "Collaboration",
     "src": "../plugins/ltx-2.5/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js"
+      "__plugin-vue_export-helper-BAHkH64h.js",
+      "index.html"
     ],
     "css": [
-      "assets/Collaboration-810Iq7hU.css"
+      "assets/Collaboration-B6EepzCH.css"
     ]
   },
   "../plugins/ltx-2.5/workflows/video/ltx2_5/first_last_frame.png": {
@@ -95,7 +121,7 @@
     "src": "../plugins/ltx-2.5/workflows/video/ltx2_5/first_last_frame.png"
   },
   "../plugins/minimax-h3/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-CeZvQMva.js",
+    "file": "assets/Collaboration-C0IKkCYr.js",
     "name": "Collaboration",
     "src": "../plugins/minimax-h3/ui/Collaboration.vue",
     "isDynamicEntry": true,
@@ -104,46 +130,72 @@
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-B_6hecY1.css"
+      "assets/Collaboration-CJZZk3uh.css"
     ]
   },
   "../plugins/minimax-music/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-B_EOv2sG.js",
+    "file": "assets/Collaboration-DNF4eCYH.js",
     "name": "Collaboration",
     "src": "../plugins/minimax-music/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js"
+      "__plugin-vue_export-helper-BAHkH64h.js",
+      "index.html"
     ],
     "css": [
-      "assets/Collaboration-CKO2JUap.css"
+      "assets/Collaboration-P76h4Qlq.css"
     ]
   },
+  "../plugins/qwen-image/assets/styles/qwen-3d-render.png": {
+    "file": "assets/qwen-3d-render-C_kcLJiD.png",
+    "src": "../plugins/qwen-image/assets/styles/qwen-3d-render.png"
+  },
+  "../plugins/qwen-image/assets/styles/qwen-anime.png": {
+    "file": "assets/qwen-anime-CB9__IsI.png",
+    "src": "../plugins/qwen-image/assets/styles/qwen-anime.png"
+  },
+  "../plugins/qwen-image/assets/styles/qwen-cinematic.png": {
+    "file": "assets/qwen-cinematic-CcYJTgSU.png",
+    "src": "../plugins/qwen-image/assets/styles/qwen-cinematic.png"
+  },
+  "../plugins/qwen-image/assets/styles/qwen-digital-illustration.png": {
+    "file": "assets/qwen-digital-illustration-CMVS7-n1.png",
+    "src": "../plugins/qwen-image/assets/styles/qwen-digital-illustration.png"
+  },
+  "../plugins/qwen-image/assets/styles/qwen-product-photo.png": {
+    "file": "assets/qwen-product-photo-CCtH66Dy.png",
+    "src": "../plugins/qwen-image/assets/styles/qwen-product-photo.png"
+  },
+  "../plugins/qwen-image/assets/styles/qwen-realistic.png": {
+    "file": "assets/qwen-realistic-DJOhSJlY.png",
+    "src": "../plugins/qwen-image/assets/styles/qwen-realistic.png"
+  },
   "../plugins/qwen-image/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-yFrW4dzQ.js",
+    "file": "assets/Collaboration-BefpnMeV.js",
     "name": "Collaboration",
     "src": "../plugins/qwen-image/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js"
+      "__plugin-vue_export-helper-BAHkH64h.js",
+      "index.html"
     ],
     "css": [
-      "assets/Collaboration-Dx_tR_3B.css"
+      "assets/Collaboration-Do9nohqn.css"
     ]
   },
   "__plugin-vue_export-helper-BAHkH64h.js": {
     "file": "assets/_plugin-vue_export-helper-BAHkH64h.js",
     "name": "_plugin-vue_export-helper"
   },
-  "_api-Oz8kiViB.js": {
-    "file": "assets/api-Oz8kiViB.js",
+  "_api-Czx7jAVk.js": {
+    "file": "assets/api-Czx7jAVk.js",
     "name": "api",
     "imports": [
       "index.html"
     ]
   },
   "index.html": {
-    "file": "assets/index-CiD3njLQ.js",
+    "file": "assets/index-CLq0JYKB.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -163,10 +215,22 @@
       "../plugins/qwen-image/ui/Collaboration.vue"
     ],
     "css": [
-      "assets/index-BNZHk-wO.css"
+      "assets/index-Dxc6ysqS.css"
     ],
     "assets": [
-      "assets/first_last_frame-B9IwCnTh.png"
+      "assets/krea2-3d-render-CvzBEcIi.png",
+      "assets/krea2-anime-CO2xxp-j.png",
+      "assets/krea2-cinematic-DdpCMNtA.png",
+      "assets/krea2-digital-illustration-By_dcTjA.png",
+      "assets/krea2-product-photo-Br2wUCdC.png",
+      "assets/krea2-realistic-Be-V7mk3.png",
+      "assets/first_last_frame-B9IwCnTh.png",
+      "assets/qwen-3d-render-C_kcLJiD.png",
+      "assets/qwen-anime-CB9__IsI.png",
+      "assets/qwen-cinematic-CcYJTgSU.png",
+      "assets/qwen-digital-illustration-CMVS7-n1.png",
+      "assets/qwen-product-photo-CCtH66Dy.png",
+      "assets/qwen-realistic-DJOhSJlY.png"
     ]
   }
 }

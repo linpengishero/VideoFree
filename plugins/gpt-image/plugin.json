@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "gpt-image",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "gpt-image",
   "settings": {
     "title": "GPT-Image",
@@ -74,6 +74,23 @@
             "required": true
           },
           {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          },
+          {
             "bind": "settings.ratio",
             "label": "比例",
             "section": "settings",
@@ -145,23 +162,6 @@
             "section": "settings",
             "component": "style",
             "default": ""
-          },
-          {
-            "bind": "settings.native_model",
-            "label": "版本",
-            "section": "settings",
-            "options": [
-              {
-                "value": "gpt-image-2",
-                "label": "Image 2"
-              },
-              {
-                "value": "gpt-image-2.5",
-                "label": "Image 2.5"
-              }
-            ],
-            "component": "select",
-            "default": "gpt-image-2"
           }
         ]
       },
@@ -216,6 +216,23 @@
             "section": "body"
           },
           {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          },
+          {
             "bind": "settings.ratio",
             "label": "比例",
             "section": "settings",
@@ -287,23 +304,6 @@
             "section": "settings",
             "component": "style",
             "default": ""
-          },
-          {
-            "bind": "settings.native_model",
-            "label": "版本",
-            "section": "settings",
-            "options": [
-              {
-                "value": "gpt-image-2",
-                "label": "Image 2"
-              },
-              {
-                "value": "gpt-image-2.5",
-                "label": "Image 2.5"
-              }
-            ],
-            "component": "select",
-            "default": "gpt-image-2"
           }
         ]
       },
@@ -325,14 +325,14 @@
       ],
       "references": {
         "image": {
-          "min": 1,
+          "min": 0,
           "max": 1
         }
       },
       "input_roles": {
         "image": []
       },
-      "task_instruction": "生成一张16:9横向、背景简洁、排版清晰的单一角色设定板。严格保持参考人物的身份、年龄、体型、肤色、脸部、发型、服装、装备、材质和颜色一致，并优先遵循用户补充要求。画面精确包含：4个全身视图（左侧较大的动态英雄姿势、正面、背面、侧面）；右上方3x2排列的6个同一角色头部或胸像研究；底部DETAILS区域精确4个关键细节面板；PROP区域精确1个与角色相关的重要道具；SILHOUETTE区域精确2个黑色剪影（正面、背面）；PALETTE区域精确4个颜色样本。所有区域只服务同一角色。禁止普通单幅角色插画、额外角色、无关道具、复杂场景、标志、水印、签名和无关文字。",
+      "task_instruction": "生成一张16:9横向、背景简洁、排版清晰的单一角色设定板。提供参考图时，严格保持参考人物的身份、年龄、体型、肤色、脸部、发型、服装、装备、材质和颜色一致；未提供参考图时，根据用户描述创建角色，并确保所有视图中的身份、比例、服装、装备和配色统一。优先遵循用户补充要求。画面精确包含：4个全身视图（左侧较大的动态英雄姿势、正面、背面、侧面）；右上方3x2排列的6个同一角色头部或胸像研究；底部DETAILS区域精确4个关键细节面板；PROP区域精确1个与角色相关的重要道具；SILHOUETTE区域精确2个黑色剪影（正面、背面）；PALETTE区域精确4个颜色样本。所有区域只服务同一角色。禁止普通单幅角色插画、额外角色、无关道具、复杂场景、标志、水印、签名和无关文字。",
       "category": "image",
       "compiler": "builtin",
       "model_family": "gpt_image",
@@ -358,6 +358,23 @@
             "section": "body"
           },
           {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          },
+          {
             "bind": "settings.ratio",
             "label": "比例",
             "section": "settings",
@@ -429,23 +446,6 @@
             "section": "settings",
             "component": "style",
             "default": ""
-          },
-          {
-            "bind": "settings.native_model",
-            "label": "版本",
-            "section": "settings",
-            "options": [
-              {
-                "value": "gpt-image-2",
-                "label": "Image 2"
-              },
-              {
-                "value": "gpt-image-2.5",
-                "label": "Image 2.5"
-              }
-            ],
-            "component": "select",
-            "default": "gpt-image-2"
           }
         ]
       },
@@ -500,6 +500,23 @@
             "section": "body"
           },
           {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          },
+          {
             "bind": "settings.ratio",
             "label": "比例",
             "section": "settings",
@@ -571,23 +588,6 @@
             "section": "settings",
             "component": "style",
             "default": ""
-          },
-          {
-            "bind": "settings.native_model",
-            "label": "版本",
-            "section": "settings",
-            "options": [
-              {
-                "value": "gpt-image-2",
-                "label": "Image 2"
-              },
-              {
-                "value": "gpt-image-2.5",
-                "label": "Image 2.5"
-              }
-            ],
-            "component": "select",
-            "default": "gpt-image-2"
           }
         ]
       },
@@ -642,6 +642,23 @@
             "section": "body"
           },
           {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          },
+          {
             "bind": "settings.ratio",
             "label": "比例",
             "section": "settings",
@@ -713,23 +730,6 @@
             "section": "settings",
             "component": "style",
             "default": ""
-          },
-          {
-            "bind": "settings.native_model",
-            "label": "版本",
-            "section": "settings",
-            "options": [
-              {
-                "value": "gpt-image-2",
-                "label": "Image 2"
-              },
-              {
-                "value": "gpt-image-2.5",
-                "label": "Image 2.5"
-              }
-            ],
-            "component": "select",
-            "default": "gpt-image-2"
           }
         ]
       },
@@ -784,6 +784,23 @@
             "section": "body"
           },
           {
+            "bind": "settings.native_model",
+            "label": "版本",
+            "section": "settings",
+            "options": [
+              {
+                "value": "gpt-image-2",
+                "label": "Image 2"
+              },
+              {
+                "value": "gpt-image-2.5",
+                "label": "Image 2.5"
+              }
+            ],
+            "component": "select",
+            "default": "gpt-image-2"
+          },
+          {
             "bind": "settings.ratio",
             "label": "比例",
             "section": "settings",
@@ -855,23 +872,6 @@
             "section": "settings",
             "component": "style",
             "default": ""
-          },
-          {
-            "bind": "settings.native_model",
-            "label": "版本",
-            "section": "settings",
-            "options": [
-              {
-                "value": "gpt-image-2",
-                "label": "Image 2"
-              },
-              {
-                "value": "gpt-image-2.5",
-                "label": "Image 2.5"
-              }
-            ],
-            "component": "select",
-            "default": "gpt-image-2"
           }
         ]
       },

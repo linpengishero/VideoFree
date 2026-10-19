@@ -1,13 +1,22 @@
 {
   "schema_version": 1,
   "id": "krea2",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "name": "krea2",
   "collaboration_ui": "ui/Collaboration.vue",
   "style_library": {
-    "comfyui_directory": "custom_nodes/ComfyUI-Easy-Use/styles",
-    "category_prefix": "krea2_397styles-"
+    "directory": "assets/styles",
+    "default_id": "krea2-realistic"
   },
+  "assets": [
+    "assets/styles/styles.json",
+    "assets/styles/krea2-realistic.png",
+    "assets/styles/krea2-cinematic.png",
+    "assets/styles/krea2-product-photo.png",
+    "assets/styles/krea2-3d-render.png",
+    "assets/styles/krea2-digital-illustration.png",
+    "assets/styles/krea2-anime.png"
+  ],
   "categories": [
     {
       "id": "image",

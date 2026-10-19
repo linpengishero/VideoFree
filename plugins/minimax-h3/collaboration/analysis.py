@@ -10,9 +10,7 @@ from .prompts import AGENT_MODEL_ALIASES
 def normalize_reference_mode_questions(result: dict[str, Any], mode: str, generation: dict[str, Any] | None = None) -> dict[str, Any]:
     """Keep clarification actions executable within the selected H3 mode.
 
-    The collaboration agent cannot change the generation capability mid-session.
-    In particular, a reference-mode request without references must not present a
-    fake T2VA switch.  Offer a current-mode submission explicitly instead.
+    A text-only fallback is an explicit mode choice, not a submission in Ref2VA.
     """
     if str(mode).strip().lower() != "reference":
         return result
@@ -20,30 +18,24 @@ def normalize_reference_mode_questions(result: dict[str, Any], mode: str, genera
     if references:
         return result
     questions = [item for item in result.get("questions", []) if isinstance(item, dict)]
-    switch_terms = ("t2va", "纯文字", "纯文本", "切换", "改为")
-    changed = False
-    for question in questions:
-        options = [str(option).strip() for option in question.get("options", []) if str(option).strip()]
-        filtered = [option for option in options if not any(term in option.lower() for term in switch_terms)]
-        if len(filtered) != len(options):
-            changed = True
-            if "按当前模式直接提交" not in filtered:
-                filtered.insert(0, "按当前模式直接提交")
-            if "补充参考素材后继续" not in filtered:
-                filtered.append("补充参考素材后继续")
-            question["options"] = filtered
-    if changed:
-        result["questions"] = questions
-        result["status"] = "needs_input"
-        return result
-    if not questions:
+    if not any(item.get("id") == "missing_reference_action" for item in questions):
         result["questions"] = [{
             "id": "missing_reference_action",
-            "text": "当前选择的是参考生成，但没有附带参考素材。请选择下一步：",
-            "options": ["按当前模式直接提交", "补充参考素材后继续"],
-        }]
-        result["status"] = "needs_input"
+            "text": "当前选择的是参考生成，但没有附带参考素材。请选择一次后继续：",
+            "options": ["切换为纯文字生成（T2VA）", "补充参考素材后继续"],
+        }, *questions]
+    else:
+        result["questions"] = questions
+    result["status"] = "needs_input"
     return result
+
+
+def selected_text_fallback(message: str, generation: dict[str, Any]) -> bool:
+    """Recognize the explicit T2VA choice for an empty Ref2VA session."""
+    if generation.get("mode") != "reference" or generation.get("ordered_references"):
+        return False
+    text = str(message).strip().lower()
+    return any(term in text for term in ("t2va", "纯文字生成", "纯文字模式", "纯文本生成", "切换到纯文字"))
 
 
 def parse_requirements_result(
@@ -289,6 +281,10 @@ def parse_requirements_result(
             contract_issues.append(f"audio_plan.{key} must be an object")
     background_music = dict(audio_plan.get("background_music")) if isinstance(audio_plan.get("background_music"), dict) else {}
     music_choice = str(background_music.get("choice", "")).strip().lower()
+    if music_choice not in {"none", "ai_match_script", "user_specified"}:
+        music_choice = "none"
+        background_music["choice"] = music_choice
+        background_music.setdefault("source", "default")
     music_resolved = music_choice in {"none", "ai_match_script", "user_specified"}
     if claimed_ready and not music_resolved:
         contract_issues.append("audio_plan.background_music.choice must be explicit and valid")
@@ -345,12 +341,6 @@ def parse_requirements_result(
     ready = claimed_ready and bool(brief) and bool(script) and music_resolved and not contract_issues and not normalization_questions
     questions = [] if ready else normalized_agent_questions(result)
     questions.extend(normalization_questions)
-    if not music_resolved and not any(item.get("id") == "background_music_choice" for item in questions):
-        questions.append({
-            "id": "background_music_choice",
-            "text": "这段视频是否需要观众听到的背景音乐？",
-            "options": ["不配背景音乐（默认）", "由 AI 按剧本设计配乐"],
-        })
     return {
         "status": "ready" if ready else "needs_input",
         "message": str(result.get("message", "")).strip() or ("方案已整理完成。" if ready else "我还需要一点信息才能继续。"),

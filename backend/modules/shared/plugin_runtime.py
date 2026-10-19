@@ -167,7 +167,7 @@ class PluginRuntime:
 
     def style_items(self):
         from ..presets.style_library import items
-        return items(self._context)
+        return items(self._context, self.plugin_id)
 
     def voice_sample(self, preset):
         from ..presets.voices import VoicePresets

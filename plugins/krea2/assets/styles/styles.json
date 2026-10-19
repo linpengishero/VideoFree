@@ -1,0 +1,51 @@
+[
+  {
+    "id": "krea2-realistic",
+    "name": "Photorealistic",
+    "name_cn": "写实摄影",
+    "category": "基础风格",
+    "default": true,
+    "thumbnail": "krea2-realistic.png",
+    "prompt": "{prompt}\n\nPhotorealistic image, natural human anatomy, lifelike skin and materials, physically coherent light, realistic lens rendering, fine natural detail, neutral photographic color."
+  },
+  {
+    "id": "krea2-cinematic",
+    "name": "Cinematic",
+    "name_cn": "电影质感",
+    "category": "基础风格",
+    "thumbnail": "krea2-cinematic.png",
+    "prompt": "{prompt}\n\nCinematic live-action photography, motivated key and fill light, nuanced shadow detail, natural material response, subtle atmospheric depth, restrained film color science."
+  },
+  {
+    "id": "krea2-product-photo",
+    "name": "Commercial Photography",
+    "name_cn": "商业摄影",
+    "category": "基础风格",
+    "thumbnail": "krea2-product-photo.png",
+    "prompt": "{prompt}\n\nPremium commercial photography, accurate object geometry, clean studio setup, controlled specular highlights, realistic surface detail, crisp focus, uncluttered background."
+  },
+  {
+    "id": "krea2-3d-render",
+    "name": "3D Render",
+    "name_cn": "3D渲染",
+    "category": "创作风格",
+    "thumbnail": "krea2-3d-render.png",
+    "prompt": "{prompt}\n\nHigh-quality 3D rendering, sculptural volume, physically based materials, smooth but believable surfaces, soft global illumination, precise clean geometry."
+  },
+  {
+    "id": "krea2-digital-illustration",
+    "name": "Digital Illustration",
+    "name_cn": "数字插画",
+    "category": "创作风格",
+    "thumbnail": "krea2-digital-illustration.png",
+    "prompt": "{prompt}\n\nRefined digital illustration, intentional shape language, crisp edges, controlled painterly shading, cohesive color design, clear illustrated rather than photographic finish."
+  },
+  {
+    "id": "krea2-anime",
+    "name": "Anime Illustration",
+    "name_cn": "动漫插画",
+    "category": "创作风格",
+    "thumbnail": "krea2-anime.png",
+    "prompt": "{prompt}\n\nPolished anime illustration, confident clean linework, expressive yet coherent facial features, clear cel-aware shadows, consistent anatomy, deliberate color design."
+  }
+]

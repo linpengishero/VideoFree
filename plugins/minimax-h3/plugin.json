@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "minimax-h3",
   "prompt_translation_action": "h3_translate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "resource_lifecycle": {
     "completed": "checkpoints.py:completed",
     "recover": "checkpoints.py:recover",
@@ -44,7 +44,7 @@
           "max": 9
         },
         "video": {
-          "min": 1,
+          "min": 0,
           "max": 3
         },
         "audio": {
@@ -486,6 +486,7 @@
       ],
       "skill_model": "minimax-h3",
       "skill_mode": "ref2va",
+      "confirmation_handler": "collaboration/confirmation.py:prepare",
       "compiler_handler": "compiler.py:prepare",
       "dimension_alignment": 32,
       "duration": {

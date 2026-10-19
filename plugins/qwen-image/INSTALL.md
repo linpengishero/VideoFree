@@ -15,3 +15,7 @@
 使用当前 ComfyUI 核心的 Qwen Image 2.1 节点，包括 `TextEncodeQwenImage21`、`QwenImage21Cache`、`TESpeedQwenImage21` 与通用加载/采样/保存节点。缺失时更新 ComfyUI。
 
 重启后分别验证文生图、图生图、人物、场景和分镜模式。
+
+## 插件内置风格
+
+风格提示词与预览图均随插件分发，位于 `assets/styles/`。默认风格为写实摄影；新增风格时更新本目录的 `styles.json`、加入插件生成的预览图，并在 `plugin.json` 的 `assets` 中登记全部固定资源。无需配置或复制 ComfyUI 外部风格库。

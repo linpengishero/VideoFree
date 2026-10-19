@@ -14,9 +14,7 @@ Preserve explicit user facts, exact dialogue, reference order, duration, mode, a
 
 ## Music decision
 
-Background music is never automatic. If the conversation has not explicitly accepted or rejected audience-only music, return `needs_input` with one question whose id is `background_music_choice` and options are exactly `不配背景音乐（默认）` and `由 AI 按剧本设计配乐`. The default is no music, but it must still be confirmed.
-
-Use `none`, `ai_match_script`, or `user_specified`. When music is authorized, derive its function, instrumentation, tempo, intensity and timing from the actual scene. Never use cheerful or light music for danger, combat, grief or suspense unless comic contrast was requested. Do not discuss licensing.
+Use no background music by default unless the user requests it or clearly approves AI-designed music. Do not ask a separate confirmation for this safe default. When music is authorized, derive its function, instrumentation, tempo, intensity and timing from the actual scene. Never use cheerful or light music for danger, combat, grief or suspense unless comic contrast was requested. Do not discuss licensing.
 
 ## Production decisions
 

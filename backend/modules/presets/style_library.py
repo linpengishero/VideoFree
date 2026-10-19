@@ -3,29 +3,29 @@ import json
 from pathlib import Path
 
 
-def items(context):
-    import os
+def items(context, plugin_id=None):
     from ..generation.plugins import PluginCatalog
-    configured = os.getenv('MEDIA_STYLE_DIR')
-    if configured:
-        return catalog(configured)
     result, errors = [], []
     plugins, _ = PluginCatalog(context.paths.plugins, context).scan()
-    for plugin in plugins:
+    matching = [plugin for plugin in plugins if not plugin_id or plugin.get('id') == plugin_id]
+    for plugin in matching:
         declaration = plugin.get('style_library')
         if not declaration:
             continue
-        rows, failures = catalog(context.comfyui_output_dir.parent / declaration['comfyui_directory'])
-        prefix = declaration.get('category_prefix', '')
+        plugin_root = context.paths.plugins / plugin['_plugin_folder']
+        rows, failures = catalog(plugin_root / declaration['directory'], namespace=plugin['id'])
+        default_id = declaration.get('default_id', '')
+        if default_id and rows and not any(row['id'] == default_id for row in rows):
+            failures.append(f"style_library default_id is not present in {plugin['id']} styles: {default_id}")
         for row in rows:
-            if prefix and row['category'].startswith(prefix):
-                row['category'] = row['category'][len(prefix):]
+            row['default'] = row['id'] == default_id
+            row['plugin_id'] = plugin['id']
         result.extend(rows)
         errors.extend(failures)
     return result, errors
 
 
-def catalog(root):
+def catalog(root, namespace=''):
     root = Path(root).resolve()
     items, errors = [], []
     if not root.is_dir():
@@ -39,7 +39,8 @@ def catalog(root):
                 if not isinstance(row, dict) or not isinstance(row.get('prompt'), str) or not row.get('name'):
                     continue
                 key = str(path.relative_to(root)) + ':' + row['name']
-                item = dict(row, id=hashlib.sha256(key.encode()).hexdigest()[:24], category=path.stem)
+                style_id = row.get('id') or hashlib.sha256(f'{namespace}:{key}'.encode()).hexdigest()[:24]
+                item = dict(row, id=style_id, category=row.get('category') or path.stem)
                 thumbnail = row.get('thumbnail')
                 item.pop('thumbnail', None)
                 if isinstance(thumbnail, str) and not thumbnail.startswith(('http:', 'https:')):

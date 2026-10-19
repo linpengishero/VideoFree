@@ -489,13 +489,10 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
             return {"items": db.creative_presets(domain, category)}
 
     catalog_routes("music", {"style", "singer", "voice_texture", "preset"})
-    catalog_routes("image", {"style"})
-
     @router.get("/image/styles")
     async def image_styles():
         file_styles, errors = await asyncio.to_thread(style_items)
-        items = [{"id": item["id"], "name": item.get("name_cn") or item["name"], "source": "comfyui", "category": item.get("category", "")} for item in file_styles]
-        items.extend(db.creative_presets("image", "style"))
+        items = [{"id": item["id"], "name": item.get("name_cn") or item["name"], "source": "plugin", "category": item.get("category", "")} for item in file_styles]
         return {"items": items, "errors": errors}
 
     @router.get("/music/styles")
@@ -662,9 +659,13 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
         settings = dict(source.get("settings", {}))
         patch = confirmation_overrides(resolve_capability(item["capability_id"]), source, result,
                                        item.get("project_id"))
+        submission_capability_id = patch.get("capability_id", item["capability_id"])
+        submission_config = resolve_capability(submission_capability_id)
+        if submission_config.get("plugin_id") != resolve_capability(item["capability_id"]).get("plugin_id"):
+            raise HTTPException(422, "插件确认只能切换到同一插件注册的生成能力")
         settings.update(patch.get("settings", {}))
         create_request = CreateRequest(
-            capability_id=item["capability_id"],
+            capability_id=submission_capability_id,
             prompt=optimized_prompt,
             lyrics=patch.get("lyrics", source.get("lyrics", "")),
             inputs=[AssetInput.model_validate(value) for value in source.get("inputs", [])],
@@ -684,7 +685,7 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
                 job = jobs().get(existing) or db.job(existing)
                 if job:
                     db.update_collaboration(collaboration_id, {"status": "submitted", "job_id": existing})
-                    return {**api_submission({"job_id": existing, "kind": job["kind"], "status": job["status"], "reused": True}, item["capability_id"]),
+                    return {**api_submission({"job_id": existing, "kind": job["kind"], "status": job["status"], "reused": True}, submission_capability_id),
                             "collaboration_id": collaboration_id, "revision": request.revision}
         submission = await create_generation(
             create_request, parent_job_id=source.get("parent_job_id"),
@@ -693,7 +694,8 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
         if confirmation_key:
             db.save_idempotent_job(confirmation_key, submission["job_id"])
         db.update_collaboration(collaboration_id, {"status": "submitted", "job_id": submission["job_id"]})
-        return {**submission, "collaboration_id": collaboration_id, "revision": request.revision}
+        return {**submission, "capability_id": submission_capability_id,
+                "collaboration_id": collaboration_id, "revision": request.revision}
 
     @router.post("/collaborations/{collaboration_id}/confirm", status_code=202)
     async def confirm_collaboration(collaboration_id: str, request: CollaborationConfirmRequest):

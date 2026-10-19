@@ -119,12 +119,21 @@ class PluginCatalog:
         if style_library is not None:
             if not isinstance(style_library, dict):
                 raise ValueError("style_library must be an object")
-            directory = style_library.get("comfyui_directory")
-            if (not isinstance(directory, str) or not directory or Path(directory).is_absolute()
-                    or Path(directory).drive or ".." in Path(directory).parts):
-                raise ValueError("style_library requires a relative ComfyUI directory")
-            if not isinstance(style_library.get("category_prefix", ""), str):
-                raise ValueError("style_library category_prefix must be a string")
+            if set(style_library) - {"directory", "default_id"}:
+                raise ValueError("style_library only supports plugin-local directory and default_id")
+            if "directory" in style_library:
+                directory = style_library.get("directory")
+                relative = Path(directory) if isinstance(directory, str) else Path()
+                resolved = (root / relative).resolve()
+                if (not isinstance(directory, str) or not directory or relative.is_absolute()
+                        or relative.drive or ".." in relative.parts or not resolved.is_relative_to(root)
+                        or not resolved.is_dir()):
+                    raise ValueError("style_library directory must be a local plugin directory")
+                default_id = style_library.get("default_id", "")
+                if not isinstance(default_id, str) or (default_id and not IDENTIFIER.fullmatch(default_id)):
+                    raise ValueError("style_library default_id must be a stable identifier")
+            else:
+                raise ValueError("style_library requires a plugin-local directory")
         assets = value.get('assets', [])
         if not isinstance(assets, list) or any(not isinstance(name, str) for name in assets):
             raise ValueError('Plugin assets must be a list of local file paths')

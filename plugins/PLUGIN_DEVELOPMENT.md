@@ -139,7 +139,7 @@ runtime.application
 | `jobs()` | 读取当前项目可见任务 |
 | `update_job_parameters(job, parameters, **metadata)` | 持久化插件产生的任务元数据 |
 | `voice_preset(id)`, `voice_sample(preset)` | 只读读取声音预设及样本路径 |
-| `style_items()` | 读取共享风格库 |
+| `style_items()` | 读取当前插件自己的风格库 |
 | `reference(upload_id, media)` | 校验并取得上传参考素材引用 |
 | `comfyui_output_file(relative)` | 安全读取一个 ComfyUI 输出文件 |
 | `comfyui_output_files(directory, pattern, detect=True)` | 在输出目录内查找辅助文件 |
@@ -359,7 +359,7 @@ def category_delete(event, runtime):
 
 - 插件配置在 `plugin.json.settings` 声明，通过插件设置接口读取。
 - 音色预设在清单声明，样本 MP3 使用插件内相对路径。预设语音提交前会验证音色存在、归属插件和样本文件；模型专用的音频时长限制应由插件处理，不能在框架硬编码统一的 30 秒限制。
-- `style_library.comfyui_directory` 指向 ComfyUI 安装内的外部风格资源目录；目录缺失或无可用风格时接口返回 `errors`，插件及调用方应展示诊断，不应把空列表解释为已安装资源。可通过 `MEDIA_STYLE_DIR` 指定资源目录。
+- 风格必须内置在插件中：使用 `style_library.directory` 指向插件内 JSON 风格目录，使用 `style_library.default_id` 指定默认项，并在 `assets` 中声明风格 JSON 与预览图片。用网关的插件能力生成实际风格示例，作为该插件的缩略图，不从 ComfyUI 风格目录复制素材。`runtime.style_items()` 只返回当前插件的风格；没有风格库的插件得到空列表。框架不读取 ComfyUI 风格目录、`MEDIA_STYLE_DIR` 或其它插件的资源。
 - 8-bit PCM WAV 在上传给 ComfyUI 时自动转换为 PCM16；原始上传文件及任务输入哈希保持不变。
 - 图标使用插件内 PNG/JPG/WEBP/GIF；没有图片时框架显示名称首字。
 - 工作流放插件目录并注册，不使用根目录旧工作流路径。

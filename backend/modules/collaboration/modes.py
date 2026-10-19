@@ -22,11 +22,22 @@ def confirmation_overrides(config, source, result, project_id=None):
     runtime = PluginRuntime(config["plugin_id"], PluginSettings(context).runtime(config["plugin_id"]),
                             context, project_id=project_id, category_id=(source or {}).get("category_id"))
     patch = handler(source, result, runtime)
-    if not isinstance(patch, dict) or set(patch) - {"settings", "parameters", "lyrics"}:
+    if not isinstance(patch, dict) or set(patch) - {"settings", "parameters", "lyrics", "capability_id"}:
         raise ValueError("Invalid plugin confirmation result")
     for field in ("settings", "parameters"):
         if field in patch and not isinstance(patch[field], dict):
             raise ValueError(f"Plugin confirmation {field} must be an object")
+    if "capability_id" in patch:
+        capability_id = patch["capability_id"]
+        if not isinstance(capability_id, str) or not capability_id:
+            raise ValueError("Plugin confirmation capability_id must be a non-empty string")
+        plugins, _ = PluginCatalog(context.paths.plugins, context).scan()
+        target = next((capability for plugin in plugins if plugin.get("id") == config.get("plugin_id")
+                       for key, capability in plugin.get("capabilities", {}).items()
+                       if key == capability_id and capability.get("operation", "generate") == "generate"), None)
+        if not target:
+            raise ValueError("Plugin confirmation may only select a capability registered by the same plugin")
+        patch["capability_id"] = capability_id
     return patch
 
 

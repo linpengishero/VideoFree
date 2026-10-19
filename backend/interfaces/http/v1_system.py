@@ -88,13 +88,13 @@ async def models(_: None = Depends(auth)):
 
 
 @router.get('/v1/styles', dependencies=[Depends(auth)])
-async def styles():
-    items, errors = await asyncio.to_thread(style_items)
-    return {'items': [{'id': s['id'], 'name': s.get('name_cn') or s['name'], 'original_name': s['name'], 'category': s['category'], 'thumbnail': '/v1/styles/' + s['id'] + '/thumbnail' if s.get('thumbnail_path') else None} for s in items], 'errors': errors}
+async def styles(plugin_id: str = ""):
+    items, errors = await asyncio.to_thread(style_items, plugin_id or None)
+    return {'items': [{'id': s['id'], 'name': s.get('name_cn') or s['name'], 'original_name': s['name'], 'category': s['category'], 'default': s.get('default', False), 'thumbnail': f"/v1/styles/{s['id']}/thumbnail?plugin_id={s['plugin_id']}" if s.get('thumbnail_path') else None} for s in items], 'errors': errors}
 
 @router.get('/v1/styles/{style_id}/thumbnail', dependencies=[Depends(auth)])
-async def style_thumbnail(style_id: str):
-    item = next((s for s in (await asyncio.to_thread(style_items))[0] if s['id'] == style_id), None)
+async def style_thumbnail(style_id: str, plugin_id: str = ''):
+    item = next((s for s in (await asyncio.to_thread(style_items, plugin_id or None))[0] if s['id'] == style_id), None)
     if not item or not item.get('thumbnail_path'):
         raise HTTPException(404, 'Thumbnail not found')
     return FileResponse(item['thumbnail_path'])
