@@ -141,11 +141,15 @@ Use the included skill when asking a coding agent to create, migrate, review, or
 ## Community
 
 - AI Arsenal and project updates: [laobanclaw.top](https://laobanclaw.top/)
-- VideoFree WeChat group:
+- **Knowledge Planet**: AI video automation workflows and practical knowledge about AI, agents, and large language models.
+- **VideoFree WeChat group**: discuss local models, plugin development, workflow packaging, and AI video creation. If the QR code expires, visit [laobanclaw.top](https://laobanclaw.top/) for the latest entry.
 
-<img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree WeChat group QR code" width="240" />
-
-The QR code may expire; use the website above for the latest community entry.
+<table>
+  <tr>
+    <td align="center"><strong>Knowledge Planet</strong><br /><a href="frontend/public/contact/zsxq-qr.png"><img src="frontend/public/contact/zsxq-qr.png" alt="Knowledge Planet QR code" width="220" /></a></td>
+    <td align="center"><strong>VideoFree WeChat group</strong><br /><a href="https://laobanclaw.top/videofree/qrcode.jpg"><img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree WeChat group QR code" width="220" /></a></td>
+  </tr>
+</table>
 
 ## License and third-party boundaries
 

@@ -59,15 +59,15 @@ ComfyUI、社区节点、模型、LoRA、字体、FFmpeg 及其他资源不属�
 ## AI军火库与知识星球
 
 - **AI军火库 · 前沿 AI 技术网站**：[laobanclaw.top](https://laobanclaw.top/)，关注前沿 AI 技术与实际应用。
-- **知识星球**：分享各类 AI 视频自动化流水线，以及 AI、智能体与大模型专业知识。可在工作台首页扫码，或点击下方二维码放大查看。
+- **知识星球**：分享各类 AI 视频自动化流水线，以及 AI、智能体与大模型专业知识。点击二维码可放大查看。
+- **VideoFree 微信交流群**：交流本地模型、插件开发、工作流封装和 AI 视频创作。二维码失效时可前往 [laobanclaw.top](https://laobanclaw.top/) 获取最新入口。
 
-[![知识星球二维码](frontend/public/contact/zsxq-qr.png)](frontend/public/contact/zsxq-qr.png)
-
-### 微信交流群
-
-欢迎加入 VideoFree 微信交流群，交流本地模型、插件开发、工作流封装和 AI 视频创作。二维码失效时可前往 [laobanclaw.top](https://laobanclaw.top/) 获取最新入口。
-
-<img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree 微信交流群二维码" width="240" />
+<table>
+  <tr>
+    <td align="center"><strong>知识星球</strong><br /><a href="frontend/public/contact/zsxq-qr.png"><img src="frontend/public/contact/zsxq-qr.png" alt="知识星球二维码" width="220" /></a></td>
+    <td align="center"><strong>VideoFree 微信交流群</strong><br /><a href="https://laobanclaw.top/videofree/qrcode.jpg"><img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree 微信交流群二维码" width="220" /></a></td>
+  </tr>
+</table>
 
 ## 配套 ComfyUI 整合包
 
