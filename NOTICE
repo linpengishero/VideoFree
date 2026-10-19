@@ -1,6 +1,11 @@
 VideoFree
 
-Copyright (c) 2026 VideoFree contributors.
+Copyright (c) 2026 VideoFree individual project author and contributors.
+
+VideoFree is an independently maintained personal project. Unless a file or notice
+states otherwise, this notice concerns only VideoFree-owned code. Each contributor
+retains rights not expressly granted in a signed agreement. Third-party materials
+remain owned by their respective rights holders.
 
 VideoFree-owned source code in this repository is released under the GNU Affero
 General Public License v3.0 in the root LICENSE file.
@@ -19,7 +24,10 @@ Commercial licensing contact: 459082139@qq.com
 
 VideoFree
 
-Copyright (c) 2026 VideoFree contributors.
+Copyright (c) 2026 VideoFree individual project author and contributors.
+
+VideoFree 是由个人维护的独立项目。本声明仅涉及 VideoFree 自有代码，除非文件或声明另有
+说明。每位贡献者保留未通过签署协议明确授予的权利。第三方内容仍归各自权利人所有。
 
 本仓库中的 VideoFree 自有源代码按根目录 LICENSE 中的 GNU Affero General Public
 License v3.0 发布。
