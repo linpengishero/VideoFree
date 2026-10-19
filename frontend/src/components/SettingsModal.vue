@@ -18,31 +18,28 @@ const message = ref("");
 const messageType = ref('error');
 function feedback(text, type = 'error') { messageType.value = type; message.value = text; }
 const models = ref([]);
+const llmProviders = ref([]);
 const loadingModels = ref(false);
 const showAiKey = ref(false);
 const visiblePluginSecrets = ref(new Set());
-const providerDefaults = {
-  openai: { ai_base_url: "https://api.openai.com/v1", ai_model: "gpt-4.1" },
-  deepseek: { ai_base_url: "https://api.deepseek.com/v1", ai_model: "deepseek-chat" },
-  custom: { ai_base_url: "", ai_model: "" },
-};
 const activePlugin = computed(() => plugins.value.find(item => `plugin:${item.id}` === active.value));
 
 async function load() {
-  const [data, catalog] = await Promise.all([gateway.settings(), gateway.pluginSettings()]);
+  const [data, catalog, providerCatalog] = await Promise.all([gateway.settings(), gateway.pluginSettings(), gateway.llmProviders()]);
   delete data.comfyui_output_dir;
   form.value = { ...form.value, ...data };
+  llmProviders.value = providerCatalog.items || [];
   plugins.value = catalog.items || [];
   await Promise.all(plugins.value.map(async plugin => {
     const result = await gateway.pluginSettingValues(plugin.id);
     pluginValues.value[plugin.id] = result.values || {};
   }));
-  if (!Object.hasOwn(providerDefaults, form.value.ai_provider)) form.value.ai_provider = "custom";
+  if (!llmProviders.value.some(item => item.id === form.value.ai_provider)) form.value.ai_provider = llmProviders.value[0]?.id || "custom";
   if (["auto", "on"].includes(form.value.ai_thinking_mode)) form.value.ai_thinking_mode = "medium";
 }
 function applyProviderDefaults() {
-  const defaults = providerDefaults[form.value.ai_provider];
-  if (defaults && form.value.ai_provider !== "custom") Object.assign(form.value, defaults);
+  const provider = llmProviders.value.find(item => item.id === form.value.ai_provider);
+  if (provider?.defaults) Object.assign(form.value, provider.defaults);
 }
 async function chooseDirectory() {
   choosing.value = true;
@@ -96,7 +93,7 @@ async function fetchModels() {
   if (!form.value.ai_base_url.trim()) return feedback('请先填写 API Base URL');
   loadingModels.value = true;
   try {
-    const result = await gateway.aiModels({ ai_base_url: form.value.ai_base_url, ai_api_key: form.value.ai_api_key });
+    const result = await gateway.aiModels({ ai_provider: form.value.ai_provider, ai_base_url: form.value.ai_base_url, ai_api_key: form.value.ai_api_key });
     models.value = result.items || [];
     if (models.value.length && !models.value.includes(form.value.ai_model)) form.value.ai_model = models.value[0];
     if (!models.value.length) feedback('服务未返回可用模型');
@@ -129,7 +126,7 @@ onMounted(() => load().catch(error => { feedback(error.message); }));
           <section v-else-if="active === 'llm'" class="settings-section">
             <div class="settings-section-title"><Icon icon="solar:magic-stick-3-linear" width="17" /><span><b>LLM 服务</b><small>系统公共能力，供智能协作插件调用</small></span></div>
             <div class="settings-grid">
-              <label>模型服务<select v-model="form.ai_provider" @change="applyProviderDefaults"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="custom">自定义模型</option></select></label>
+              <label>模型服务<select v-model="form.ai_provider" @change="applyProviderDefaults"><option v-for="provider in llmProviders" :key="provider.id" :value="provider.id">{{ provider.name }}</option></select></label>
               <label>API Base URL<input v-model="form.ai_base_url" placeholder="https://api.openai.com/v1" /></label>
               <label>模型名称<div class="settings-model-row"><select v-if="models.length" v-model="form.ai_model"><option v-for="model in models" :key="model" :value="model">{{ model }}</option></select><input v-else v-model="form.ai_model" placeholder="gpt-4.1-mini" /><button type="button" :disabled="loadingModels" title="获取模型列表" @click="fetchModels"><Icon icon="solar:refresh-linear" width="17" /></button></div></label>
               <label>API Key<div class="settings-secret"><input v-model="form.ai_api_key" :type="showAiKey ? 'text' : 'password'" placeholder="留空保持不变" /><button type="button" @click="toggleAiSecret"><Icon :icon="showAiKey ? 'solar:eye-closed-linear' : 'solar:eye-linear'" width="17" /></button></div></label>

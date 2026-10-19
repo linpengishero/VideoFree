@@ -2,8 +2,6 @@ import json
 import os
 from pathlib import Path
 from typing import Any
-import urllib.error
-import urllib.request
 import urllib.parse
 
 from ...core.context import ApplicationContext
@@ -48,8 +46,10 @@ class SettingsService:
         defaults["ai_multimodal_video"] = str(defaults.get("ai_multimodal_video", "true")).lower() in {
             "1", "true", "yes", "on",
         }
-        if defaults.get("ai_provider") not in {"openai", "deepseek", "custom"}:
-            defaults["ai_provider"] = "custom"
+        providers = getattr(self.context, "system_services", None)
+        if providers and not providers.contains(defaults.get("ai_provider")):
+            available = providers.items()
+            defaults["ai_provider"] = "custom" if providers.contains("custom") else (available[0]["id"] if available else "custom")
         if str(defaults.get("ai_thinking_mode", "")).lower() in {"", "auto", "on"}:
             defaults["ai_thinking_mode"] = "medium"
         return defaults
@@ -134,6 +134,9 @@ class SettingsService:
         })
         if not settings["comfyui_url"]:
             raise ValueError("comfyui_url is required")
+        providers = getattr(self.context, "system_services", None)
+        if providers and providers.items() and not providers.contains(settings.get("ai_provider", "")):
+            raise ValueError("所选 LLM Provider 未注册或不可用")
         self.context.comfyui_url = settings["comfyui_url"].rstrip("/")
         self.comfyui.configure(self.context.comfyui_url)
         getattr(self.context, "comfyui_output_locations", {}).clear()
@@ -142,20 +145,12 @@ class SettingsService:
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
         return settings
 
-    @staticmethod
-    def fetch_ai_models(base_url: str, api_key: str = "") -> list[str]:
-        url = base_url.rstrip("/") + "/models"
-        headers = {"Accept": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=20) as response:
-                payload = json.loads(response.read())
-        except (OSError, urllib.error.HTTPError, json.JSONDecodeError) as exc:
-            raise ValueError(f"无法获取模型列表: {exc}") from exc
-        rows = payload.get("data", payload.get("models", [])) if isinstance(payload, dict) else []
-        return sorted({
-            str(item.get("id") or item.get("name"))
-            for item in rows
-            if isinstance(item, dict) and (item.get("id") or item.get("name"))
-        }, key=str.lower)
+    def llm_providers(self) -> list[dict[str, Any]]:
+        providers = getattr(self.context, "system_services", None)
+        return providers.items() if providers else []
+
+    def fetch_ai_models(self, base_url: str, api_key: str = "", provider_id: str = "openai") -> list[str]:
+        providers = getattr(self.context, "system_services", None)
+        if not providers:
+            raise ValueError("LLM Provider 目录未初始化")
+        return providers.get(provider_id).list_models(base_url, api_key)

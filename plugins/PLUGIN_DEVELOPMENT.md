@@ -1,5 +1,7 @@
 # VideoFree 插件开发指南
 
+[English version](PLUGIN_DEVELOPMENT_EN.md) · **中文**
+
 VideoFree 插件的目标，是把零散的模型、ComfyUI 工作流、提示词规则和配套资源封装成普通用户能直接使用、Agent 能稳定调用的产品能力。用户不应为了使用插件而理解节点连线；Agent 也不应接触节点 ID、模型路径或工作流内部结构。
 
 插件是本地可信代码包，必须位于 `plugins/<plugin-id>/`，由同目录的

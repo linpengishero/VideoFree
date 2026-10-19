@@ -1,5 +1,7 @@
 # 架构说明
 
+[English version](ARCHITECTURE_EN.md) · **中文**
+
 项目采用模块化单体。所有能力运行在一个 FastAPI 进程内，但代码按业务所有权隔离，避免通过全局工具函数互相穿透。
 
 ## 依赖方向
@@ -46,6 +48,7 @@ bootstrap / lifecycle -> all application modules
 操作栏层级由插件 `ui_models` 声明：主分类、模型、左上角生成子功能；设置绑定当前子功能的能力声明。右侧提示词处理模式与子功能平级且独立，框架不维护模型子菜单列表。
 HTTP v2 与 MCP 共用能力目录和提交入口，不给每个插件复制路由或 MCP 工具。
 系统 LLM、协作会话、进度及跨插件能力/动作调用通过 `PluginRuntime` 作为稳定框架接口提供给插件；跨插件调用仍经过能力与动作目录、项目归属、Schema 校验和统一任务队列，插件不得导入其他插件代码、读取系统数据库或 LLM 密钥。插件专属配置由 `plugin.json.settings` 声明、设置页按插件切换，并保存到该插件的 `.env`；系统配置仍归 settings 数据库。
+系统级外部服务适配归 `backend/integrations/system_services/`，不得伪装成生成插件。当前 LLM Provider 通过清单发现，服务商差异由 Provider 实现，协作业务不按服务商 ID 分支。新增 LLM Provider 不修改框架业务代码；系统服务扩展协议及当前未覆盖的通用调用能力见 [docs/system-service-protocol.md](docs/system-service-protocol.md)。
 插件业务通过 plugin.json 顶层 actions 声明用途、输入 Schema、自动化可见性和处理器；generation/actions 负责统一校验、项目归属、源素材适配和任务调度，专用实现归插件。HTTP/MCP 只提供固定的动作发现、详情和执行入口；声音生成、二采与译稿均走此入口。旧模型生成、专用 TTS、refine、H3 翻译和 studio 协作 URL 已移除，不提供重定向或回退。项目、上传、任务、当前协作生命周期和系统服务仍归框架，不因 URL 含 v1 而废弃。
 排队任务与协作保存插件版本快照，插件文件发生变化后拒绝继续执行旧任务；更新插件应先排空任务。
 插件修订指纹使用清单和源码、文档及声明资源的内容哈希，不依赖安装或复制后的文件时间。执行中的任务由 ApplicationContext.executing_jobs 跟踪，取消状态不代表执行器已退出；删除、切换存储目录必须等待执行器退出，归档阶段拒绝取消。

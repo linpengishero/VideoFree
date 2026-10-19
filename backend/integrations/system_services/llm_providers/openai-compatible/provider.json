@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "openai",
+  "name": "OpenAI",
+  "entry": "openai-compatible/provider.py:Provider",
+  "thinking": "openai",
+  "defaults": {
+    "ai_base_url": "https://api.openai.com/v1",
+    "ai_model": "gpt-4.1-mini"
+  }
+}

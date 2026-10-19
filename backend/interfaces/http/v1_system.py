@@ -50,9 +50,6 @@ def apply_settings(values):
     return settings_service.apply(values)
 
 
-def fetch_ai_models(base_url, api_key=""):
-    return settings_service.fetch_ai_models(base_url, api_key)
-
 @router.get("/", response_class=HTMLResponse)
 @router.get("/studio", response_class=HTMLResponse)
 async def index() -> str:
@@ -116,6 +113,12 @@ async def settings(reveal_secrets: bool = False):
         values["ai_api_key"] = "********" if values.get("ai_api_key") else ""
         values["gateway_token"] = "********" if values.get("gateway_token") else ""
     return values
+
+
+@router.get("/v1/settings/llm-providers", dependencies=[Depends(auth)])
+async def llm_providers():
+    return {"items": settings_service.llm_providers(),
+            "errors": getattr(context.system_services, "errors", [])}
 
 
 @router.get("/v1/settings/plugins", dependencies=[Depends(auth)])
@@ -206,7 +209,9 @@ async def list_ai_models(request: AIModelsRequest):
     current = read_settings()
     key = current.get("ai_api_key", "") if request.ai_api_key == "********" else request.ai_api_key.strip()
     try:
-        return {"items": await asyncio.to_thread(fetch_ai_models, request.ai_base_url, key)}
+        return {"items": await asyncio.to_thread(
+            settings_service.fetch_ai_models, request.ai_base_url, key, request.ai_provider
+        )}
     except ValueError as exc:
         raise HTTPException(502, str(exc)) from exc
 

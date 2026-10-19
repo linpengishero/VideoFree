@@ -28,4 +28,4 @@
 
 部分可视化工作流还登记了 `comfyui-kjnodes`、`ComfyUI_Comfyroll_CustomNodes` 和 `ComfyUI_Lam`；通过 [ComfyUI Manager](https://github.com/ltdrdata/ComfyUI-Manager) 的缺失节点检查按实际启用工作流补装，不要仅凭目录名下载不明仓库。
 
-图片风格清单和预览图随插件分发，位于 `assets/styles/`，不依赖 ComfyUI 的外部风格目录。新增风格时更新本目录的 `styles.json`、加入插件生成的预览图，并在 `plugin.json` 的 `assets` 中登记全部固定资源。重启 ComfyUI 后确认模型专用节点、加载器和保存节点都可用。
+图片风格清单、提示词和预览图由 VideoFree 插件自有，随插件分发在 `assets/styles/`，不依赖 ComfyUI 的外部风格目录，也不来自 Krea 官方提示词扩写文件。新增风格时更新本目录的 `styles.json`、加入插件生成的预览图，并在 `plugin.json` 的 `assets` 中登记全部固定资源。重启 ComfyUI 后确认模型专用节点、加载器和保存节点都可用。

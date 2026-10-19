@@ -189,6 +189,8 @@ async def execute_action(catalog, action_id, inputs, context, submit, *, source=
                          category_id=None, invoke_capability=None):
     """Resolve project ownership before executing any plugin code or side effects."""
     from ..projects import ProjectService
+    if action_id not in catalog.actions():
+        raise GatewayError(404, f"插件动作不存在: {action_id}")
     source_project = (source or {}).get("project_id")
     if source_project and project_id and source_project != project_id:
         raise GatewayError(422, "源素材与目标项目不一致")

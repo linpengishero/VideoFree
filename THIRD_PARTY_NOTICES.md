@@ -34,10 +34,3 @@ their own projects. Listing a dependency does not transfer its copyright or gran
 VideoFree sublicense. The editor calls user-installed `ffmpeg` and `ffprobe` from
 system `PATH`; this repository does not commit or distribute those binaries. See
 `plugins/film-studio/INSTALL.md` for installation and verification instructions.
-
-## Krea 2 prompt expansion template
-
-`plugins/krea2/collaboration/skills/upstream/krea-2/expansion.txt` is derived from
-Krea AI's official Krea 2 repository file `docs/expansion.txt` and is used under the
-Apache License 2.0. Its upstream source and license links are recorded in the nearby
-`SOURCE.md`; copyright remains with Krea AI and upstream contributors.

@@ -28,9 +28,3 @@ Python、JavaScript、FFmpeg 及其他依赖的许可证以依赖项目自身发
 依赖清单不代表 videofree 对这些项目拥有版权或再授权权。
 剪辑插件通过系统 `PATH` 调用用户自行安装的 FFmpeg/ffprobe；本仓库不提交或分发其
 二进制文件。安装来源和验证方式见 `plugins/film-studio/INSTALL.md`。
-
-## Krea 2 提示词扩写模板
-
-`plugins/krea2/collaboration/skills/upstream/krea-2/expansion.txt` 来自 Krea AI 的
-Krea 2 官方仓库 `docs/expansion.txt`，按 Apache License 2.0 使用。原始来源与许可链接
-记录在同目录 `SOURCE.md`；其版权归 Krea AI 及上游贡献者所有。

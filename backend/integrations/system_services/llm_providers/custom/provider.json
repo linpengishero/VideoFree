@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "custom",
+  "name": "自定义兼容服务",
+  "entry": "openai-compatible/provider.py:Provider",
+  "thinking": "custom",
+  "defaults": {
+    "ai_base_url": "",
+    "ai_model": ""
+  }
+}

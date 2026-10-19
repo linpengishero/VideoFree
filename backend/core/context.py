@@ -19,6 +19,7 @@ class ApplicationContext:
     db: "Database"
     comfyui_url: str
     comfyui_output_dir: Path
+    system_services: Any = None
     comfyui_output_locations: dict[str, tuple[float, Path | None]] = field(default_factory=dict)
     plugin_catalogs: dict[str, Any] = field(default_factory=dict)
     plugin_catalog_lock: threading.RLock = field(default_factory=threading.RLock)

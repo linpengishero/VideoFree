@@ -51,6 +51,7 @@ class SettingsRequest(BaseModel):
 class AIModelsRequest(BaseModel):
     ai_base_url: str = Field(min_length=1)
     ai_api_key: str = ""
+    ai_provider: str = "openai"
 
 
 class AgentReference(BaseModel):

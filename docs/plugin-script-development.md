@@ -1,5 +1,7 @@
 # 剧本插件开发规范
 
+[English version](plugin-script-development.en.md) · **中文**
+
 本文档供其他 AI 或开发者实现“剧本”应用插件。剧本只是一个示例；同一协议也适用于分镜、角色库、场景库、研究资料、任务看板等任意项目工具。
 
 建议先让开发智能体读取 `.agents/skills/videofree-plugin-development/SKILL.md`，并以 `plugins/PLUGIN_DEVELOPMENT.md` 和 `docs/plugin-protocol.md` 的当前契约为准；本文只说明分类级剧本工具的业务约束。

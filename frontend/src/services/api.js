@@ -95,6 +95,7 @@ export const gateway = {
     request(`/v1/library?kind=${kind}&offset=${offset}${limit == null ? "" : `&limit=${limit}`}&sort=${sort}${categoryId == null ? '' : `&category_id=${encodeURIComponent(categoryId)}`}`),
   settings: (revealSecrets = false) =>
     request(`/v1/settings?reveal_secrets=${revealSecrets ? "true" : "false"}`),
+  llmProviders: () => request("/v1/settings/llm-providers"),
   settingsStatus: (runtime = false) =>
     request(`/v1/settings/status?runtime=${runtime ? "true" : "false"}`),
   voices: () => request("/v1/voices"),

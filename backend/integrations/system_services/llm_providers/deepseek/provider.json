@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "entry": "openai-compatible/provider.py:Provider",
+  "thinking": "deepseek",
+  "defaults": {
+    "ai_base_url": "https://api.deepseek.com/v1",
+    "ai_model": "deepseek-chat"
+  }
+}

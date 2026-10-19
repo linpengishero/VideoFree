@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from .core.context import ApplicationContext
 from .core.config import EnvironmentConfig, ProjectPaths
 from .integrations.comfyui import ComfyUIClient
+from .integrations.system_services import LLMProviderCatalog
 from .persistence import Database
 
 
@@ -22,6 +23,7 @@ def create_context(root: Path) -> ApplicationContext:
         db=Database(paths.data / "media_gateway.db"),
         comfyui_url=config.default_comfyui_url,
         comfyui_output_dir=config.default_comfyui_output_dir,
+        system_services=LLMProviderCatalog(root / "backend" / "integrations" / "system_services" / "llm_providers"),
     )
 
 

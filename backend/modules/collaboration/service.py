@@ -34,11 +34,6 @@ from .progress import (
 )
 
 
-def agent_endpoint(base_url: str) -> str:
-    value = base_url.rstrip("/")
-    return value if value.endswith("/chat/completions") else value + "/chat/completions"
-
-
 def ensure_agent_not_cancelled() -> None:
     collaboration_id = context.current_collaboration_id.get()
     if not collaboration_id:
@@ -82,29 +77,6 @@ def agent_http_post(url: str, payload: bytes, headers: dict[str, str]) -> dict[s
                     context.active_agent_connections.pop(collaboration_id, None)
 
 
-def normalized_thinking_mode(value: Any) -> str:
-    mode = str(value or "medium").lower()
-    return {"auto": "medium", "on": "medium"}.get(mode, mode) if mode in {"auto", "on", "off", "low", "medium", "high"} else "medium"
-
-
-def apply_thinking_options(request_body: dict[str, Any], settings: dict[str, str], *, disabled: bool = False) -> bool:
-    provider = str(settings.get("ai_provider", "custom")).lower()
-    mode = "off" if disabled else normalized_thinking_mode(settings.get("ai_thinking_mode"))
-    model = str(settings.get("ai_model", "")).lower()
-    if provider == "deepseek":
-        request_body["thinking"] = {"type": "disabled" if mode == "off" else "enabled"}
-        return True
-    if provider == "custom":
-        request_body["chat_template_kwargs"] = {"enable_thinking": mode != "off"}
-        if mode != "off":
-            request_body["reasoning_effort"] = mode
-        return True
-    if provider == "openai" and mode != "off" and model.startswith(("o1", "o3", "o4", "gpt-5")):
-        request_body["reasoning_effort"] = mode
-        return True
-    return False
-
-
 def call_agent_chat(
     messages: list[dict[str, Any]],
     max_tokens: int = 2500,
@@ -122,39 +94,26 @@ def call_agent_chat(
     if not base_url or not model:
         raise ValueError("请先在设置中填写 AI API Base URL 和模型名称")
     outbound_messages = strip_rich_agent_media(messages) if _disable_rich_media else messages
-    request_body = {
-        "model": model,
-        "messages": materialize_agent_messages(outbound_messages),
-        "temperature": 0.2,
-        "max_tokens": max_tokens,
-    }
-    if tools:
-        request_body.update({"tools": tools, "tool_choice": tool_choice or "auto", "parallel_tool_calls": True})
-    has_optional_thinking = False if _plain_request else apply_thinking_options(request_body, settings, disabled=_disable_thinking)
+    provider_id = str(settings.get("ai_provider", "custom"))
+    provider = context.system_services.get(provider_id)
+    endpoint, request_body, headers, has_optional_thinking = provider.build_chat_request(
+        settings, materialize_agent_messages(outbound_messages), max_tokens, tools, tool_choice,
+        plain_request=_plain_request, disable_thinking=_disable_thinking,
+    )
     payload = json.dumps(request_body, ensure_ascii=False).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    api_key = settings.get("ai_api_key", "").strip()
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
     try:
-        result = agent_http_post(agent_endpoint(base_url), payload, headers)
+        result = agent_http_post(endpoint, payload, headers)
     except ValueError as exc:
         if getattr(exc, "status", None) == 400 and has_optional_thinking:
             return call_agent_chat(messages, max_tokens, tools, tool_choice, _plain_request=True, _disable_rich_media=_disable_rich_media)
         if not _disable_rich_media and has_rich_agent_media(messages) and rich_media_compatibility_error(exc):
             return call_agent_chat(messages, max_tokens, tools, tool_choice, _plain_request=_plain_request, _disable_rich_media=True)
         raise
-    try:
-        choice = result["choices"][0]
-        message = choice["message"]
-        finish_reason = str(choice.get("finish_reason", ""))
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError("AI 服务返回了无法识别的数据") from exc
-    content = message.get("content", "") if isinstance(message, dict) else ""
-    if isinstance(content, list):
-        content = "".join(str(item.get("text", "")) for item in content if isinstance(item, dict))
-    tool_calls = message.get("tool_calls", []) if isinstance(message, dict) else []
-    reasoning = message.get("reasoning_content", "") if isinstance(message, dict) else ""
+    normalized = provider.parse_chat_response(result)
+    content = normalized["content"]
+    tool_calls = normalized["tool_calls"]
+    reasoning = normalized["reasoning"]
+    finish_reason = normalized["finish_reason"]
     if finish_reason == "length" and not tool_calls:
         if str(reasoning).strip() and not _disable_thinking:
             return call_agent_chat(messages, max_tokens, tools, tool_choice, _disable_thinking=True, _plain_request=_plain_request, _disable_rich_media=_disable_rich_media)
