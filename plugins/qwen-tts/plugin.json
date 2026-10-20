@@ -7,13 +7,15 @@
     {
       "id": "tts",
       "name": "声音生成",
-      "icon": "solar:music-note-3-linear"
+      "icon": "solar:music-note-3-linear",
+      "name_key": "声音生成"
     }
   ],
   "modes": [
     {
       "name": "直接生成",
-      "id": "direct"
+      "id": "direct",
+      "name_key": "直接生成"
     }
   ],
   "capabilities": {
@@ -43,7 +45,8 @@
             "label": "语音文本",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "语音文本"
           },
           {
             "bind": "settings.instruction",
@@ -51,7 +54,8 @@
             "label": "声音描述",
             "section": "body",
             "rows": 2,
-            "required": true
+            "required": true,
+            "label_key": "声音描述"
           },
           {
             "bind": "settings.voice_speed",
@@ -62,14 +66,16 @@
             "step": 0.1,
             "default": 1,
             "normal_chars_per_second": 4.5,
-            "component": "number"
+            "component": "number",
+            "label_key": "语速"
           }
         ]
       },
       "input_roles": {},
       "name": "声音设计",
       "model_id": "qwen3-tts",
-      "model_name": "Qwen TTS"
+      "model_name": "Qwen TTS",
+      "name_key": "声音设计"
     }
   },
   "ui_models": [
@@ -82,7 +88,8 @@
       "functions": [
         {
           "capability_id": "tts.describe",
-          "name": "声音描述"
+          "name": "声音描述",
+          "name_key": "声音描述"
         }
       ]
     }
@@ -125,7 +132,16 @@
           "voice_description"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "声音描述",
+      "description_key": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。"
     }
-  ]
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  }
 }

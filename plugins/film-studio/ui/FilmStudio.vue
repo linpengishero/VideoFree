@@ -1,4 +1,7 @@
 <script setup>
+import { usePluginI18n, localizedLabels } from '@framework/services/i18n';
+const { t, locale } = usePluginI18n('film-studio');
+
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { gateway } from './api';
@@ -20,9 +23,9 @@ const historyPast = ref([]), historyFuture = ref([]);
 let lastStable = '';
 let timer, loading = false, scope = 0, playToken = 0, audioLayers = [];
 const ppsSteps = [10,20,40,80];
-const labels = {draft:'草稿', queued:'等待导出', running:'正在导出', completed:'已导出', failed:'导出失败', cancelled:'已取消'};
-const stageLabels = {pending:'未开始', running:'进行中', completed:'已完成', failed:'失败', blocked:'待处理'};
-const transLabels = {fade:'淡化', wipeleft:'左擦除', wiperight:'右擦除', slideleft:'左滑', slideright:'右滑', slideup:'上滑', slidedown:'下滑', circleopen:'圆形展开', circleclose:'圆形收拢'};
+const labels = localizedLabels({draft:'草稿', queued:'等待导出', running:'正在导出', completed:'已导出', failed:'导出失败', cancelled:'已取消'}, t);
+const stageLabels = localizedLabels({pending:'未开始', running:'进行中', completed:'已完成', failed:'失败', blocked:'待处理'}, t);
+const transLabels = localizedLabels({fade:'淡化', wipeleft:'左擦除', wiperight:'右擦除', slideleft:'左滑', slideright:'右滑', slideup:'上滑', slidedown:'下滑', circleopen:'圆形展开', circleclose:'圆形收拢'}, t);
 // 列表不再搜索，直接下拉加载：每次多渲染一页成片卡片。
 const PAGE = 12, limit = ref(PAGE);
 const paged = computed(()=>films.value.slice(0, limit.value));
@@ -57,7 +60,7 @@ async function removeLocalAsset(a){
   try {
     if (a.managed) await gateway.deleteAsset(props.project.id,a.path);
     localAssets.value = localAssets.value.filter(x=>x.path!==a.path); saveLocalAssets();
-  } catch(e) { error.value=e.message || '移除素材失败'; }
+  } catch(e) { error.value=e.message || t('移除素材失败'); }
 }
 const assetKind = a=>['audio','music'].includes(a.type) ? 'audio' : 'main';
 // 素材和音频共用同一来源清单，只在面板层分类展示，不改变时间线轨道。
@@ -66,7 +69,7 @@ const libraryItems = computed(()=>[
   ...music.value.map(job=>({key:`A:${job.id}`, kind:'audio', job})),
   ...candidates.value.map(({job,artifact,index})=>({key:`V:${job.id}:${index}`, kind:'video', job, artifact, index})),
 ]);
-const transitionPresets = [
+const transitionPresets = localizedLabels([
   {id:'fade',name:'淡化',icon:'solar:cloudy-moon-linear'},
   {id:'wipeleft',name:'左擦除',icon:'solar:arrow-left-linear'},
   {id:'wiperight',name:'右擦除',icon:'solar:arrow-right-linear'},
@@ -76,7 +79,7 @@ const transitionPresets = [
   {id:'slidedown',name:'下滑',icon:'solar:arrow-down-linear'},
   {id:'circleopen',name:'圆形展开',icon:'solar:record-circle-linear'},
   {id:'circleclose',name:'圆形收拢',icon:'solar:stop-circle-linear'},
-];
+], t);
 const selClip = computed(()=>{
   if (!selection.value || !draft.value) return null;
   if (selection.value.track==='caption') return draft.value.captions?.[selection.value.index] ?? null;
@@ -109,7 +112,7 @@ function seekMonitor(){
   if(v.readyState>=1) apply(); else v.addEventListener('loadedmetadata',apply,{once:true});
 }
 watch(playhead, seekMonitor);
-const selTrackLabel = computed(()=>selection.value?.track==='caption' ? '字幕' : selection.value?.track==='text' ? '文字' : selection.value?.track==='overlay' ? '叠加片段' : selection.value?.track==='audio' ? '音频片段' : selClip.value?.kind==='blank' ? '黑场片段' : '主轨片段');
+const selTrackLabel = computed(()=>selection.value?.track==='caption' ? t('字幕') : selection.value?.track==='text' ? t('文字') : selection.value?.track==='overlay' ? t('叠加片段') : selection.value?.track==='audio' ? t('音频片段') : selClip.value?.kind==='blank' ? t('黑场片段') : t('主轨片段'));
 const hasNext = computed(()=>selection.value?.track==='main' && draft.value && selection.value.index < draft.value.clips.length-1);
 const transMax = computed(()=>hasNext.value ? Math.max(0.1, Math.min(clipDuration(draft.value.clips[selection.value.index]), clipDuration(draft.value.clips[selection.value.index+1]), 3)) : 0.1);
 const media = (clip)=>sources.value.find(s=>s.id===clip.job_id)?.artifacts?.[clip.artifact_index || 0];
@@ -195,7 +198,7 @@ function seekTimecode(text){
   else sec=Number(t);
   if (Number.isFinite(sec)) onSeek(sec);
 }
-const status = film=>film.stages?.acceptance?.status === 'completed' ? '已验收' : labels[film.render?.status] || '草稿';
+const status = film=>film.stages?.acceptance?.status === 'completed' ? t('已验收') : labels[film.render?.status] || t('草稿');
 async function load() {
   if (!props.project?.id || loading) return;
   loading = true;
@@ -228,7 +231,7 @@ watch(()=>props.project?.id, async()=>{
 }, {immediate:true});
 onBeforeUnmount(()=>{scope++;clearInterval(timer);stopPlayback();closeRatio();closeOutput();window.removeEventListener('keydown', onKeydown);});
 async function open(film) {
-  if (dirty.value && !await confirmAction('放弃未保存的修改？', {title:'放弃修改', confirmText:'放弃'})) return;
+  if (dirty.value && !await confirmAction(t('放弃未保存的修改？'), {title:t('放弃修改'), confirmText:t('放弃')})) return;
   stopPlayback();
   active.value=film;
   draft.value=normalizePlan(film);
@@ -253,10 +256,10 @@ function commitEdit(){
 function undo(){ if(locked.value || !historyPast.value.length) return; historyFuture.value.push(cloneDraft()); draft.value=historyPast.value.pop(); lastStable=JSON.stringify(draft.value); dirty.value=true; }
 function redo(){ if(locked.value || !historyFuture.value.length) return; historyPast.value.push(cloneDraft()); draft.value=historyFuture.value.pop(); lastStable=JSON.stringify(draft.value); dirty.value=true; }
 function create() {
-  open({name:'未命名成片',clips:[],render:{status:'draft'}});
+  open({name:t('未命名成片'),clips:[],render:{status:'draft'}});
 }
 async function back() {
-  if (dirty.value && !await confirmAction('放弃未保存的修改？', {title:'放弃修改', confirmText:'放弃'})) return;
+  if (dirty.value && !await confirmAction(t('放弃未保存的修改？'), {title:t('放弃修改'), confirmText:t('放弃')})) return;
   stopPlayback(); active.value=null; draft.value=null; dirty.value=false; selection.value=null; playhead.value=0;
 }
 function newClip(job, index) {
@@ -271,7 +274,7 @@ async function addLibraryResource(resource, kind='main', placement={}) {
       const probe = document.createElement(kind==='audio' ? 'audio' : 'video');
       probe.preload = 'metadata';
       probe.onloadedmetadata = () => resolve(Number.isFinite(probe.duration) && probe.duration > 0 ? probe.duration : 5);
-      probe.onerror = () => reject(new Error('无法读取素材时长'));
+      probe.onerror = () => reject(new Error(t('无法读取素材时长')));
       probe.src = resource.url || libraryUrl(resource.path);
     });
   } catch (_) { /* 后端保存时仍会做完整媒体校验 */ }
@@ -306,7 +309,7 @@ async function transcribeTimeline() {
     }
     const film=await gateway.transcribeFilm(props.project.id, active.value.id, {language:'auto', model:'large-v3-turbo'});
     active.value=film; draft.value=normalizePlan(film); dirty.value=false; lastStable=JSON.stringify(draft.value);
-  } catch(e) { error.value=e.message || '字幕识别失败'; }
+  } catch(e) { error.value=e.message || t('字幕识别失败'); }
   finally { busy.value=false; }
 }
 function addManualCaption() {
@@ -314,7 +317,7 @@ function addManualCaption() {
   beforeEdit();
   const start=Math.min(Math.max(0, playhead.value), Math.max(0, total.value-0.1));
   const end=Math.min(total.value, start+2);
-  draft.value.captions.push({text:'新字幕', start, end:Math.min(total.value,Math.max(start+0.1,end))});
+  draft.value.captions.push({text:t('新字幕'), start, end:Math.min(total.value,Math.max(start+0.1,end))});
   draft.value.captions.sort((a,b)=>a.start-b.start);
   const index=draft.value.captions.findIndex(c=>c.start===start && c.text==='新字幕');
   selection.value={track:'caption',index};
@@ -324,7 +327,7 @@ function addText() {
   if (!draft.value || locked.value || total.value < 0.1) return;
   beforeEdit();
   const start=Math.min(Math.max(0,playhead.value),Math.max(0,total.value-0.1));
-  draft.value.texts.push({text:'输入文字',start,end:Math.min(total.value,start+3),x:Math.round(draft.value.width/2),y:Math.round(draft.value.height/2),font_size:64,color:'#FFFFFF'});
+  draft.value.texts.push({text:t('输入文字'),start,end:Math.min(total.value,start+3),x:Math.round(draft.value.width/2),y:Math.round(draft.value.height/2),font_size:64,color:'#FFFFFF'});
   selection.value={track:'text',index:draft.value.texts.length-1};
   commitEdit();
 }
@@ -366,7 +369,7 @@ function applyBlackFade(field) {
 }
 // 导入本地资源：加入素材区清单（按项目持久化），点卡片加号或拖入轨道才进时间线。
 function pickLibrary() {
-  if (typeof props.resourcePicker !== 'function') { error.value='当前工作台未提供本地资源选择器'; return; }
+  if (typeof props.resourcePicker !== 'function') { error.value=t('当前工作台未提供本地资源选择器'); return; }
   props.resourcePicker({types:['video','image','audio','music'], onSelect:r=>{
     if (!r?.path) return;
     if (!localAssets.value.some(a=>a.path===r.path)) {
@@ -385,7 +388,7 @@ async function importFiles(e) {
       const r = await gateway.importAsset(props.project.id, up.upload_id, f.name);
       if (!localAssets.value.some(a=>a.path===r.path)) localAssets.value.unshift(r);
       saveLocalAssets();
-    } catch (err) { error.value = `导入 ${f.name} 失败：${err.message || err}`; }
+    } catch (err) { error.value = t('导入 {v0} 失败：{v1}', undefined, {v0: f.name, v1: err.message || err}); }
   }
 }
 function add(job, index) {
@@ -396,23 +399,23 @@ function add(job, index) {
 // 资源卡删除 = 撤回该视频的“入选成片”标记（可逆，不删除生成任务本身）。
 async function unmarkSource(job) {
   if (locked.value || !props.project?.id) return;
-  if (draft.value?.clips.some(c=>c.job_id===job.id)) { error.value='该素材已用在当前成片时间线，请先从时间线删除'; return; }
+  if (draft.value?.clips.some(c=>c.job_id===job.id)) { error.value=t('该素材已用在当前成片时间线，请先从时间线删除'); return; }
   try {
     await gateway.selectSource(props.project.id, job.id, false);
     const assets = await gateway.filmSources(props.project.id);
     sources.value = assets.items;
-  } catch (e) { error.value = e.message || '撤回入选失败'; }
+  } catch (e) { error.value = e.message || t('撤回入选失败'); }
 }
 function addAt(event) {
   if (event.library_path) {
     const kind = event.track==='audio' ? 'audio' : event.track==='overlay' ? 'overlay' : 'main';
-    if (kind==='main' && ['audio','music'].includes(event.type)) { error.value='音频素材只能放到音轨'; return; }
+    if (kind==='main' && ['audio','music'].includes(event.type)) { error.value=t('音频素材只能放到音轨'); return; }
     // 图片既可以作为静态主轨，也可以作为叠加轨。
     addLibraryResource({path:event.library_path, url:event.url || '', type:event.type}, kind, event); return;
   }
   const job=sources.value.find(s=>s.id===event.job_id) || props.jobs.find(s=>s.id===event.job_id);
   if (!job || !draft.value) return;
-  if (job.kind!=='video' && event.track!=='audio') { error.value='音频素材只能放到音轨'; return; }
+  if (job.kind!=='video' && event.track!=='audio') { error.value=t('音频素材只能放到音轨'); return; }
   beforeEdit();
   const clip=newClip(job, event.artifact_index || 0);
   if (event.track==='overlay') {
@@ -633,7 +636,7 @@ async function preview() {
 async function cancelRender(quality='final') {
   if (!active.value?.id) return;
   try { active.value=await gateway.cancelFilm(props.project.id, active.value.id, quality); }
-  catch(e) { error.value=e.message || '取消导出失败'; }
+  catch(e) { error.value=e.message || t('取消导出失败'); }
 }
 async function save(render=false) {
   busy.value=true; error.value=''; stopPlayback();
@@ -652,7 +655,7 @@ async function save(render=false) {
   finally {if(token===scope) busy.value=false;}
 }
 async function destroy(film) {
-  if(!await confirmAction(`删除“${film.name}”及其合成输出？不会删除源视频。`, {title:'删除成片', confirmText:'删除'})) return;
+  if(!await confirmAction(t('删除“{v0}”及其合成输出？不会删除源视频。', undefined, {v0: film.name}), {title:t('删除成片'), confirmText:t('删除')})) return;
   try{await gateway.deleteFilm(props.project.id,film.id);await load();}catch(e){error.value=e.message;}
 }
 const proxyKeys = computed(()=>{
@@ -680,48 +683,48 @@ watch(proxyKeys, keys=>{
 
 <template>
   <section class="film-studio" :class="{standalone}" @scroll="onScroll">
-    <header v-if="standalone" class="film-brand"><b>videofree</b><a href="/studio">返回工作台</a></header>
-    <div v-if="!project" class="film-empty"><Icon icon="solar:folder-linear" width="36" />请从工作台进入项目后查看成片<a href="/studio">进入工作台</a></div>
+    <header v-if="standalone" class="film-brand"><b>videofree</b><a href="/studio">{{ t('返回工作台') }}</a></header>
+    <div v-if="!project" class="film-empty"><Icon icon="solar:folder-linear" width="36" />{{ t('请从工作台进入项目后查看成片') }}<a href="/studio">{{ t('进入工作台') }}</a></div>
     <template v-else-if="!draft">
-      <header class="film-head"><div><small>{{ project.name }}</small><h1>成片 <span>{{ films.length }}</span></h1></div><button class="primary" @click="create"><Icon icon="solar:add-circle-linear" />新建成片</button></header>
+      <header class="film-head"><div><small>{{ project.name }}</small><h1>{{ t('成片') }}<span>{{ films.length }}</span></h1></div><button class="primary" @click="create"><Icon icon="solar:add-circle-linear" />{{ t('新建成片') }}</button></header>
       <p v-if="error" class="film-error" role="alert">{{ error }}</p>
       <div class="film-list"><article v-for="film in paged" :key="film.id" class="film-card">
         <button class="film-cover" @click="open(film)"><video v-if="film.render?.url" :src="film.render.url" preload="metadata" muted /><Icon v-else icon="solar:clapperboard-play-linear" width="38" /><span>{{ status(film) }}</span></button>
-        <div class="film-card-meta"><button @click="open(film)">{{ film.name }}</button><button class="icon" title="删除成片" :disabled="['render','preview'].some(key=>['queued','running'].includes(film[key]?.status))" @click="destroy(film)"><Icon icon="solar:trash-bin-trash-linear" /></button></div>
-        <small>{{ film.clips.length }} 个镜头 · {{ new Date(film.updated_at*1000).toLocaleString() }}</small>
+        <div class="film-card-meta"><button @click="open(film)">{{ film.name }}</button><button class="icon" :title="t('删除成片')" :disabled="['render','preview'].some(key=>['queued','running'].includes(film[key]?.status))" @click="destroy(film)"><Icon icon="solar:trash-bin-trash-linear" /></button></div>
+        <small>{{ film.clips.length }}{{ t('个镜头 ·') }}{{ new Date(film.updated_at*1000).toLocaleString(locale) }}</small>
         <div class="film-mini-stages"><i v-for="(stage,key) in film.stages" :key="key" :class="stage.status" :title="`${stage.label}：${stageLabels[stage.status]}`"></i></div>
-      </article></div><div v-if="!films.length" class="film-empty">暂无成片</div>
-      <p v-if="paged.length < films.length" class="film-load-more">继续下拉加载更多（已显示 {{ paged.length }} / {{ films.length }}）</p>
+      </article></div><div v-if="!films.length" class="film-empty">{{ t('暂无成片') }}</div>
+      <p v-if="paged.length < films.length" class="film-load-more">{{ t('继续下拉加载更多（已显示') }}{{ paged.length }} / {{ films.length }}）</p>
     </template>
     <div v-else class="film-editor">
-      <header class="film-editor-head"><button class="icon" title="返回成片列表" :disabled="busy" @click="back"><Icon icon="solar:arrow-left-linear" width="21" /></button><input v-model="draft.name" :disabled="locked" maxlength="80" aria-label="成片名称" @input="dirty=true" @change="commitEdit" /><span>{{ status(active) }}</span><div class="film-actions"><button :disabled="locked || !draft.name.trim()" @click="save(false)"><Icon icon="solar:diskette-linear" />保存</button><div class="film-output"><button class="primary" :disabled="locked || !draft.clips.length || !draft.name.trim()" @click="toggleOutput"><Icon icon="solar:export-linear" />导出<Icon icon="solar:alt-arrow-down-linear" width="12" /></button><Transition name="film-pop"><div v-if="outputOpen" class="film-output-menu"><button @click="closeOutput();preview()"><Icon icon="solar:eye-linear" />渲染预览<small>快速检查完整效果</small></button><button @click="closeOutput();save(true)"><Icon icon="solar:clapperboard-play-linear" />导出新成片<small>按当前设置正式渲染</small></button><a v-if="active.render?.url" :href="active.render.url" download @click="closeOutput"><Icon icon="solar:download-linear" /><span>下载最近成片<small>保存到本地</small></span></a><button v-if="active.renders?.length" @click="closeOutput();history=true"><Icon icon="solar:history-linear" />导出记录<small>{{ active.renders.length }} 个历史版本</small></button></div></Transition></div></div></header>
+      <header class="film-editor-head"><button class="icon" :title="t('返回成片列表')" :disabled="busy" @click="back"><Icon icon="solar:arrow-left-linear" width="21" /></button><input v-model="draft.name" :disabled="locked" maxlength="80" :aria-label="t('成片名称')" @input="dirty=true" @change="commitEdit" /><span>{{ status(active) }}</span><div class="film-actions"><button :disabled="locked || !draft.name.trim()" @click="save(false)"><Icon icon="solar:diskette-linear" />{{ t('保存') }}</button><div class="film-output"><button class="primary" :disabled="locked || !draft.clips.length || !draft.name.trim()" @click="toggleOutput"><Icon icon="solar:export-linear" />{{ t('导出') }}<Icon icon="solar:alt-arrow-down-linear" width="12" /></button><Transition name="film-pop"><div v-if="outputOpen" class="film-output-menu"><button @click="closeOutput();preview()"><Icon icon="solar:eye-linear" />{{ t('渲染预览') }}<small>{{ t('快速检查完整效果') }}</small></button><button @click="closeOutput();save(true)"><Icon icon="solar:clapperboard-play-linear" />{{ t('导出新成片') }}<small>{{ t('按当前设置正式渲染') }}</small></button><a v-if="active.render?.url" :href="active.render.url" download @click="closeOutput"><Icon icon="solar:download-linear" /><span>{{ t('下载最近成片') }}<small>{{ t('保存到本地') }}</small></span></a><button v-if="active.renders?.length" @click="closeOutput();history=true"><Icon icon="solar:history-linear" />{{ t('导出记录') }}<small>{{ active.renders.length }}{{ t('个历史版本') }}</small></button></div></Transition></div></div></header>
       <p v-if="error" class="film-error" role="alert">{{ error }}</p>
-      <div v-if="['queued','running','failed','cancelled'].includes(active.render?.status)" class="film-render-state" role="status"><b>{{ status(active) }}</b><progress v-if="['queued','running'].includes(active.render?.status)" :value="active.render.progress" max="100" />{{ active.render.progress || 0 }}%<span v-if="active.render.error">{{ active.render.error }}</span><button v-if="['queued','running'].includes(active.render?.status)" @click="cancelRender('final')"><Icon icon="solar:close-circle-linear" />取消导出</button><button v-if="active.render?.status==='failed'" @click="save(true)"><Icon icon="solar:restart-linear" />重新导出</button></div>
-      <div v-if="active.preview && (['queued','running'].includes(active.preview.status) || active.preview.error)" class="film-render-state" role="status"><b>{{ active.preview.status==='queued' ? '预览排队' : active.preview.status==='running' ? '预览生成中' : '预览失败' }}</b><progress v-if="['queued','running'].includes(active.preview.status)" :value="active.preview.progress || 0" max="100" />{{ active.preview.progress || 0 }}%<span v-if="active.preview.error">{{ active.preview.error }}</span><button v-if="['queued','running'].includes(active.preview.status)" @click="cancelRender('preview')"><Icon icon="solar:close-circle-linear" />取消预览</button></div>
+      <div v-if="['queued','running','failed','cancelled'].includes(active.render?.status)" class="film-render-state" role="status"><b>{{ status(active) }}</b><progress v-if="['queued','running'].includes(active.render?.status)" :value="active.render.progress" max="100" />{{ active.render.progress || 0 }}%<span v-if="active.render.error">{{ active.render.error }}</span><button v-if="['queued','running'].includes(active.render?.status)" @click="cancelRender('final')"><Icon icon="solar:close-circle-linear" />{{ t('取消导出') }}</button><button v-if="active.render?.status==='failed'" @click="save(true)"><Icon icon="solar:restart-linear" />{{ t('重新导出') }}</button></div>
+      <div v-if="active.preview && (['queued','running'].includes(active.preview.status) || active.preview.error)" class="film-render-state" role="status"><b>{{ active.preview.status==='queued' ? t('预览排队') : active.preview.status==='running' ? t('预览生成中') : t('预览失败') }}</b><progress v-if="['queued','running'].includes(active.preview.status)" :value="active.preview.progress || 0" max="100" />{{ active.preview.progress || 0 }}%<span v-if="active.preview.error">{{ active.preview.error }}</span><button v-if="['queued','running'].includes(active.preview.status)" @click="cancelRender('preview')"><Icon icon="solar:close-circle-linear" />{{ t('取消预览') }}</button></div>
       <div class="film-editor-grid">
         <aside class="film-library">
-          <header class="film-library-head"><b>创作素材</b><span v-if="libraryTab==='media'" class="library-picks"><button type="button" class="pick" :disabled="locked" title="从项目资源库选择" @click="pickLibrary"><Icon icon="solar:folder-with-files-linear" width="14" />项目资源</button><label class="pick" title="导入本地文件"><Icon icon="solar:upload-minimalistic-linear" width="14" />导入<input type="file" multiple accept="video/*,audio/*,image/*" :disabled="locked" @change="importFiles($event)" /></label></span></header>
-          <nav class="film-library-tabs" aria-label="创作工具"><button v-for="tab in [{id:'media',name:'素材',icon:'solar:gallery-wide-linear'},{id:'caption',name:'字幕',icon:'solar:text-field-linear'},{id:'text',name:'文字',icon:'solar:text-square-linear'},{id:'transition',name:'转场',icon:'solar:layers-minimalistic-linear'}]" :key="tab.id" :class="{on:libraryTab===tab.id}" @click="libraryTab=tab.id"><Icon :icon="tab.icon" width="15" /><span>{{ tab.name }}</span></button></nav>
-          <div v-if="libraryTab==='media'" class="film-source-list"><template v-for="item in libraryItems" :key="item.key"><article v-if="item.kind==='local'" class="film-source" draggable="true" @dragstart="e=>e.dataTransfer.setData('text/plain',JSON.stringify({library_path:item.asset.path,type:item.asset.type}))"><div class="film-thumb" :class="{audio:['audio','music'].includes(item.asset.type)}"><video v-if="item.asset.type==='video'" :src="item.asset.url || libraryUrl(item.asset.path)" preload="metadata" muted /><img v-else-if="item.asset.type==='image'" :src="item.asset.url || libraryUrl(item.asset.path)" alt="" /><Icon v-else icon="solar:music-note-2-linear" width="30" /><button class="film-plus" title="添加到时间线" :disabled="locked" @click="addLibraryResource(item.asset,assetKind(item.asset))"><Icon icon="solar:add-circle-linear" width="28" /></button><button class="film-del" title="移出素材区" :disabled="locked" @click.stop="removeLocalAsset(item.asset)"><Icon icon="solar:trash-bin-trash-linear" width="14" /></button></div><footer><span :title="item.asset.path">{{ item.asset.name }}</span></footer></article><article v-else-if="item.kind==='audio'" class="film-source" draggable="true" @dragstart="e=>e.dataTransfer.setData('text/plain',JSON.stringify({job_id:item.job.id,artifact_index:0}))"><div class="film-thumb audio"><Icon icon="solar:music-note-2-linear" width="30" /><button class="film-plus" title="添加到音轨" :disabled="locked" @click="addAudioJob(item.job)"><Icon icon="solar:add-circle-linear" width="28" /></button><button class="film-del" title="移出素材区" :disabled="locked" @click.stop="hideAudio(item.job)"><Icon icon="solar:trash-bin-trash-linear" width="14" /></button></div><footer><span>{{ item.job.artifacts?.[0]?.name || item.job.id }}</span></footer></article><article v-else class="film-source" draggable="true" @dragstart="e=>e.dataTransfer.setData('text/plain',JSON.stringify({job_id:item.job.id,artifact_index:item.index}))"><div class="film-thumb"><video :src="item.artifact.url || item.job.artifact_url" preload="metadata" muted /><button class="film-plus" title="添加到主轨" :disabled="locked" @click="add(item.job,item.index)"><Icon icon="solar:add-circle-linear" width="28" /></button><button class="film-del" title="移出入选列表" :disabled="locked" @click.stop="unmarkSource(item.job)"><Icon icon="solar:trash-bin-trash-linear" width="14" /></button></div><footer><span :title="item.artifact.name">{{ item.artifact.name || item.job.id }}</span></footer></article></template><p v-if="!libraryItems.length" class="film-empty">暂无素材</p></div>
-          <section v-else-if="libraryTab==='caption'" class="film-tool-pane"><div class="film-tool-actions"><button class="primary" :disabled="locked || total<0.1" @click="transcribeTimeline"><Icon icon="solar:magic-stick-3-linear" />智能字幕</button><button :disabled="locked || total<0.1" @click="addManualCaption"><Icon icon="solar:add-square-linear" />手动添加</button></div><p class="tool-hint">一次识别整条时间线中的视频原声和独立语音；背景音乐不会参与识别。</p><div class="caption-list"><button v-for="(caption,index) in draft.captions" :key="`${caption.start}-${index}`" :class="{on:selection?.track==='caption'&&selection.index===index}" @click="selection={track:'caption',index};onSeek(caption.start)"><span>{{ caption.text }}</span><small>{{ timecode(caption.start) }} — {{ timecode(caption.end) }}</small></button><p v-if="!draft.captions.length" class="film-empty">点击“智能字幕”自动识别全片</p></div></section>
-          <section v-else-if="libraryTab==='text'" class="film-tool-pane"><div class="film-tool-actions"><button class="primary" :disabled="locked || total<0.1" @click="addText"><Icon icon="solar:add-square-linear" />添加文字</button></div><p class="tool-hint">添加后可在监看画面中直接拖动位置，并在右侧修改内容、时间、字号和颜色。</p><div class="caption-list"><button v-for="(text,index) in draft.texts" :key="`${text.start}-${index}`" :class="{on:selection?.track==='text'&&selection.index===index}" @click="selection={track:'text',index};onSeek(text.start)"><span>{{ text.text }}</span><small>{{ timecode(text.start) }} — {{ timecode(text.end) }}</small></button><p v-if="!draft.texts.length" class="film-empty">暂无文字图层</p></div></section>
-          <section v-else-if="libraryTab==='transition'" class="film-tool-pane"><p class="tool-hint">黑场插入播放头位置；淡入淡出应用到当前片段；常规转场连接当前片段和下一片段。</p><div class="transition-grid">
-            <button :disabled="locked" @click="timeline?.insertBlank()"><i><Icon icon="solar:frame-linear" width="24" /></i><span>插入黑场</span><small>1 秒</small></button>
-            <button :disabled="locked || !draft.clips.length" :class="{on:Number(selClip?.fade_in)>0}" @click="applyBlackFade('fade_in')"><i><Icon icon="solar:sunrise-linear" width="24" /></i><span>淡入黑场</span><small>黑 → 画面</small></button>
-            <button :disabled="locked || !draft.clips.length" :class="{on:Number(selClip?.fade_out)>0}" @click="applyBlackFade('fade_out')"><i><Icon icon="solar:sunset-linear" width="24" /></i><span>淡出黑场</span><small>画面 → 黑</small></button>
-            <button v-for="item in transitionPresets" :key="item.id" :disabled="locked || draft.clips.length<2" :class="{on:selClip?.transition?.type===item.id}" @click="applyTransition(item.id)"><i><Icon :icon="item.icon" width="24" /></i><span>{{ item.name }}</span><small>0.5 秒</small></button>
+          <header class="film-library-head"><b>{{ t('创作素材') }}</b><span v-if="libraryTab==='media'" class="library-picks"><button type="button" class="pick" :disabled="locked" :title="t('从项目资源库选择')" @click="pickLibrary"><Icon icon="solar:folder-with-files-linear" width="14" />{{ t('项目资源') }}</button><label class="pick" :title="t('导入本地文件')"><Icon icon="solar:upload-minimalistic-linear" width="14" />{{ t('导入') }}<input type="file" multiple accept="video/*,audio/*,image/*" :disabled="locked" @change="importFiles($event)" /></label></span></header>
+          <nav class="film-library-tabs" :aria-label="t('创作工具')"><button v-for="tab in [{id:'media',name:t('素材'),icon:'solar:gallery-wide-linear'},{id:'caption',name:t('字幕'),icon:'solar:text-field-linear'},{id:'text',name:t('文字'),icon:'solar:text-square-linear'},{id:'transition',name:t('转场'),icon:'solar:layers-minimalistic-linear'}]" :key="tab.id" :class="{on:libraryTab===tab.id}" @click="libraryTab=tab.id"><Icon :icon="tab.icon" width="15" /><span>{{ tab.name }}</span></button></nav>
+          <div v-if="libraryTab==='media'" class="film-source-list"><template v-for="item in libraryItems" :key="item.key"><article v-if="item.kind==='local'" class="film-source" draggable="true" @dragstart="e=>e.dataTransfer.setData('text/plain',JSON.stringify({library_path:item.asset.path,type:item.asset.type}))"><div class="film-thumb" :class="{audio:['audio','music'].includes(item.asset.type)}"><video v-if="item.asset.type==='video'" :src="item.asset.url || libraryUrl(item.asset.path)" preload="metadata" muted /><img v-else-if="item.asset.type==='image'" :src="item.asset.url || libraryUrl(item.asset.path)" alt="" /><Icon v-else icon="solar:music-note-2-linear" width="30" /><button class="film-plus" :title="t('添加到时间线')" :disabled="locked" @click="addLibraryResource(item.asset,assetKind(item.asset))"><Icon icon="solar:add-circle-linear" width="28" /></button><button class="film-del" :title="t('移出素材区')" :disabled="locked" @click.stop="removeLocalAsset(item.asset)"><Icon icon="solar:trash-bin-trash-linear" width="14" /></button></div><footer><span :title="item.asset.path">{{ item.asset.name }}</span></footer></article><article v-else-if="item.kind==='audio'" class="film-source" draggable="true" @dragstart="e=>e.dataTransfer.setData('text/plain',JSON.stringify({job_id:item.job.id,artifact_index:0}))"><div class="film-thumb audio"><Icon icon="solar:music-note-2-linear" width="30" /><button class="film-plus" :title="t('添加到音轨')" :disabled="locked" @click="addAudioJob(item.job)"><Icon icon="solar:add-circle-linear" width="28" /></button><button class="film-del" :title="t('移出素材区')" :disabled="locked" @click.stop="hideAudio(item.job)"><Icon icon="solar:trash-bin-trash-linear" width="14" /></button></div><footer><span>{{ item.job.artifacts?.[0]?.name || item.job.id }}</span></footer></article><article v-else class="film-source" draggable="true" @dragstart="e=>e.dataTransfer.setData('text/plain',JSON.stringify({job_id:item.job.id,artifact_index:item.index}))"><div class="film-thumb"><video :src="item.artifact.url || item.job.artifact_url" preload="metadata" muted /><button class="film-plus" :title="t('添加到主轨')" :disabled="locked" @click="add(item.job,item.index)"><Icon icon="solar:add-circle-linear" width="28" /></button><button class="film-del" :title="t('移出入选列表')" :disabled="locked" @click.stop="unmarkSource(item.job)"><Icon icon="solar:trash-bin-trash-linear" width="14" /></button></div><footer><span :title="item.artifact.name">{{ item.artifact.name || item.job.id }}</span></footer></article></template><p v-if="!libraryItems.length" class="film-empty">{{ t('暂无素材') }}</p></div>
+          <section v-else-if="libraryTab==='caption'" class="film-tool-pane"><div class="film-tool-actions"><button class="primary" :disabled="locked || total<0.1" @click="transcribeTimeline"><Icon icon="solar:magic-stick-3-linear" />{{ t('智能字幕') }}</button><button :disabled="locked || total<0.1" @click="addManualCaption"><Icon icon="solar:add-square-linear" />{{ t('手动添加') }}</button></div><p class="tool-hint">{{ t('一次识别整条时间线中的视频原声和独立语音；背景音乐不会参与识别。') }}</p><div class="caption-list"><button v-for="(caption,index) in draft.captions" :key="`${caption.start}-${index}`" :class="{on:selection?.track==='caption'&&selection.index===index}" @click="selection={track:'caption',index};onSeek(caption.start)"><span>{{ caption.text }}</span><small>{{ timecode(caption.start) }} — {{ timecode(caption.end) }}</small></button><p v-if="!draft.captions.length" class="film-empty">{{ t('点击“智能字幕”自动识别全片') }}</p></div></section>
+          <section v-else-if="libraryTab==='text'" class="film-tool-pane"><div class="film-tool-actions"><button class="primary" :disabled="locked || total<0.1" @click="addText"><Icon icon="solar:add-square-linear" />{{ t('添加文字') }}</button></div><p class="tool-hint">{{ t('添加后可在监看画面中直接拖动位置，并在右侧修改内容、时间、字号和颜色。') }}</p><div class="caption-list"><button v-for="(text,index) in draft.texts" :key="`${text.start}-${index}`" :class="{on:selection?.track==='text'&&selection.index===index}" @click="selection={track:'text',index};onSeek(text.start)"><span>{{ text.text }}</span><small>{{ timecode(text.start) }} — {{ timecode(text.end) }}</small></button><p v-if="!draft.texts.length" class="film-empty">{{ t('暂无文字图层') }}</p></div></section>
+          <section v-else-if="libraryTab==='transition'" class="film-tool-pane"><p class="tool-hint">{{ t('黑场插入播放头位置；淡入淡出应用到当前片段；常规转场连接当前片段和下一片段。') }}</p><div class="transition-grid">
+            <button :disabled="locked" @click="timeline?.insertBlank()"><i><Icon icon="solar:frame-linear" width="24" /></i><span>{{ t('插入黑场') }}</span><small>{{ t('1 秒') }}</small></button>
+            <button :disabled="locked || !draft.clips.length" :class="{on:Number(selClip?.fade_in)>0}" @click="applyBlackFade('fade_in')"><i><Icon icon="solar:sunrise-linear" width="24" /></i><span>{{ t('淡入黑场') }}</span><small>{{ t('黑 → 画面') }}</small></button>
+            <button :disabled="locked || !draft.clips.length" :class="{on:Number(selClip?.fade_out)>0}" @click="applyBlackFade('fade_out')"><i><Icon icon="solar:sunset-linear" width="24" /></i><span>{{ t('淡出黑场') }}</span><small>{{ t('画面 → 黑') }}</small></button>
+            <button v-for="item in transitionPresets" :key="item.id" :disabled="locked || draft.clips.length<2" :class="{on:selClip?.transition?.type===item.id}" @click="applyTransition(item.id)"><i><Icon :icon="item.icon" width="24" /></i><span>{{ item.name }}</span><small>{{ t('0.5 秒') }}</small></button>
           </div></section>
         </aside>
         <div class="film-center">
           <div ref="monitor" class="film-monitor" :style="{aspectRatio:(draft.width||16)+'/'+(draft.height||9), width:'min(100%, '+Math.round(440*(draft.width||16)/(draft.height||9))+'px)'}">
-            <template v-if="playing"><div v-if="blankNow" class="film-blank film-main-media" aria-label="黑场"></div><img v-else-if="stillNow" class="film-main-media" :src="stillNow" alt="" :style="{objectFit:draft.fit}" /><video v-else ref="playVideo" class="film-main-media" preload="auto" :style="{objectFit:draft.fit}" /></template>
+            <template v-if="playing"><div v-if="blankNow" class="film-blank film-main-media" :aria-label="t('黑场')"></div><img v-else-if="stillNow" class="film-main-media" :src="stillNow" alt="" :style="{objectFit:draft.fit}" /><video v-else ref="playVideo" class="film-main-media" preload="auto" :style="{objectFit:draft.fit}" /></template>
             <video v-else-if="fullVideo" ref="scrubVideo" class="film-main-media" :key="fullVideo" :src="fullVideo" controls preload="metadata" />
-            <div v-else-if="playheadClip && playheadClip.clip.kind==='blank'" class="film-blank film-main-media" aria-label="黑场"></div>
+            <div v-else-if="playheadClip && playheadClip.clip.kind==='blank'" class="film-blank film-main-media" :aria-label="t('黑场')"></div>
             <img v-else-if="playheadClip && isStill(playheadClip.clip)" class="film-main-media" :src="clipUrl(playheadClip.clip)" alt="" :style="{objectFit:draft.fit}" />
             <video v-else-if="playheadClip && clipUrl(playheadClip.clip)" ref="scrubVideo" class="film-main-media" :key="clipUrl(playheadClip.clip)" :src="clipUrl(playheadClip.clip)" :muted="playheadClip.clip.original===false" preload="auto" :style="{objectFit:draft.fit}" />
-            <div v-else class="film-empty film-main-media"><Icon icon="solar:videocamera-linear" width="36" />尚未添加镜头</div>
+            <div v-else class="film-empty film-main-media"><Icon icon="solar:videocamera-linear" width="36" />{{ t('尚未添加镜头') }}</div>
             <template v-if="!fullVideo && transitionState">
-              <div v-if="transitionState.clip.kind==='blank'" class="film-transition-layer film-blank" :style="transitionStyle(transitionState)" aria-label="黑场"></div>
+              <div v-if="transitionState.clip.kind==='blank'" class="film-transition-layer film-blank" :style="transitionStyle(transitionState)" :aria-label="t('黑场')"></div>
               <img v-else-if="isStill(transitionState.clip)" class="film-transition-layer" :src="clipUrl(transitionState.clip)" alt="" :style="[transitionStyle(transitionState),{objectFit:draft.fit}]" />
               <video v-else ref="transitionVideo" class="film-transition-layer" :src="clipUrl(transitionState.clip)" :muted="transitionState.clip.original===false" preload="auto" :style="[transitionStyle(transitionState),{objectFit:draft.fit}]" @loadedmetadata="syncLayerVideos" />
             </template>
@@ -731,70 +734,70 @@ watch(proxyKeys, keys=>{
             </template></template>
             <div v-if="!fullVideo && activeCaptions.length" class="film-caption-preview"><span v-for="(caption,index) in activeCaptions" :key="index">{{ caption.text }}</span></div>
             <button v-for="item in (!fullVideo ? activeTexts : [])" :key="`text-${item.index}`" class="film-text-overlay" :class="{selected:selection?.track==='text'&&selection.index===item.index}" :style="textStyle(item)" :disabled="locked" @pointerdown="startTextDrag($event,item.index)">{{ item.text.text }}</button>
-            <input class="film-timecode" :value="timecode(playhead) + ' / ' + timecode(total)" aria-label="播放时间，输入秒或分:秒后回车跳转" @keydown.enter="seekTimecode($event.target.value)" />
+            <input class="film-timecode" :value="timecode(playhead) + ' / ' + timecode(total)" :aria-label="t('播放时间，输入秒或分:秒后回车跳转')" @keydown.enter="seekTimecode($event.target.value)" />
           </div>
           <div class="film-ratio">
-            <button class="film-ratio-btn" :disabled="locked" title="切换画幅比例" @click="toggleRatio"><Icon icon="solar:frame-linear" width="13" />{{ ratioLabel }}<Icon :icon="ratioOpen ? 'solar:alt-arrow-down-linear' : 'solar:alt-arrow-up-linear'" width="12" /></button>
+            <button class="film-ratio-btn" :disabled="locked" :title="t('切换画幅比例')" @click="toggleRatio"><Icon icon="solar:frame-linear" width="13" />{{ ratioLabel }}<Icon :icon="ratioOpen ? 'solar:alt-arrow-down-linear' : 'solar:alt-arrow-up-linear'" width="12" /></button>
             <div v-if="ratioOpen" class="film-ratio-menu">
               <button v-for="[label,w,h] in RATIOS" :key="label" :class="{on:ratioActive(w,h)}" @click="setRatio(w,h);ratioOpen=false">{{ label }}<small>{{ w }}×{{ h }}</small></button>
             </div>
           </div>
         </div>
-        <aside class="film-settings"><h2>{{ selClip ? '片段属性' : '项目设置' }}</h2>
-          <div v-if="!selClip" class="film-project-intro"><Icon icon="solar:tuning-square-2-linear" width="20" /><span>画面、声音与导出参数</span><small>选中时间线片段后切换为片段属性</small></div>
-          <fieldset v-if="selCaption" class="film-inspect" :disabled="locked" @change="commitEdit"><legend>字幕</legend>
-            <label>字幕文本<textarea v-model="selCaption.text" rows="4" maxlength="2000" /></label>
-            <div class="film-pair"><label>开始<input v-model.number="selCaption.start" type="number" min="0" step="0.1" /></label><label>结束<input v-model.number="selCaption.end" type="number" min="0.1" step="0.1" /></label></div>
-            <button type="button" :disabled="locked" @click="beforeEdit();draft.captions.splice(selection.index,1);selection=null;commitEdit()"><Icon icon="solar:trash-bin-trash-linear" />删除字幕</button>
+        <aside class="film-settings"><h2>{{ selClip ? t('片段属性') : t('项目设置') }}</h2>
+          <div v-if="!selClip" class="film-project-intro"><Icon icon="solar:tuning-square-2-linear" width="20" /><span>{{ t('画面、声音与导出参数') }}</span><small>{{ t('选中时间线片段后切换为片段属性') }}</small></div>
+          <fieldset v-if="selCaption" class="film-inspect" :disabled="locked" @change="commitEdit"><legend>{{ t('字幕') }}</legend>
+            <label>{{ t('字幕文本') }}<textarea v-model="selCaption.text" rows="4" maxlength="2000" /></label>
+            <div class="film-pair"><label>{{ t('开始') }}<input v-model.number="selCaption.start" type="number" min="0" step="0.1" /></label><label>{{ t('结束') }}<input v-model.number="selCaption.end" type="number" min="0.1" step="0.1" /></label></div>
+            <button type="button" :disabled="locked" @click="beforeEdit();draft.captions.splice(selection.index,1);selection=null;commitEdit()"><Icon icon="solar:trash-bin-trash-linear" />{{ t('删除字幕') }}</button>
           </fieldset>
-          <fieldset v-if="selText" class="film-inspect" :disabled="locked" @change="commitEdit"><legend>文字</legend>
-            <label>文字内容<textarea v-model="selText.text" rows="4" maxlength="2000" /></label>
-            <div class="film-pair"><label>开始<input v-model.number="selText.start" type="number" min="0" step="0.1" /></label><label>结束<input v-model.number="selText.end" type="number" min="0.1" step="0.1" /></label></div>
-            <div class="film-pair"><label>字号<input v-model.number="selText.font_size" type="number" min="12" max="300" /></label><label>颜色<input v-model="selText.color" type="color" aria-label="文字颜色" /></label></div>
+          <fieldset v-if="selText" class="film-inspect" :disabled="locked" @change="commitEdit"><legend>{{ t('文字') }}</legend>
+            <label>{{ t('文字内容') }}<textarea v-model="selText.text" rows="4" maxlength="2000" /></label>
+            <div class="film-pair"><label>{{ t('开始') }}<input v-model.number="selText.start" type="number" min="0" step="0.1" /></label><label>{{ t('结束') }}<input v-model.number="selText.end" type="number" min="0.1" step="0.1" /></label></div>
+            <div class="film-pair"><label>{{ t('字号') }}<input v-model.number="selText.font_size" type="number" min="12" max="300" /></label><label>{{ t('颜色') }}<input v-model="selText.color" type="color" :aria-label="t('文字颜色')" /></label></div>
             <div class="film-pair"><label>X<input v-model.number="selText.x" type="number" min="0" :max="draft.width" /></label><label>Y<input v-model.number="selText.y" type="number" min="0" :max="draft.height" /></label></div>
-            <button type="button" :disabled="locked" @click="beforeEdit();draft.texts.splice(selection.index,1);selection=null;commitEdit()"><Icon icon="solar:trash-bin-trash-linear" />删除文字</button>
+            <button type="button" :disabled="locked" @click="beforeEdit();draft.texts.splice(selection.index,1);selection=null;commitEdit()"><Icon icon="solar:trash-bin-trash-linear" />{{ t('删除文字') }}</button>
           </fieldset>
           <fieldset v-if="selClip && !selCaption && !selText" class="film-inspect" :disabled="locked" @change="commitEdit"><legend>{{ selTrackLabel }}</legend>
             <div class="film-pair">
-              <label>时长<input :value="clipDuration(selClip).toFixed(2)" type="number" step="0.1" disabled /></label>
-              <label v-if="selClip.kind==='blank'">黑场时长<input v-model.number="selClip.out" type="number" min="0.04" step="0.1" aria-label="黑场时长（秒）" /></label>
+              <label>{{ t('时长') }}<input :value="clipDuration(selClip).toFixed(2)" type="number" step="0.1" disabled /></label>
+              <label v-if="selClip.kind==='blank'">{{ t('黑场时长') }}<input v-model.number="selClip.out" type="number" min="0.04" step="0.1" :aria-label="t('黑场时长（秒）')" /></label>
             </div>
-            <div v-if="selClip.kind!=='blank'" class="film-pair"><label>入点<input v-model.number="selClip.in" type="number" min="0" step="0.1" aria-label="入点（秒）" /></label><label>出点<input v-model.number="selClip.out" type="number" min="0.1" step="0.1" aria-label="出点（秒）" /></label></div>
+            <div v-if="selClip.kind!=='blank'" class="film-pair"><label>{{ t('入点') }}<input v-model.number="selClip.in" type="number" min="0" step="0.1" :aria-label="t('入点（秒）')" /></label><label>{{ t('出点') }}<input v-model.number="selClip.out" type="number" min="0.1" step="0.1" :aria-label="t('出点（秒）')" /></label></div>
             <template v-if="selection.track==='main' && selClip.kind==='clip'">
-              <label class="film-check"><input v-model="selClip.original" type="checkbox" />保留原声</label>
-              <label class="film-slider">音量<input type="range" min="0" max="100" v-model.number="selClip.volume" aria-label="片段音量百分比" /><b>{{ selClip.volume }}%</b></label>
-              <div class="film-pair"><label>淡入<input v-model.number="selClip.fade_in" type="number" min="0" step="0.1" aria-label="淡入秒数" /></label><label>淡出<input v-model.number="selClip.fade_out" type="number" min="0" step="0.1" aria-label="淡出秒数" /></label></div>
-              <label>转场<select :value="selClip.transition?.type || ''" :disabled="locked || !hasNext" @change="setTransition($event.target.value)"><option value="">无</option><option v-for="(label,type) in transLabels" :key="type" :value="type">{{ label }}</option></select></label>
-              <label v-if="selClip.transition">转场时长<input v-model.number="selClip.transition.duration" type="number" step="0.1" min="0.1" max="3" aria-label="转场秒数" @change="clampTransition" /></label>
+              <label class="film-check"><input v-model="selClip.original" type="checkbox" />{{ t('保留原声') }}</label>
+              <label class="film-slider">{{ t('音量') }}<input type="range" min="0" max="100" v-model.number="selClip.volume" :aria-label="t('片段音量百分比')" /><b>{{ selClip.volume }}%</b></label>
+              <div class="film-pair"><label>{{ t('淡入') }}<input v-model.number="selClip.fade_in" type="number" min="0" step="0.1" :aria-label="t('淡入秒数')" /></label><label>{{ t('淡出') }}<input v-model.number="selClip.fade_out" type="number" min="0" step="0.1" :aria-label="t('淡出秒数')" /></label></div>
+              <label>{{ t('转场') }}<select :value="selClip.transition?.type || ''" :disabled="locked || !hasNext" @change="setTransition($event.target.value)"><option value="">{{ t('无') }}</option><option v-for="(label,type) in transLabels" :key="type" :value="type">{{ label }}</option></select></label>
+              <label v-if="selClip.transition">{{ t('转场时长') }}<input v-model.number="selClip.transition.duration" type="number" step="0.1" min="0.1" max="3" :aria-label="t('转场秒数')" @change="clampTransition" /></label>
             </template>
             <template v-if="selection.track==='overlay'">
-              <label>落点<input v-model.number="selClip.start" type="number" min="0" step="0.1" aria-label="落点秒数" /></label>
-              <div class="film-pair"><label>X<input v-model.number="selClip.rect.x" type="number" aria-label="叠加左上角 X" /></label><label>Y<input v-model.number="selClip.rect.y" type="number" aria-label="叠加左上角 Y" /></label></div>
-              <div class="film-pair"><label>宽<input v-model.number="selClip.rect.w" type="number" min="1" aria-label="叠加宽度像素" /></label><label>高<input v-model.number="selClip.rect.h" type="number" min="1" aria-label="叠加高度像素" /></label></div>
-              <label class="film-slider">不透明度<input type="range" min="0" max="100" v-model.number="selClip.rect.opacity" aria-label="叠加不透明度百分比" /><b>{{ selClip.rect.opacity }}%</b></label>
+              <label>{{ t('落点') }}<input v-model.number="selClip.start" type="number" min="0" step="0.1" :aria-label="t('落点秒数')" /></label>
+              <div class="film-pair"><label>X<input v-model.number="selClip.rect.x" type="number" :aria-label="t('叠加左上角 X')" /></label><label>Y<input v-model.number="selClip.rect.y" type="number" :aria-label="t('叠加左上角 Y')" /></label></div>
+              <div class="film-pair"><label>{{ t('宽') }}<input v-model.number="selClip.rect.w" type="number" min="1" :aria-label="t('叠加宽度像素')" /></label><label>{{ t('高') }}<input v-model.number="selClip.rect.h" type="number" min="1" :aria-label="t('叠加高度像素')" /></label></div>
+              <label class="film-slider">{{ t('不透明度') }}<input type="range" min="0" max="100" v-model.number="selClip.rect.opacity" :aria-label="t('叠加不透明度百分比')" /><b>{{ selClip.rect.opacity }}%</b></label>
             </template>
             <template v-if="selection.track==='audio'">
-              <label>落点<input v-model.number="selClip.start" type="number" min="0" step="0.1" aria-label="落点秒数" /></label>
-              <label class="film-slider">音量<input type="range" min="0" max="100" v-model.number="selClip.volume" aria-label="音轨音量百分比" /><b>{{ selClip.volume }}%</b></label>
-              <div class="film-pair"><label>淡入<input v-model.number="selClip.fade_in" type="number" min="0" step="0.1" aria-label="淡入秒数" /></label><label>淡出<input v-model.number="selClip.fade_out" type="number" min="0" step="0.1" aria-label="淡出秒数" /></label></div>
+              <label>{{ t('落点') }}<input v-model.number="selClip.start" type="number" min="0" step="0.1" :aria-label="t('落点秒数')" /></label>
+              <label class="film-slider">{{ t('音量') }}<input type="range" min="0" max="100" v-model.number="selClip.volume" :aria-label="t('音轨音量百分比')" /><b>{{ selClip.volume }}%</b></label>
+              <div class="film-pair"><label>{{ t('淡入') }}<input v-model.number="selClip.fade_in" type="number" min="0" step="0.1" :aria-label="t('淡入秒数')" /></label><label>{{ t('淡出') }}<input v-model.number="selClip.fade_out" type="number" min="0" step="0.1" :aria-label="t('淡出秒数')" /></label></div>
             </template>
           </fieldset>
-          <fieldset v-if="!selClip" :disabled="locked" @change="commitEdit"><legend>背景音乐</legend><label>音轨<select v-model="draft.bgm_job_id"><option :value="null">不添加</option><option v-for="job in music" :key="job.id" :value="job.id">{{ job.artifacts?.[0]?.name || job.id }}</option></select></label><label class="film-slider">音量<input type="range" min="0" max="100" v-model.number="draft.volume" aria-label="背景音轨音量百分比" /><b>{{ draft.volume }}%</b></label></fieldset>
-          <fieldset v-if="!selClip" :disabled="locked" @change="commitEdit"><legend>导出设置</legend><div class="film-pair"><label>宽<input v-model.number="draft.width" type="number" list="film-sizes" /></label><label>高<input v-model.number="draft.height" type="number" list="film-sizes" /></label></div><datalist id="film-sizes"><option v-for="size in [720,1080,1280,1440,1920]" :key="size" :value="size" /></datalist><label>帧率<select v-model.number="draft.fps"><option v-for="fps in [24,25,30,60]" :key="fps" :value="fps">{{ fps }} fps</option></select></label><label>画面适配<select v-model="draft.fit"><option value="contain">完整显示 · 留边</option><option value="cover">填满画面 · 裁切</option></select></label></fieldset>
+          <fieldset v-if="!selClip" :disabled="locked" @change="commitEdit"><legend>{{ t('背景音乐') }}</legend><label>{{ t('音轨') }}<select v-model="draft.bgm_job_id"><option :value="null">{{ t('不添加') }}</option><option v-for="job in music" :key="job.id" :value="job.id">{{ job.artifacts?.[0]?.name || job.id }}</option></select></label><label class="film-slider">{{ t('音量') }}<input type="range" min="0" max="100" v-model.number="draft.volume" :aria-label="t('背景音轨音量百分比')" /><b>{{ draft.volume }}%</b></label></fieldset>
+          <fieldset v-if="!selClip" :disabled="locked" @change="commitEdit"><legend>{{ t('导出设置') }}</legend><div class="film-pair"><label>{{ t('宽') }}<input v-model.number="draft.width" type="number" list="film-sizes" /></label><label>{{ t('高') }}<input v-model.number="draft.height" type="number" list="film-sizes" /></label></div><datalist id="film-sizes"><option v-for="size in [720,1080,1280,1440,1920]" :key="size" :value="size" /></datalist><label>{{ t('帧率') }}<select v-model.number="draft.fps"><option v-for="fps in [24,25,30,60]" :key="fps" :value="fps">{{ fps }} fps</option></select></label><label>{{ t('画面适配') }}<select v-model="draft.fit"><option value="contain">{{ t('完整显示 · 留边') }}</option><option value="cover">{{ t('填满画面 · 裁切') }}</option></select></label></fieldset>
         </aside>
         <div class="film-timeline">
-          <div class="film-sequence-head"><b>时间线</b><span>{{ draft.clips.length }} 段 · {{ time(total) }}<small v-if="dirty"> · 未保存</small></span><div class="film-toolbar">
-            <span class="film-play"><button class="icon" :title="playing ? '暂停' : '播放'" :disabled="!(draft.clips.length || draft.audio_clips.length || draft.overlay_clips.length)" @click="playing ? pausePlayback() : playTimeline()"><Icon :icon="playing ? 'solar:pause-circle-linear' : 'solar:play-circle-linear'" width="21" /></button><button class="icon" title="停止" @click="stopPlayback()"><Icon icon="solar:stop-circle-linear" width="17" /></button></span>
-            <span class="film-edit-tools"><button class="icon" title="在播放头后插入黑场" :disabled="locked" @click="timeline?.insertBlank()"><Icon icon="solar:frame-linear" width="18" /></button><button class="icon" title="在播放头处分割" :disabled="locked" @click="timeline?.splitAtPlayhead()"><Icon icon="solar:scissors-linear" width="18" /></button><button class="icon" title="删除选中片段" :disabled="locked || !selection" @click="timeline?.removeSelected()"><Icon icon="solar:trash-bin-trash-linear" width="18" /></button><button class="icon" :disabled="locked || !selection || ['caption','text'].includes(selection.track)" title="复制选中片段" @click="duplicateSelected"><Icon icon="solar:copy-linear" width="18" /></button></span>
-            <button class="icon" :disabled="locked || !historyPast.length" title="撤销" @click="undo"><Icon icon="solar:undo-left-round-linear" /></button>
-            <button class="icon" :disabled="locked || !historyFuture.length" title="重做" @click="redo"><Icon icon="solar:undo-right-round-linear" /></button>
-            <span class="film-zoom"><button class="icon" title="缩小时间线" :disabled="pps<=ppsSteps[0]" @click="zoom(-1)"><Icon icon="solar:alt-arrow-left-linear" /></button><small>{{ pps }} px/秒</small><button class="icon" title="放大时间线" :disabled="pps>=ppsSteps[ppsSteps.length-1]" @click="zoom(1)"><Icon icon="solar:alt-arrow-right-linear" /></button></span>
+          <div class="film-sequence-head"><b>{{ t('时间线') }}</b><span>{{ draft.clips.length }}{{ t('段 ·') }}{{ time(total) }}<small v-if="dirty">{{ t('· 未保存') }}</small></span><div class="film-toolbar">
+            <span class="film-play"><button class="icon" :title="playing ? t('暂停') : t('播放')" :disabled="!(draft.clips.length || draft.audio_clips.length || draft.overlay_clips.length)" @click="playing ? pausePlayback() : playTimeline()"><Icon :icon="playing ? 'solar:pause-circle-linear' : 'solar:play-circle-linear'" width="21" /></button><button class="icon" :title="t('停止')" @click="stopPlayback()"><Icon icon="solar:stop-circle-linear" width="17" /></button></span>
+            <span class="film-edit-tools"><button class="icon" :title="t('在播放头后插入黑场')" :disabled="locked" @click="timeline?.insertBlank()"><Icon icon="solar:frame-linear" width="18" /></button><button class="icon" :title="t('在播放头处分割')" :disabled="locked" @click="timeline?.splitAtPlayhead()"><Icon icon="solar:scissors-linear" width="18" /></button><button class="icon" :title="t('删除选中片段')" :disabled="locked || !selection" @click="timeline?.removeSelected()"><Icon icon="solar:trash-bin-trash-linear" width="18" /></button><button class="icon" :disabled="locked || !selection || ['caption','text'].includes(selection.track)" :title="t('复制选中片段')" @click="duplicateSelected"><Icon icon="solar:copy-linear" width="18" /></button></span>
+            <button class="icon" :disabled="locked || !historyPast.length" :title="t('撤销')" @click="undo"><Icon icon="solar:undo-left-round-linear" /></button>
+            <button class="icon" :disabled="locked || !historyFuture.length" :title="t('重做')" @click="redo"><Icon icon="solar:undo-right-round-linear" /></button>
+            <span class="film-zoom"><button class="icon" :title="t('缩小时间线')" :disabled="pps<=ppsSteps[0]" @click="zoom(-1)"><Icon icon="solar:alt-arrow-left-linear" /></button><small>{{ pps }}{{ t('px/秒') }}</small><button class="icon" :title="t('放大时间线')" :disabled="pps>=ppsSteps[ppsSteps.length-1]" @click="zoom(1)"><Icon icon="solar:alt-arrow-right-linear" /></button></span>
           </div></div>
           <Timeline ref="timeline" :draft="draft" :sources="sources" :pps="pps" :selection="selection" :playhead="playhead" :locked="locked" :proxies="proxies" @touch="onTouch" @select="selection=$event" @seek="onSeek" @add="addAt" @zoom="zoom($event)" />
         </div>
       </div>
     </div>
-    <MediaDialog :open="history" @close="history=false"><section class="film-history" aria-label="合成版本"><header><h2>合成版本</h2><button class="icon" title="关闭" @click="history=false"><Icon icon="solar:close-circle-linear" width="22" /></button></header><a v-for="(render,index) in active?.renders" :key="render.id" :href="render.url" target="_blank" rel="noopener">版本 {{ index+1 }} · {{ new Date(render.completed_at*1000).toLocaleString() }}<Icon icon="solar:play-circle-linear" /></a></section></MediaDialog>
+    <MediaDialog :open="history" @close="history=false"><section class="film-history" :aria-label="t('合成版本')"><header><h2>{{ t('合成版本') }}</h2><button class="icon" :title="t('关闭')" @click="history=false"><Icon icon="solar:close-circle-linear" width="22" /></button></header><a v-for="(render,index) in active?.renders" :key="render.id" :href="render.url" target="_blank" rel="noopener">{{ t('版本') }}{{ index+1 }} · {{ new Date(render.completed_at*1000).toLocaleString(locale) }}<Icon icon="solar:play-circle-linear" /></a></section></MediaDialog>
   </section>
 </template>
 

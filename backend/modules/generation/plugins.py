@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 """Folder-based plugin discovery. Installed Python handlers are trusted local code."""
 
 import hashlib
@@ -115,6 +120,23 @@ class PluginCatalog:
             if not isinstance(value.get(key), str) or not IDENTIFIER.fullmatch(value[key]):
                 raise ValueError(f"Invalid plugin {key}")
         value["_plugin_folder"] = root.name
+        localization = value.get("localization")
+        if localization is not None:
+            if (not isinstance(localization, dict)
+                    or set(localization) - {"default_locale", "messages"}
+                    or localization.get("default_locale") not in {"zh-CN", "en-US"}
+                    or not isinstance(localization.get("messages"), dict)
+                    or localization["default_locale"] not in localization["messages"]):
+                raise ValueError("Invalid plugin localization declaration")
+            messages = {}
+            for locale, filename in localization["messages"].items():
+                if locale not in {"zh-CN", "en-US"} or filename != f"locales/{locale}.json":
+                    raise ValueError("Plugin locales must use locales/<locale>.json")
+                pack = json.loads(contained_file(root, filename).read_text(encoding="utf-8"))
+                if not isinstance(pack, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in pack.items()):
+                    raise ValueError("Plugin locale messages must be a flat string dictionary")
+                messages[locale] = pack
+            value["ui_messages"] = messages
         style_library = value.get("style_library")
         if style_library is not None:
             if not isinstance(style_library, dict):
@@ -199,6 +221,12 @@ class PluginCatalog:
                 raise ValueError('Invalid project tool project flags')
             if 'order' in project_tool and (type(project_tool['order']) is not int or project_tool['order'] < 0):
                 raise ValueError('Project tool order must be a non-negative integer')
+            dialog = project_tool.get('dialog', {})
+            if not isinstance(dialog, dict) or set(dialog) - {'width', 'height'}:
+                raise ValueError('Project tool dialog supports width and height only')
+            for dimension in dialog.values():
+                if dimension != 'auto' and (type(dimension) is not int or not 1 <= dimension <= 4096):
+                    raise ValueError('Project tool dialog dimensions must be auto or pixels (1-4096)')
             icon = project_tool.get('icon')
             if icon and isinstance(icon, str) and not icon.startswith(('solar:', 'mdi:', 'lucide:')):
                 icon_path = contained_file(root, icon)
@@ -330,9 +358,12 @@ class PluginCatalog:
                 registered.add(key)
                 config["selector_model"] = {
                     "id": model["id"], "name": model["name"], "plugin_id": value["id"],
+                    **({"name_key": model["name_key"]} if "name_key" in model else {}),
                     "selector_order": order, "default": bool(model.get("default")),
                 }
                 config["mode_name"] = function["name"]
+                if "name_key" in function:
+                    config["mode_name_key"] = function["name_key"]
         if any(config.get("operation", "generate") == "generate" and not config.get("ui_hidden", False)
                for config in value["capabilities"].values()) and not ui_models:
             raise ValueError("Generation plugins must declare ui_models")
@@ -465,7 +496,7 @@ class PluginCatalog:
 
     def public(self) -> dict[str, Any]:
         plugins, errors = self.scan()
-        categories = {item["id"]: item for plugin in plugins for item in plugin["categories"]}
+        categories = {item["id"]: {**item, "plugin_id": plugin["id"]} for plugin in plugins for item in plugin["categories"]}
         return {"items": [{key: value for key, value in plugin.items() if key not in {"capabilities", "modes", "actions", "resource_lifecycle", "application_lifecycle", "_plugin_folder", "_plugin_revision", "application", "project_tool"}} | {"modes": [{key: val for key, val in mode.items() if key != "handler"} for mode in plugin["modes"]], "capability_ids": list(plugin["capabilities"]), "action_ids": [action["id"] for action in plugin["actions"]]} for plugin in plugins], "applications": self.applications(plugins), "project_tools": self.project_tools(plugins), "categories": list(categories.values()), "errors": errors}
 
     def applications(self, plugins=None):

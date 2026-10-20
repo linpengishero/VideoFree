@@ -22,21 +22,25 @@
         "type": "url",
         "default": "https://grsai.dakka.com.cn",
         "required": true,
-        "runtime_key": "base_url"
+        "runtime_key": "base_url",
+        "label_key": "API 地址"
       }
-    ]
+    ],
+    "description_key": "云端图片生成，通过 GrisAI 服务调用。配置保存在本插件的 .env 文件。"
   },
   "categories": [
     {
       "id": "image",
       "name": "图片生成",
-      "icon": "solar:gallery-linear"
+      "icon": "solar:gallery-linear",
+      "name_key": "图片生成"
     }
   ],
   "modes": [
     {
       "name": "直接生成",
-      "id": "direct"
+      "id": "direct",
+      "name_key": "直接生成"
     }
   ],
   "capabilities": {
@@ -71,7 +75,8 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.native_model",
@@ -88,7 +93,8 @@
               }
             ],
             "component": "select",
-            "default": "gpt-image-2"
+            "default": "gpt-image-2",
+            "label_key": "版本"
           },
           {
             "bind": "settings.ratio",
@@ -97,39 +103,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -138,7 +153,8 @@
             "options": [
               {
                 "value": "768P",
-                "label": "自适应"
+                "label": "自适应",
+                "label_key": "自适应"
               },
               {
                 "value": "1K",
@@ -154,14 +170,16 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.style_id",
             "label": "画面风格",
             "section": "settings",
             "component": "style",
-            "default": ""
+            "default": "",
+            "label_key": "画面风格"
           }
         ]
       },
@@ -170,7 +188,8 @@
       "provider_name": "GrisAI",
       "name": "GPT-Image 文生图",
       "model_id": "gpt-image",
-      "model_name": "GPT-Image"
+      "model_name": "GPT-Image",
+      "name_key": "GPT-Image 文生图"
     },
     "image.gpt_image.image_to_image": {
       "kind": "image",
@@ -206,14 +225,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.native_model",
@@ -230,7 +251,8 @@
               }
             ],
             "component": "select",
-            "default": "gpt-image-2"
+            "default": "gpt-image-2",
+            "label_key": "版本"
           },
           {
             "bind": "settings.ratio",
@@ -239,39 +261,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -280,7 +311,8 @@
             "options": [
               {
                 "value": "768P",
-                "label": "自适应"
+                "label": "自适应",
+                "label_key": "自适应"
               },
               {
                 "value": "1K",
@@ -296,14 +328,16 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.style_id",
             "label": "画面风格",
             "section": "settings",
             "component": "style",
-            "default": ""
+            "default": "",
+            "label_key": "画面风格"
           }
         ]
       },
@@ -311,7 +345,8 @@
       "provider_name": "GrisAI",
       "name": "GPT-Image 图生图",
       "model_id": "gpt-image",
-      "model_name": "GPT-Image"
+      "model_name": "GPT-Image",
+      "name_key": "GPT-Image 图生图"
     },
     "image.gpt_image.character": {
       "kind": "image",
@@ -348,14 +383,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.native_model",
@@ -372,7 +409,8 @@
               }
             ],
             "component": "select",
-            "default": "gpt-image-2"
+            "default": "gpt-image-2",
+            "label_key": "版本"
           },
           {
             "bind": "settings.ratio",
@@ -381,39 +419,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -422,7 +469,8 @@
             "options": [
               {
                 "value": "768P",
-                "label": "自适应"
+                "label": "自适应",
+                "label_key": "自适应"
               },
               {
                 "value": "1K",
@@ -438,14 +486,16 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.style_id",
             "label": "画面风格",
             "section": "settings",
             "component": "style",
-            "default": ""
+            "default": "",
+            "label_key": "画面风格"
           }
         ]
       },
@@ -453,7 +503,8 @@
       "provider_name": "GrisAI",
       "name": "GPT-Image 角色版",
       "model_id": "gpt-image",
-      "model_name": "GPT-Image"
+      "model_name": "GPT-Image",
+      "name_key": "GPT-Image 角色版"
     },
     "image.gpt_image.scene": {
       "kind": "image",
@@ -490,14 +541,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.native_model",
@@ -514,7 +567,8 @@
               }
             ],
             "component": "select",
-            "default": "gpt-image-2"
+            "default": "gpt-image-2",
+            "label_key": "版本"
           },
           {
             "bind": "settings.ratio",
@@ -523,39 +577,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -564,7 +627,8 @@
             "options": [
               {
                 "value": "768P",
-                "label": "自适应"
+                "label": "自适应",
+                "label_key": "自适应"
               },
               {
                 "value": "1K",
@@ -580,14 +644,16 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.style_id",
             "label": "画面风格",
             "section": "settings",
             "component": "style",
-            "default": ""
+            "default": "",
+            "label_key": "画面风格"
           }
         ]
       },
@@ -595,7 +661,8 @@
       "provider_name": "GrisAI",
       "name": "GPT-Image 场景图",
       "model_id": "gpt-image",
-      "model_name": "GPT-Image"
+      "model_name": "GPT-Image",
+      "name_key": "GPT-Image 场景图"
     },
     "image.gpt_image.storyboard_4": {
       "kind": "image",
@@ -632,14 +699,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.native_model",
@@ -656,7 +725,8 @@
               }
             ],
             "component": "select",
-            "default": "gpt-image-2"
+            "default": "gpt-image-2",
+            "label_key": "版本"
           },
           {
             "bind": "settings.ratio",
@@ -665,39 +735,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -706,7 +785,8 @@
             "options": [
               {
                 "value": "768P",
-                "label": "自适应"
+                "label": "自适应",
+                "label_key": "自适应"
               },
               {
                 "value": "1K",
@@ -722,14 +802,16 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.style_id",
             "label": "画面风格",
             "section": "settings",
             "component": "style",
-            "default": ""
+            "default": "",
+            "label_key": "画面风格"
           }
         ]
       },
@@ -737,7 +819,8 @@
       "provider_name": "GrisAI",
       "name": "GPT-Image 四宫格分镜",
       "model_id": "gpt-image",
-      "model_name": "GPT-Image"
+      "model_name": "GPT-Image",
+      "name_key": "GPT-Image 四宫格分镜"
     },
     "image.gpt_image.storyboard_6": {
       "kind": "image",
@@ -774,14 +857,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.native_model",
@@ -798,7 +883,8 @@
               }
             ],
             "component": "select",
-            "default": "gpt-image-2"
+            "default": "gpt-image-2",
+            "label_key": "版本"
           },
           {
             "bind": "settings.ratio",
@@ -807,39 +893,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -848,7 +943,8 @@
             "options": [
               {
                 "value": "768P",
-                "label": "自适应"
+                "label": "自适应",
+                "label_key": "自适应"
               },
               {
                 "value": "1K",
@@ -864,14 +960,16 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.style_id",
             "label": "画面风格",
             "section": "settings",
             "component": "style",
-            "default": ""
+            "default": "",
+            "label_key": "画面风格"
           }
         ]
       },
@@ -879,7 +977,8 @@
       "provider_name": "GrisAI",
       "name": "GPT-Image 六宫格分镜",
       "model_id": "gpt-image",
-      "model_name": "GPT-Image"
+      "model_name": "GPT-Image",
+      "name_key": "GPT-Image 六宫格分镜"
     }
   },
   "ui_models": [
@@ -891,29 +990,42 @@
       "functions": [
         {
           "capability_id": "image.gpt_image.text_to_image",
-          "name": "文生图"
+          "name": "文生图",
+          "name_key": "文生图"
         },
         {
           "capability_id": "image.gpt_image.image_to_image",
-          "name": "图生图"
+          "name": "图生图",
+          "name_key": "图生图"
         },
         {
           "capability_id": "image.gpt_image.character",
-          "name": "角色版"
+          "name": "角色版",
+          "name_key": "角色版"
         },
         {
           "capability_id": "image.gpt_image.scene",
-          "name": "场景图"
+          "name": "场景图",
+          "name_key": "场景图"
         },
         {
           "capability_id": "image.gpt_image.storyboard_4",
-          "name": "四宫格分镜"
+          "name": "四宫格分镜",
+          "name_key": "四宫格分镜"
         },
         {
           "capability_id": "image.gpt_image.storyboard_6",
-          "name": "六宫格分镜"
+          "name": "六宫格分镜",
+          "name_key": "六宫格分镜"
         }
       ]
     }
-  ]
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  }
 }

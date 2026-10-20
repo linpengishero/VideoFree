@@ -1,7 +1,17 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { gateway } from '../services/api'
+import { localizeDeclaration } from '../services/i18n'
 import PluginField from './PluginField.vue'
 import PluginDialog from './PluginDialog.vue'
 import { defaults, fieldOptions, getValue, setValue } from '../config/pluginForm'
@@ -13,14 +23,15 @@ const submitting = ref(false)
 const registeredActions = ref([])
 const loading = ref(false), loadError = ref('')
 let loadToken = 0
-const options = computed(() => registeredActions.value.map(item => ({
+const localizedActions = computed(() => registeredActions.value.map(item => localizeDeclaration(item)))
+const options = computed(() => localizedActions.value.map(item => ({
   ...item, value: item.id, label: item.name,
   description: item.description || '', icon: item.icon || 'solar:tuning-square-2-linear'
 })))
-const selectedAction = computed(() => registeredActions.value.find(item => item.id === selected.value))
+const selectedAction = computed(() => localizedActions.value.find(item => item.id === selected.value))
 const fields = computed(() => selectedAction.value?.ui?.fields || [])
 const values = ref({settings:{}, parameters:{}})
-watch([() => props.job, () => props.capabilities], async ([job]) => {
+watch(() => props.job, async job => {
   const token = ++loadToken
   registeredActions.value = []; selected.value = ''; loadError.value = ''
   if (!job) return
@@ -63,15 +74,15 @@ async function submit() {
 </script>
 
 <template>
-  <PluginDialog :open="!!job" :busy="submitting" :framed="false" title="后期处理" @close="emit('close')">
+  <PluginDialog :open="!!job" :busy="submitting" :framed="false" :title="t('后期处理')" @close="emit('close')">
     <div v-if="job">
       <section class="post-modal">
-        <header><div><small>POST PROCESS</small><h2 id="post-title">后期处理</h2></div><button type="button" aria-label="关闭" :disabled="submitting" @click="emit('close')"><Icon icon="solar:close-circle-linear" width="23" /></button></header>
-        <div class="post-preview"><img v-if="job.kind === 'image'" :src="job.artifact_url" alt="待处理图片"><video v-else-if="job.kind === 'video'" :src="job.artifact_url" muted preload="metadata"></video><audio v-else :src="job.artifact_url" controls preload="metadata"></audio><span>当前资源</span></div>
-        <p v-if="loading" role="status">正在读取可用操作…</p><p v-else-if="loadError" role="alert">{{ loadError }}</p><p v-else-if="!options.length">没有适用于此素材的后处理插件</p>
+        <header><div><small>POST PROCESS</small><h2 id="post-title">{{ t('后期处理') }}</h2></div><button type="button" :aria-label="t('关闭')" :disabled="submitting" @click="emit('close')"><Icon icon="solar:close-circle-linear" width="23" /></button></header>
+        <div class="post-preview"><img v-if="job.kind === 'image'" :src="job.artifact_url" :alt="t('待处理图片')"><video v-else-if="job.kind === 'video'" :src="job.artifact_url" muted preload="metadata"></video><audio v-else :src="job.artifact_url" controls preload="metadata"></audio><span>{{ t('当前资源') }}</span></div>
+        <p v-if="loading" role="status">{{ t('正在读取可用操作…') }}</p><p v-else-if="loadError" role="alert">{{ loadError }}</p><p v-else-if="!options.length">{{ t('没有适用于此素材的后处理插件') }}</p>
         <div class="post-options"><button v-for="item in options" :key="item.value" type="button" :disabled="item.available === false" :title="item.reason || item.description" :class="{ active: selected === item.value }" @click="selected = item.value"><i><Icon :icon="item.icon" width="21" /></i><span><b>{{ item.label }}</b><small v-if="item.available === false">{{ item.reason }}</small><small v-else-if="item.description">{{ item.description }}</small></span><Icon class="post-check" :icon="selected === item.value ? 'solar:check-circle-bold' : 'solar:circle-linear'" width="18" /></button></div>
         <fieldset class="post-fields" :disabled="submitting"><PluginField v-for="field in fields" :key="field.bind" :field="field" :source="job" :model-value="getValue(values,field.bind)" @update:model-value="setValue(values,field.bind,$event)" /></fieldset>
-        <footer><button type="button" class="post-cancel" :disabled="submitting" @click="emit('close')">取消</button><button type="button" class="post-submit" :disabled="loading || !selected || submitting || !valid" @click="submit"><Icon :icon="submitting ? 'solar:refresh-circle-linear' : 'solar:play-linear'" width="17" />{{ submitting ? '提交中' : '开始处理' }}</button></footer>
+        <footer><button type="button" class="post-cancel" :disabled="submitting" @click="emit('close')">{{ t('取消') }}</button><button type="button" class="post-submit" :disabled="loading || !selected || submitting || !valid" @click="submit"><Icon :icon="submitting ? 'solar:refresh-circle-linear' : 'solar:play-linear'" width="17" />{{ submitting ? t('提交中') : t('开始处理') }}</button></footer>
       </section>
     </div>
   </PluginDialog>

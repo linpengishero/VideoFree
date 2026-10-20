@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { onMounted, onBeforeUnmount, ref, nextTick } from 'vue';
 import PluginDialog from './PluginDialog.vue';
 const current = ref(null);
@@ -34,7 +43,7 @@ onBeforeUnmount(() => {
   <PluginDialog :open="!!current" :title="current?.title" @close="settle(false)">
     <p class="confirmation-message">{{ current?.message }}</p>
     <template #footer>
-      <button class="ui-button" type="button" autofocus @click="settle(false)">取消</button>
+      <button class="ui-button" type="button" autofocus @click="settle(false)">{{ t('取消') }}</button>
       <button class="ui-button" :class="current?.danger ? 'is-danger' : 'is-primary'" type="button" @click="settle(true)">{{ current?.confirmText }}</button>
     </template>
   </PluginDialog>

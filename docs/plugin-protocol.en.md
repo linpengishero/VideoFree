@@ -288,6 +288,13 @@ Image styles are plugin-owned. Declare top-level `style_library.directory` point
 
 An application may declare `requires_project_flags`; the framework shows it only when the current project has every flag. For example, the AI-progress app uses `ai_created`. Applications are full product pages. A lightweight project/category utility next to the category bar uses `project_tool` and inherits current project/category context; it is not a separate application.
 
+An optional `project_tool.dialog` object configures the centered host panel, for
+example `{"width":860,"height":740}`. Each dimension accepts an integer from
+1 to 4096 pixels or `"auto"` for content sizing. Defaults are 560 by 680; the
+host always limits the panel to its available area. Outer scrollbars are hidden
+without disabling scrolling. Plugins own content layout, wrapping and internal
+scrolling and should set `min-width:0` on flexible content.
+
 ```json
 {
   "application": {
@@ -373,3 +380,29 @@ Resource editing uses the same UI declaration and parameter bindings. Regenerati
 The workbench uses `GET /api/v2/collaborations?project_id=<ID>` for active sessions and `POST /api/v2/collaborations/<ID>/cancel` to cancel. The framework owns recovery, polling, and API calls. Questions, progress, confirmation, and error UI belong to the capability plugin's `collaboration_ui`, not a framework panel selected by model name.
 
 The capability registry's sole source is `plugins/*/plugin.json`; there is no `workflows/registry.json` fallback. Processing modes come from plugin declarations, not model-name inference. Python handlers load in per-plugin versioned packages and support relative imports.
+## UI localization contract
+
+The UI defaults to `zh-CN`. Choosing `en-US` in Settings persists to the framework SQLite settings across restarts and projects. HTTP/MCP IDs, parameter and enum values, prompts and user content remain unchanged.
+
+Register plugin-owned flat string dictionaries:
+```json
+"localization": {
+  "default_locale": "zh-CN",
+  "messages": {
+    "zh-CN": "locales/zh-CN.json",
+    "en-US": "locales/en-US.json"
+  }
+}
+```
+For example, use `{"action.save":"保存"}` and `{"action.save":"Save"}`. Pair presentation fields with explicit keys: `"name":"保存", "name_key":"action.save"`. Supported fields: name, label, description, placeholder, help, title, selection_label, mode_name, model_name and provider_name. Translate option labels, never option values or capability/model/mode/action IDs. Pack paths must stay in the plugin's locales directory.
+
+The catalog publishes messages and key metadata; only the browser resolves translations. Fallback order: selected locale, plugin default_locale, original declaration text. Plugins without packs retain their original text.
+
+Plugin UI receives reactive `locale` and `t(key, fallback?, values?)` props. Components using the host Vue may also inject `videofree:ui-context`: locale is a readonly computed ref, t is the same translator. Example: `t('items.count', '{count} items', {count: 3})`. The framework translates declared fields; plugins translate their own buttons, states and empty views using their own packs. Never store translated text as business state, compare translated labels for control flow, or translate prompt syntax.
+
+Language changes must preserve component instances, drafts and timelines. Watch stable IDs rather than translated objects. Independently built plugins should use the props without importing framework source. Updating packs is a plugin update: drain tasks and restart the gateway.
+
+Voice/style display names and style categories use plugin-owned messages; filtering and submission retain original IDs and values. Translate fixed progress labels at display time, keeping user/LLM content intact. Format dates with the context locale. Preserve untranslated service diagnostics and optionally add a localized summary.
+
+In declarative generation forms, `@` mentions display uploaded file names unchanged across languages. Typing `@` filters uploaded references. Duplicate names receive suffixes, and each mention stays bound to its `upload_id` for the current draft. Submission converts mentions to model tokens such as `<Picture 1>`, `<Video 1>` and `<Audio 1>`, using the current input order within each media type. Removing a mentioned file keeps the marker and blocks submission to prevent accidental rebinding.
+

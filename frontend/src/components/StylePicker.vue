@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t, pluginT } from '../services/i18n';
+
 import { computed, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import PluginDialog from './PluginDialog.vue';
@@ -6,12 +15,15 @@ import { gateway } from '../services/api';
 const props = defineProps({ modelValue: String, pluginId: String });
 const emit = defineEmits(["update:modelValue"]);
 const open = ref(false),
-  items = ref([]),
+  rawItems = ref([]),
   query = ref(""),
   category = ref(""),
   page = ref(1),
   error = ref(""),
   busy = ref(false);
+const items = computed(() => rawItems.value.map(item => ({
+  ...item, name: pluginT(props.pluginId)(item.name), categoryLabel: pluginT(props.pluginId)(item.category),
+})));
 const selected = computed(() =>
   items.value.find((x) => x.id === props.modelValue) || items.value.find((x) => x.default),
 );
@@ -22,7 +34,7 @@ const filtered = computed(() =>
   items.value.filter(
     (x) =>
       (!category.value || x.category === category.value) &&
-      `${x.name} ${x.original_name} ${x.category}`
+      `${x.name} ${x.original_name} ${x.category} ${x.categoryLabel}`
         .toLowerCase()
         .includes(query.value.toLowerCase()),
   ),
@@ -39,7 +51,7 @@ async function loadStyles() {
   error.value = "";
   try {
     const data = await gateway.styles(props.pluginId || '');
-    items.value = data.items || [];
+    rawItems.value = data.items || [];
     if (data.errors?.length)
       error.value = data.errors.join("；");
   } catch (e) {
@@ -57,17 +69,17 @@ onMounted(loadStyles);
 <template>
   <button class="style-trigger" type="button" @click="show">
     <Icon icon="solar:pallete-2-linear" width="17" /><span>{{
-      selected?.name || (modelValue ? "已选风格" : "不限定风格")
+      selected?.name || (modelValue ? t('已选风格') : t('不限定风格'))
     }}</span>
   </button>
-  <PluginDialog :open="open" :framed="false" title="图片风格" @close="open = false">
+  <PluginDialog :open="open" :framed="false" :title="t('图片风格')" @close="open = false">
       <section
         class="style-panel"
       >
         <header>
           <strong
-            >图片风格 <small>{{ items.length }}</small></strong
-          ><button aria-label="关闭" @click="open = false">
+            >{{ t('图片风格') }}<small>{{ items.length }}</small></strong
+          ><button :aria-label="t('关闭')" @click="open = false">
             <Icon icon="solar:close-circle-linear" width="22" />
           </button>
         </header>
@@ -75,9 +87,9 @@ onMounted(loadStyles);
           <Icon icon="solar:magnifer-linear" width="19" /><input
             v-model="query"
             autofocus
-            placeholder="搜索风格名称…"
+            :placeholder="t('搜索风格名称…')"
             @input="page = 1"
-          /><button @click="choose(items.find(x => x.default)?.id || '')">默认写实</button>
+          /><button @click="choose(items.find(x => x.default)?.id || '')">{{ t('默认写实') }}</button>
         </div>
         <div class="style-body">
           <nav>
@@ -87,8 +99,7 @@ onMounted(loadStyles);
                 category = '';
                 page = 1;
               "
-            >
-              全部</button
+            >{{ t('全部') }}</button
             ><button
               v-for="c in categories"
               :key="c"
@@ -98,12 +109,12 @@ onMounted(loadStyles);
                 page = 1;
               "
             >
-              {{ c }}
+              {{ pluginT(pluginId)(c) }}
             </button>
           </nav>
           <div class="style-grid">
-            <p v-if="busy">读取中…</p>
-            <p v-else-if="!filtered.length">没有匹配的风格</p>
+            <p v-if="busy">{{ t('读取中…') }}</p>
+            <p v-else-if="!filtered.length">{{ t('没有匹配的风格') }}</p>
             <button
               v-for="item in filtered.slice((page - 1) * 36, page * 36)"
               :key="item.id"
@@ -123,13 +134,13 @@ onMounted(loadStyles);
           </div>
         </div>
         <footer>
-          <span :role="error ? 'alert' : 'status'" :class="{'ui-feedback is-error': error}">{{ error || `${filtered.length} 种风格` }}</span
-          ><button :disabled="page <= 1" aria-label="上一页" @click="page--">
+          <span :role="error ? 'alert' : 'status'" :class="{'ui-feedback is-error': error}">{{ error || t('{v0} 种风格', undefined, {v0: filtered.length}) }}</span
+          ><button :disabled="page <= 1" :aria-label="t('上一页')" @click="page--">
             <Icon icon="solar:alt-arrow-left-linear" /></button
           ><span>{{ page }} / {{ pages }}</span
           ><button
             :disabled="page >= pages"
-            aria-label="下一页"
+            :aria-label="t('下一页')"
             @click="page++"
           >
             <Icon icon="solar:alt-arrow-right-linear" />

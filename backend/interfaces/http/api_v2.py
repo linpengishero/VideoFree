@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 import asyncio
 import base64
 import hashlib
@@ -821,7 +826,7 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
         return await create_generation(request, parent_job_id=request.parent_job_id, project_id=request.project_id)
 
     @router.get("/jobs")
-    async def list_jobs(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), kind: str | None = None, status: str | None = None, project_id: str | None = None):
+    async def list_jobs(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0), kind: str | None = None, status: str | None = None, project_id: str | None = None):
         try:
             project_id = project_id or ProjectService(context).current()["id"]
         except ValueError as exc:

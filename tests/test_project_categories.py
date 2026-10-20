@@ -1,6 +1,8 @@
 import tempfile
 import unittest
 import asyncio
+import threading
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -28,6 +30,47 @@ class ProjectCategoryTests(unittest.TestCase):
         self.db.insert_job(value)
         self.context.jobs[value["id"]] = value
         return value
+
+    def test_project_update_preserves_omitted_fields_and_allows_explicit_clear(self):
+        from backend.interfaces.http import v1_projects
+
+        self.service.update(self.project, 'Project A', 'Original description', 'Original summary')
+        with patch.object(v1_projects, 'service', self.service):
+            result = asyncio.run(v1_projects.update_project(
+                self.project, v1_projects.ProjectUpdate(name='Renamed')))
+            self.assertEqual(result['description'], 'Original description')
+            self.assertEqual(result['content_summary'], 'Original summary')
+            result = asyncio.run(v1_projects.update_project(
+                self.project, v1_projects.ProjectUpdate(name='Renamed', description='New description')))
+            self.assertEqual(result['description'], 'New description')
+            self.assertEqual(result['content_summary'], 'Original summary')
+            result = asyncio.run(v1_projects.update_project(
+                self.project, v1_projects.ProjectUpdate(name='Renamed', description='', content_summary='')))
+            self.assertEqual(result['description'], '')
+            self.assertEqual(result['content_summary'], '')
+
+    def test_library_lists_stored_media_and_serves_files(self):
+        from backend.interfaces.http import v1_assets
+
+        self.context.library_lock = threading.Lock()
+        self.context.library_cache = {'directory': '', 'created_at': 0, 'items': []}
+        self.context.paths.plugins = self.root / 'plugins'
+        with patch.object(v1_assets, 'context', self.context), patch.object(v1_assets, 'PluginCatalog') as catalog:
+            catalog.return_value.applications.return_value = []
+            result = asyncio.run(v1_assets.library(project_id=self.project))
+            self.assertEqual(result['total'], 0)
+            project = self.db.project(self.project)
+            for folder, filename, kind in [('audio', '\u58f0\u97f3.mp3', 'audio'), ('images', 'image.png', 'image'), ('video', 'clip.mp4', 'video')]:
+                key = f"{project['output_subdir']}/{folder}/{filename}"
+                self.service.storage.put_stream(BytesIO(b'media'), key)
+                self.context.library_cache['created_at'] = 0
+                result = asyncio.run(v1_assets.library(project_id=self.project, kind=kind))
+                self.assertEqual(result['total'], 1)
+                self.assertEqual(result['items'][0]['path'], key)
+                response = asyncio.run(v1_assets.library_file(key))
+                self.assertEqual(Path(response.path).read_bytes(), b'media')
+            result = asyncio.run(v1_assets.library(project_id=self.project))
+            self.assertEqual(result['total'], 3)
 
     def test_windows_reserved_project_names_do_not_insert_rows(self):
         count = len(self.db.projects(True))
@@ -135,6 +178,18 @@ class ProjectCategoryTests(unittest.TestCase):
         service.delete(self.project, asset['id'])
         self.assertFalse(archived.exists())
         self.assertEqual(service.list(self.project), [])
+
+    def test_published_project_media_uses_storage_provider(self):
+        job = self.job()
+        source = self.root / "generated.png"
+        source.write_bytes(b"generated")
+
+        published = self.service.publish(job, [source])
+
+        self.assertEqual(published[0]["relative_path"], "Project A/images/job-one_0.png")
+        self.assertEqual(Path(published[0]["path"]).read_bytes(), b"generated")
+        self.service.delete_published([{"project_path": published[0]["relative_path"]}])
+        self.assertFalse(Path(published[0]["path"]).exists())
 
     def test_character_sheet_and_voice_are_independent(self):
         from backend.modules.projects.assets import PublicAssetService
@@ -247,6 +302,21 @@ class ProjectCategoryTests(unittest.TestCase):
         self.service.delete(self.project)
         self.assertFalse(target.exists())
         self.assertEqual(self.db.project_assets(self.project), [])
+
+    def test_project_delete_http_maps_storage_os_error_to_recoverable_conflict(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from backend.interfaces.http import v1_projects
+
+        app = FastAPI()
+        app.include_router(v1_projects.router)
+        app.dependency_overrides[v1_projects.auth] = lambda: None
+        with patch.object(v1_projects, "service", self.service), \
+             TestClient(app) as client:
+            with patch.object(self.service, "delete", side_effect=PermissionError("denied")):
+                response = client.delete(f"/v1/projects/{self.project}")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("目录权限", response.json()["detail"])
 
     def test_active_generation_blocks_category_deletion(self):
         category = self.service.save_category(self.project, "Episode 1")["id"]

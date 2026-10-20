@@ -15,6 +15,7 @@ bootstrap / lifecycle -> all application modules
 - `backend/core/`：环境配置、运行时上下文、错误和日志，不依赖业务模块。
 - `backend/persistence/`：SQLite 持久化，只提供数据访问。
 - `backend/integrations/`：ComfyUI 与原生供应商适配，不包含 HTTP 路由。
+- `backend/integrations/system_services/storage/`：文件存储 Provider 契约与本地实现；项目素材域通过稳定相对对象键读写素材，不直接实现复制/删除算法。
 - `backend/modules/`：generation、collaboration、settings、presets 等业务模块。
 - `backend/interfaces/http/`：V1/V2 请求模型、能力映射和路由适配。
 - `backend/lifecycle.py`：启动恢复、worker 创建、缓存清理和优雅关闭。
@@ -57,6 +58,7 @@ HTTP v2 与 MCP 共用能力目录和提交入口，不给每个插件复制路�
 
 原生执行器由能力的 executor_handler 声明，框架只保留执行上下文、返回值与取消契约，不维护供应商白名单。
 插件专属固定资源（包括音色 MP3）必须随插件分发并通过插件内相对路径引用；框架不得用 data/cache 的资源补全插件安装包。用户上传、任务和生成结果仍归运行数据。
+项目素材由 `StorageProvider` 管理字节对象，项目/分类/任务归属元数据仍由框架 SQLite 持有。当前默认 `LocalStorageProvider` 将对象键映射到设置指定的资源目录，支持流式写入、文件发布、读取、元数据列表、删除/前缀删除及本地工具物化；上传暂存、任务包、ComfyUI 输出和数据库仍使用原有本地路径。项目素材 API 保持相对对象键与原 URL 兼容。当前只有本地 Provider，尚未实现远程后端、迁移或 Range 流式代理。
 工作流专用图变换、H3 提示词审查、声音样本准备和确认参数修正分别由插件的 compiler_handler、
 speech_handler、confirmation_handler 及协作处理器拥有。模型名称、对外 ID、别名和时长约束来自插件声明。
 资源动作以 source_types、source_schema 和插件 availability_handler 声明适用条件，发现与提交共用校验，框架不识别模型专用检查点格式。

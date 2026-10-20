@@ -1,0 +1,22 @@
+{
+  "项目总览": "Project overview",
+  "默认分类": "Default category",
+  "未开始": "Not started",
+  "进行中": "In progress",
+  "已完成": "Completed",
+  "失败": "Failed",
+  "受阻": "Blocked",
+  "跳过": "Skipped",
+  "进度操作失败": "Progress operation failed",
+  "AI 制作进度": "AI production progress",
+  "刷新进度": "Refresh progress",
+  "进度概况": "Progress summary",
+  "还没有进度记录": "No progress recorded yet",
+  "AI制作进度": "AI production progress",
+  "按项目与分类记录和查看 AI 制作进展。": "Track and view AI production progress by project and category.",
+  "AI进度": "AI progress",
+  "查询 AI 制作进度": "Get AI production progress",
+  "更新 AI 制作进度": "Update AI production progress",
+  "制定 AI 制作计划": "Plan AI production",
+  "查询各分类 AI 制作进度": "List AI progress by category"
+}

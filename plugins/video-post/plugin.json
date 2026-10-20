@@ -7,13 +7,15 @@
     {
       "id": "video",
       "name": "视频生成",
-      "icon": "solar:clapperboard-play-linear"
+      "icon": "solar:clapperboard-play-linear",
+      "name_key": "视频生成"
     }
   ],
   "modes": [
     {
       "name": "直接生成",
-      "id": "direct"
+      "id": "direct",
+      "name_key": "直接生成"
     }
   ],
   "capabilities": {
@@ -62,7 +64,9 @@
         "min": 1,
         "max": 30,
         "default": 5
-      }
+      },
+      "name_key": "视频补帧",
+      "mode_name_key": "视频补帧"
     },
     "video.upscale": {
       "kind": "video",
@@ -110,7 +114,9 @@
         "min": 1,
         "max": 30,
         "default": 5
-      }
+      },
+      "name_key": "LTX 2.5 视频放大",
+      "mode_name_key": "视频放大"
     }
   },
   "actions": [
@@ -136,7 +142,9 @@
           }
         },
         "additionalProperties": false
-      }
+      },
+      "name_key": "视频补帧",
+      "description_key": "为视频插入中间帧，让运动更流畅。"
     },
     {
       "id": "upscale",
@@ -160,7 +168,17 @@
           }
         },
         "additionalProperties": false
-      }
+      },
+      "name_key": "LTX 2.5 视频放大",
+      "description_key": "从视频文件重新编码并放大增强，无需原始生成检查点。"
     }
-  ]
+  ],
+  "name_key": "视频后期处理",
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  }
 }

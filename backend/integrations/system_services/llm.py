@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 from __future__ import annotations
 
 import hashlib
@@ -74,6 +79,11 @@ class LLMProviderCatalog:
                 self._providers[provider_id] = (manifest, provider)
             except (OSError, ValueError, TypeError, KeyError, AttributeError, ImportError) as exc:
                 self.errors.append({"provider": manifest_path.parent.name, "error": str(exc)})
+            except Exception as exc:
+                self.errors.append({
+                    "provider": manifest_path.parent.name,
+                    "error": f"Provider initialization failed: {type(exc).__name__}",
+                })
 
     def items(self) -> list[dict[str, Any]]:
         return [{"id": manifest["id"], "name": manifest["name"],

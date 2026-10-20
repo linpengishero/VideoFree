@@ -1,0 +1,395 @@
+{
+  "schema_version": 1,
+  "id": "project-archive",
+  "version": "2.2.0",
+  "name": "创作档案",
+  "description": "保存项目故事、分集、剧本、分镜、提示词和 AI 定稿，支持人和 AI 继续创作。",
+  "categories": [],
+  "capabilities": {},
+  "project_tool": {
+    "name": "创作档案",
+    "scope": "category",
+    "entry": "ui/Archive.vue",
+    "dialog": {
+      "width": 1120,
+      "height": 800
+    },
+    "order": 30,
+    "name_key": "创作档案"
+  },
+  "actions": [
+    {
+      "id": "project-archive.list_documents",
+      "name": "列出创作档案",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name_key": "列出创作档案"
+    },
+    {
+      "id": "project-archive.get_document",
+      "name": "读取创作档案",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_type": {
+            "enum": [
+              "profile",
+              "story",
+              "episode",
+              "script",
+              "storyboard",
+              "prompts",
+              "characters",
+              "scenes",
+              "continuity",
+              "final-package"
+            ]
+          }
+        },
+        "required": [
+          "document_type"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "读取创作档案"
+    },
+    {
+      "id": "project-archive.get_context",
+      "name": "读取创作上下文（含项目公共设定）",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "include": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "profile",
+                "story",
+                "episode",
+                "script",
+                "storyboard",
+                "prompts",
+                "characters",
+                "scenes",
+                "continuity",
+                "final-package"
+              ]
+            },
+            "maxItems": 10
+          },
+          "shot_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "max_chars": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 50000
+          }
+        },
+        "additionalProperties": false
+      },
+      "name_key": "读取创作上下文（含项目公共设定）"
+    },
+    {
+      "id": "project-archive.search",
+      "name": "搜索创作档案",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "搜索创作档案"
+    },
+    {
+      "id": "project-archive.save_document",
+      "name": "保存创作档案（按格式完整替换当前文档）",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_type": {
+            "enum": [
+              "profile",
+              "story",
+              "episode",
+              "script",
+              "storyboard",
+              "prompts",
+              "characters",
+              "scenes",
+              "continuity",
+              "final-package"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "content": {
+            "type": [
+              "object",
+              "string"
+            ],
+            "description": "profile/story/episode/script 提交纯文本；分镜、提示词和设定按 get_schema 返回的 JSON Schema 提交。"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "review",
+              "final",
+              "archived"
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "document_type",
+          "content",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "保存创作档案（按格式完整替换当前文档）"
+    },
+    {
+      "id": "project-archive.finalize_document",
+      "name": "定稿创作档案",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_type": {
+            "enum": [
+              "profile",
+              "story",
+              "episode",
+              "script",
+              "storyboard",
+              "prompts",
+              "characters",
+              "scenes",
+              "continuity",
+              "final-package"
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "document_type",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "定稿创作档案"
+    },
+    {
+      "id": "project-archive.get_schema",
+      "name": "读取档案内容格式",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_type": {
+            "enum": [
+              "profile",
+              "story",
+              "episode",
+              "script",
+              "storyboard",
+              "prompts",
+              "characters",
+              "scenes",
+              "continuity",
+              "final-package"
+            ]
+          }
+        },
+        "required": [
+          "document_type"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "读取档案内容格式"
+    },
+    {
+      "id": "project-archive.list_versions",
+      "name": "列出档案历史版本",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_type": {
+            "enum": [
+              "profile",
+              "story",
+              "episode",
+              "script",
+              "storyboard",
+              "prompts",
+              "characters",
+              "scenes",
+              "continuity",
+              "final-package"
+            ]
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "document_type"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "列出档案历史版本"
+    },
+    {
+      "id": "project-archive.get_version",
+      "name": "读取档案历史版本",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_type": {
+            "enum": [
+              "profile",
+              "story",
+              "episode",
+              "script",
+              "storyboard",
+              "prompts",
+              "characters",
+              "scenes",
+              "continuity",
+              "final-package"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "document_type",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "读取档案历史版本"
+    },
+    {
+      "id": "project-archive.restore_version",
+      "name": "恢复档案版本为新草稿",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_type": {
+            "enum": [
+              "profile",
+              "story",
+              "episode",
+              "script",
+              "storyboard",
+              "prompts",
+              "characters",
+              "scenes",
+              "continuity",
+              "final-package"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "document_type",
+          "revision",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "恢复档案版本为新草稿"
+    }
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  },
+  "name_key": "创作档案",
+  "description_key": "保存项目故事、分集、剧本、分镜、提示词和 AI 定稿，支持人和 AI 继续创作。"
+}

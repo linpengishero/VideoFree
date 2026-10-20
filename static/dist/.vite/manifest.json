@@ -1,69 +1,73 @@
 {
   "../plugins/ace-step/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-CvevA_Se.js",
+    "file": "assets/Collaboration-DD_iVCkh.js",
     "name": "Collaboration",
     "src": "../plugins/ace-step/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-DGGlkHaM.css"
+      "assets/Collaboration-C6TAUxZf.css"
     ]
   },
   "../plugins/ai-project-progress/ui/Progress.vue": {
-    "file": "assets/Progress-zyNMqnPj.js",
+    "file": "assets/Progress-GdHiaL6X.js",
     "name": "Progress",
     "src": "../plugins/ai-project-progress/ui/Progress.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js"
+      "__plugin-vue_export-helper-CGlLlGMn.js"
     ],
     "css": [
-      "assets/Progress-CeSL9OmQ.css"
+      "assets/Progress-DOS3wraV.css"
     ]
   },
   "../plugins/film-studio/ui/FilmSelection.vue": {
-    "file": "assets/FilmSelection-MoMgGWf7.js",
+    "file": "assets/FilmSelection-DaEY5TyP.js",
     "name": "FilmSelection",
     "src": "../plugins/film-studio/ui/FilmSelection.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
       "index.html",
-      "_api-DPpv2JWQ.js"
+      "_api-CrPeOkaa.js"
     ],
     "css": [
-      "assets/FilmSelection-BKwFTerW.css"
+      "assets/FilmSelection-D4-B8qnM.css"
     ]
   },
   "../plugins/film-studio/ui/FilmStudio.vue": {
-    "file": "assets/FilmStudio-2dyOe4cZ.js",
+    "file": "assets/FilmStudio-BzvTPdSv.js",
     "name": "FilmStudio",
     "src": "../plugins/film-studio/ui/FilmStudio.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
       "index.html",
-      "_api-DPpv2JWQ.js",
+      "_api-CrPeOkaa.js",
       "../plugins/film-studio/ui/Timeline.vue"
     ],
     "css": [
-      "assets/FilmStudio-CBPI8vF_.css"
+      "assets/FilmStudio-CtEero8W.css"
     ]
   },
   "../plugins/film-studio/ui/Timeline.vue": {
-    "file": "assets/Timeline-UG01G7FM.js",
+    "file": "assets/Timeline-BsqvB02V.js",
     "name": "Timeline",
     "src": "../plugins/film-studio/ui/Timeline.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
       "index.html"
     ],
     "css": [
-      "assets/Timeline-Bed2Kn9Y.css"
+      "assets/Timeline-DN3MzkuR.css"
     ]
   },
   "../plugins/krea2/assets/styles/krea2-3d-render.png": {
@@ -91,29 +95,29 @@
     "src": "../plugins/krea2/assets/styles/krea2-realistic.png"
   },
   "../plugins/krea2/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-KY_xhWeQ.js",
+    "file": "assets/Collaboration-c054kbBa.js",
     "name": "Collaboration",
     "src": "../plugins/krea2/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-IY6Ecdw3.css"
+      "assets/Collaboration-CVJ64eqV.css"
     ]
   },
   "../plugins/ltx-2.5/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-U_P7sO13.js",
+    "file": "assets/Collaboration-DG4BhKoM.js",
     "name": "Collaboration",
     "src": "../plugins/ltx-2.5/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-B6EepzCH.css"
+      "assets/Collaboration-CuM4fVUo.css"
     ]
   },
   "../plugins/ltx-2.5/workflows/video/ltx2_5/first_last_frame.png": {
@@ -121,29 +125,75 @@
     "src": "../plugins/ltx-2.5/workflows/video/ltx2_5/first_last_frame.png"
   },
   "../plugins/minimax-h3/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-DYfpobM1.js",
+    "file": "assets/Collaboration-jCi_5B0E.js",
     "name": "Collaboration",
     "src": "../plugins/minimax-h3/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-CJZZk3uh.css"
+      "assets/Collaboration-B7mTjgjz.css"
     ]
   },
   "../plugins/minimax-music/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-_xKDLuLL.js",
+    "file": "assets/Collaboration-OVEvTGYl.js",
     "name": "Collaboration",
     "src": "../plugins/minimax-music/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-P76h4Qlq.css"
+      "assets/Collaboration-B5OOhRsI.css"
+    ]
+  },
+  "../plugins/project-archive/ui/Archive.vue": {
+    "file": "assets/Archive-7-iCEdJ4.js",
+    "name": "Archive",
+    "src": "../plugins/project-archive/ui/Archive.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
+      "index.html",
+      "../plugins/project-archive/ui/ReferenceLinks.vue",
+      "../plugins/project-archive/ui/PromptEditor.vue"
+    ],
+    "css": [
+      "assets/Archive-BL9lnZck.css"
+    ]
+  },
+  "../plugins/project-archive/ui/PromptEditor.vue": {
+    "file": "assets/PromptEditor-B5tWPp8m.js",
+    "name": "PromptEditor",
+    "src": "../plugins/project-archive/ui/PromptEditor.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
+      "index.html",
+      "../plugins/project-archive/ui/ReferenceLinks.vue"
+    ],
+    "css": [
+      "assets/PromptEditor-rYXo4yQ3.css"
+    ]
+  },
+  "../plugins/project-archive/ui/ReferenceLinks.vue": {
+    "file": "assets/ReferenceLinks-CKdBAhEv.js",
+    "name": "ReferenceLinks",
+    "src": "../plugins/project-archive/ui/ReferenceLinks.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js",
+      "index.html"
+    ],
+    "css": [
+      "assets/ReferenceLinks-BNkj8JF4.css"
     ]
   },
   "../plugins/qwen-image/assets/styles/qwen-3d-render.png": {
@@ -171,36 +221,44 @@
     "src": "../plugins/qwen-image/assets/styles/qwen-realistic.png"
   },
   "../plugins/qwen-image/ui/Collaboration.vue": {
-    "file": "assets/Collaboration-DPJ7mIP2.js",
+    "file": "assets/Collaboration-DN2EPt9V.js",
     "name": "Collaboration",
     "src": "../plugins/qwen-image/ui/Collaboration.vue",
     "isDynamicEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js",
+      "__plugin-vue_export-helper-CGlLlGMn.js",
       "index.html"
     ],
     "css": [
-      "assets/Collaboration-Do9nohqn.css"
+      "assets/Collaboration-DO9AHaiW.css"
     ]
   },
-  "__plugin-vue_export-helper-BAHkH64h.js": {
-    "file": "assets/_plugin-vue_export-helper-BAHkH64h.js",
+  "__plugin-vue_export-helper-CGlLlGMn.js": {
+    "file": "assets/_plugin-vue_export-helper-CGlLlGMn.js",
     "name": "_plugin-vue_export-helper"
   },
-  "_api-DPpv2JWQ.js": {
-    "file": "assets/api-DPpv2JWQ.js",
+  "_api-CrPeOkaa.js": {
+    "file": "assets/api-CrPeOkaa.js",
     "name": "api",
     "imports": [
       "index.html"
     ]
   },
+  "_runtime-dom.esm-bundler-w_OzFSbc.js": {
+    "file": "assets/runtime-dom.esm-bundler-w_OzFSbc.js",
+    "name": "runtime-dom.esm-bundler",
+    "imports": [
+      "__plugin-vue_export-helper-CGlLlGMn.js"
+    ]
+  },
   "index.html": {
-    "file": "assets/index-VwdUVem4.js",
+    "file": "assets/index-DqSEp7Wu.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "imports": [
-      "__plugin-vue_export-helper-BAHkH64h.js"
+      "__plugin-vue_export-helper-CGlLlGMn.js",
+      "_runtime-dom.esm-bundler-w_OzFSbc.js"
     ],
     "dynamicImports": [
       "../plugins/ace-step/ui/Collaboration.vue",
@@ -212,10 +270,13 @@
       "../plugins/ltx-2.5/ui/Collaboration.vue",
       "../plugins/minimax-h3/ui/Collaboration.vue",
       "../plugins/minimax-music/ui/Collaboration.vue",
+      "../plugins/project-archive/ui/Archive.vue",
+      "../plugins/project-archive/ui/PromptEditor.vue",
+      "../plugins/project-archive/ui/ReferenceLinks.vue",
       "../plugins/qwen-image/ui/Collaboration.vue"
     ],
     "css": [
-      "assets/index-5QTY4SD0.css"
+      "assets/index-Bl8HD5Bs.css"
     ],
     "assets": [
       "assets/krea2-3d-render-CvzBEcIi.png",

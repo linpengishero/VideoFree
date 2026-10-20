@@ -46,6 +46,10 @@ Provider manifests are stored in `<provider-id>/provider.json`. The manifest's `
 
 Provider 清单位于 `<provider-id>/provider.json`。当前 `entry` 相对于 `llm_providers/` 目录解析，因此内置 Provider 可以共用 `openai-compatible/provider.py`；目录注册器会校验入口仍在该目录内。当前清单字段为 `schema_version`、`id`、`name`、`entry`、可选的 `thinking`，以及仅含字符串 `ai_base_url`、`ai_model` 的 `defaults`。
 
+The first file-storage contract is implemented separately from LLM provider discovery in `backend/integrations/system_services/storage/`: `protocol.py` owns the contract and object metadata; `local.py` implements the local backend. `StorageProvider` owns byte-object operations only: safe relative keys, `put_stream`/`put_file`, `open`, metadata listing, delete/prefix-delete, and local materialization. The framework owns project/category metadata and authorization. The built-in `LocalStorageProvider` follows the active resource-directory setting; it is not manifest-discovered because it is currently the only backend. A future storage backend must satisfy the same contract and be explicitly selected by framework configuration before use.
+
+首个文件存储契约独立于 LLM Provider 注册器，代码位于 `backend/integrations/system_services/storage/`：`protocol.py` 声明契约与对象元数据，`local.py` 实现本地后端。`StorageProvider` 只负责文件对象字节操作：安全相对键、`put_stream`/`put_file`、`open`、元数据列表、删除/前缀删除及本地物化。项目/分类元数据和授权仍归框架。本地 Provider 根据当前资源目录设置工作；目前它是唯一后端，因此没有做清单发现。未来存储后端必须实现同一契约，并由框架配置显式选择后才可启用。
+
 Do not put system services in `plugins/`, `backend/modules/`, `backend/core/`, or the project data directory. Runtime configuration and secrets remain in the framework settings database, never beside provider code. If the generic cross-service runtime contract is implemented, its loader and manifest may use a service-first directory layout, but that migration must update this document and its tests together.
 
 系统服务不得放进 `plugins/`、`backend/modules/`、`backend/core/` 或项目数据目录。运行配置和密钥继续由框架保存到设置数据库，不得与服务商代码放在一起。未来若通用跨服务运行时采用 service-first 目录布局，必须同步更新本协议和测试。
@@ -161,9 +165,9 @@ The current provider interface has three methods: `build_chat_request(settings, 
 
 ## Current implementation status / 当前实现状态
 
-The current code implements manifest discovery for LLM providers and keeps the collaboration call site provider-neutral. It does not yet implement the generic `SystemServiceProvider.invoke` registry, schema-driven settings for arbitrary service types, or `PluginRuntime.call_system_service`. Therefore v1 currently guarantees framework-free addition of LLM providers only. Do not claim arbitrary future service types are plug-and-play until those generic runtime pieces are implemented. This status is intentional and must be updated as the contract is implemented.
+The current code implements manifest discovery for LLM providers and keeps the collaboration call site provider-neutral. It also implements and uses the typed local `StorageProvider` for project-library bytes. It does not yet implement the generic `SystemServiceProvider.invoke` registry, schema-driven settings for arbitrary service types, remote storage backends, or `PluginRuntime.call_system_service`. Therefore v1 currently guarantees framework-free addition of LLM providers only; storage backends require framework selection/configuration work. Do not claim arbitrary future service types are plug-and-play until those generic runtime pieces are implemented. This status is intentional and must be updated as the contract is implemented.
 
-当前代码已实现 LLM Provider 清单发现，协作调用点不再按服务商分支。但尚未实现通用 `SystemServiceProvider.invoke` 注册表、任意服务类型的 Schema 驱动设置界面，以及 `PluginRuntime.call_system_service`。因此当前 v1 只保证增加 LLM Provider 无需修改框架。在这些通用运行时能力实现前，不得宣称任意未来服务类型可直接插拔。协议实现完成后必须同步更新本节状态。
+当前代码已实现 LLM Provider 清单发现，协作调用点不再按服务商分支；同时已实现并接入项目素材字节操作的类型化本地 `StorageProvider`。通用 `SystemServiceProvider.invoke` 注册表、任意服务类型的 Schema 驱动设置、远程存储后端及 `PluginRuntime.call_system_service` 尚未实现。因此当前 v1 只保证增加 LLM Provider 无需修改框架；新增存储后端仍需框架提供选择/配置。在通用运行时能力实现前，不得宣称任意未来服务类型可直接插拔。协议实现后需同步更新本节状态。
 
 ## Related docs / 相关文档
 

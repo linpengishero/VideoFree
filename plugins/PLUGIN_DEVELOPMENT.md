@@ -225,6 +225,10 @@ if (await confirmAction('删除这份记录？', { title: '删除记录', confir
 
 应用页面由插件自己实现。推荐使用独立 bundle：
 
+轻量 `project_tool` 使用框架居中弹框，可声明 `dialog: {"width":860,"height":740}`；
+每个尺寸可为 `1..4096` 像素整数或 `"auto"`，默认 `560 × 680`，始终受宿主可用区域限制。
+内容布局、换行和内部滚动仍由插件负责；隐藏滚动条时须保留鼠标、触控和键盘滚动。
+
 ```json
 {
   "application": {
@@ -379,3 +383,29 @@ cmd /c "videofree.bat --check"
 发布前确认：`INSTALL.md` 与当前工作流一致且没有本机绝对路径；每个模型和自定义节点都有来源与安装位置；固定资源都在插件目录；没有框架专用分支；没有直接 SQLite/ComfyUI 文件访问；独立 UI bundle 位于 `ui/dist`；动作已通过通用能力发现和 MCP 入口暴露；项目和分类删除不会留下插件数据。
 
 完整字段约束见 [`docs/plugin-protocol.md`](../docs/plugin-protocol.md)。
+## UI 中英双语约定
+
+界面语言默认 `zh-CN`，用户在设置中选择 `en-US` 后持久化到框架 SQLite settings；不随项目切换，不依赖浏览器系统语言。HTTP/MCP 的 ID、参数、枚举值、提示词和用户内容保持原样。
+
+插件通过以下清单注册自己的扁平字符串语言包：
+```json
+"localization": {
+  "default_locale": "zh-CN",
+  "messages": {
+    "zh-CN": "locales/zh-CN.json",
+    "en-US": "locales/en-US.json"
+  }
+}
+```
+语言包使用 `{"action.save":"保存"}` / `{"action.save":"Save"}`。声明中的显示字段用配套键标记，例如 `"name":"保存", "name_key":"action.save"`；同样适用于 label、description、placeholder、help、title、selection_label、mode_name、model_name、provider_name。选项只翻译 label，不翻译 value；能力、模型、模式和动作 ID 不变。语言包路径必须位于插件自己的 locales 目录。
+
+框架只发布语言包与键元数据，由浏览器解析；不按语言改写 API/MCP 目录。缺少当前语言的键时，回退插件 default_locale，再回退原声明文本。无语言包插件继续显示原文。
+
+插件 UI 收到响应式 `locale` 和 `t(key, fallback?, values?)` props；使用宿主 Vue 的插件也可注入 `videofree:ui-context`，其中 locale 为只读 computed ref，t 为同一翻译函数。例：`t('items.count', '共 {count} 项', {count: 3})`。声明式字段由框架本地化，插件内部按钮、状态、空态等由插件自己的语言包与 t 实现。翻译只在展示时发生，禁止把翻译文案写入业务状态、判断状态或修改提示词语法。
+
+切换语言不得重建插件组件、重置草稿/时间线或监听翻译后对象来重新加载数据；监听稳定 ID。第三方独立构建插件优先使用 props，不导入框架源码。更新语言包属于插件更新，排空任务并重启网关。
+
+内置插件均提供中英语言包。音色显示名、风格名称与分类也使用所属插件的语言包查找，预设 ID、风格提示词及分类筛选值保持原样。插件内部固定进度文案应在显示处翻译，LLM 回复、用户内容与确认稿原文不自动翻译；日期显示使用上下文 locale。框架请求错误在英文界面优先显示已有翻译，未知中文错误附英文摘要并保留原始诊断。
+
+声明式生成表单的 `@` 引用由框架处理：显示上传文件名，输入 `@` 列出已上传素材，同名文件增加序号；绑定 `upload_id`，提交时转换为 `<Picture 1>`、`<Video 1>`、`<Audio 1>` 等标签。文件名和模型标签都不翻译。删除被引用文件会阻止提交，须删除旧标记或重新选择素材；插件无需重复实现该逻辑。
+

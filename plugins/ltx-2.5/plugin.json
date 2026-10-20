@@ -8,18 +8,21 @@
     {
       "id": "video",
       "name": "视频生成",
-      "icon": "solar:clapperboard-play-linear"
+      "icon": "solar:clapperboard-play-linear",
+      "name_key": "视频生成"
     }
   ],
   "modes": [
     {
       "name": "直接生成",
-      "id": "direct"
+      "id": "direct",
+      "name_key": "直接生成"
     },
     {
       "id": "director",
       "handler": "collaboration/handler.py:director",
-      "name": "智能协作"
+      "name": "智能协作",
+      "name_key": "智能协作"
     }
   ],
   "capabilities": {
@@ -73,7 +76,8 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.ratio",
@@ -82,39 +86,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -151,7 +164,8 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.duration",
@@ -162,14 +176,16 @@
             "step": 0.1,
             "default": 5,
             "component": "number",
-            "required": true
+            "required": true,
+            "label_key": "时长（秒）"
           }
         ]
       },
       "input_roles": {},
       "name": "LTX 2.5 文生视频",
       "model_id": "ltx-2.5",
-      "model_name": "LTX 2.5"
+      "model_name": "LTX 2.5",
+      "name_key": "LTX 2.5 文生视频"
     },
     "video.ltx2_5.image_to_video": {
       "kind": "video",
@@ -221,14 +237,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.ratio",
@@ -237,39 +255,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -306,7 +333,8 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.duration",
@@ -317,7 +345,8 @@
             "step": 0.1,
             "default": 5,
             "component": "number",
-            "required": true
+            "required": true,
+            "label_key": "时长（秒）"
           }
         ]
       },
@@ -328,7 +357,8 @@
       },
       "name": "LTX 2.5 图生视频",
       "model_id": "ltx-2.5",
-      "model_name": "LTX 2.5"
+      "model_name": "LTX 2.5",
+      "name_key": "LTX 2.5 图生视频"
     },
     "video.ltx2_5.first_last_frame": {
       "kind": "video",
@@ -441,14 +471,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.ratio",
@@ -457,39 +489,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -526,7 +567,8 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.duration",
@@ -537,7 +579,8 @@
             "step": 0.1,
             "default": 5,
             "component": "number",
-            "required": true
+            "required": true,
+            "label_key": "时长（秒）"
           }
         ]
       },
@@ -549,7 +592,8 @@
       },
       "name": "LTX 2.5 首尾帧",
       "model_id": "ltx-2.5",
-      "model_name": "LTX 2.5"
+      "model_name": "LTX 2.5",
+      "name_key": "LTX 2.5 首尾帧"
     },
     "video.ltx2_5.multi_reference": {
       "kind": "video",
@@ -625,14 +669,16 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.reference_image",
             "component": "media",
             "media": "image",
             "label": "参考图片",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考图片"
           },
           {
             "bind": "settings.ratio",
@@ -641,39 +687,48 @@
             "options": [
               {
                 "value": "16:9",
-                "label": "16:9 横屏"
+                "label": "16:9 横屏",
+                "label_key": "16:9 横屏"
               },
               {
                 "value": "9:16",
-                "label": "9:16 竖屏"
+                "label": "9:16 竖屏",
+                "label_key": "9:16 竖屏"
               },
               {
                 "value": "1:1",
-                "label": "1:1 方形"
+                "label": "1:1 方形",
+                "label_key": "1:1 方形"
               },
               {
                 "value": "4:3",
-                "label": "4:3 标准"
+                "label": "4:3 标准",
+                "label_key": "4:3 标准"
               },
               {
                 "value": "3:4",
-                "label": "3:4 竖版"
+                "label": "3:4 竖版",
+                "label_key": "3:4 竖版"
               },
               {
                 "value": "21:9",
-                "label": "21:9 超宽"
+                "label": "21:9 超宽",
+                "label_key": "21:9 超宽"
               },
               {
                 "value": "2:3",
-                "label": "2:3 海报"
+                "label": "2:3 海报",
+                "label_key": "2:3 海报"
               },
               {
                 "value": "3:2",
-                "label": "3:2 相机"
+                "label": "3:2 相机",
+                "label_key": "3:2 相机"
               }
             ],
             "component": "select",
-            "default": "16:9"
+            "default": "16:9",
+            "label_key": "比例"
           },
           {
             "bind": "settings.resolution",
@@ -710,7 +765,8 @@
               }
             ],
             "component": "select",
-            "default": "1K"
+            "default": "1K",
+            "label_key": "分辨率"
           },
           {
             "bind": "settings.duration",
@@ -721,7 +777,8 @@
             "step": 0.1,
             "default": 5,
             "component": "number",
-            "required": true
+            "required": true,
+            "label_key": "时长（秒）"
           }
         ]
       },
@@ -734,7 +791,8 @@
       },
       "name": "LTX 2.5 多主体参考",
       "model_id": "ltx-2.5",
-      "model_name": "LTX 2.5"
+      "model_name": "LTX 2.5",
+      "name_key": "LTX 2.5 多主体参考"
     }
   },
   "ui_models": [
@@ -746,21 +804,32 @@
       "functions": [
         {
           "capability_id": "video.ltx2_5.text_to_video",
-          "name": "文生视频"
+          "name": "文生视频",
+          "name_key": "文生视频"
         },
         {
           "capability_id": "video.ltx2_5.image_to_video",
-          "name": "图生视频"
+          "name": "图生视频",
+          "name_key": "图生视频"
         },
         {
           "capability_id": "video.ltx2_5.first_last_frame",
-          "name": "首尾帧"
+          "name": "首尾帧",
+          "name_key": "首尾帧"
         },
         {
           "capability_id": "video.ltx2_5.multi_reference",
-          "name": "多主体参考"
+          "name": "多主体参考",
+          "name_key": "多主体参考"
         }
       ]
     }
-  ]
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  }
 }

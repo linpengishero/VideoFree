@@ -1,6 +1,10 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 from __future__ import annotations
 import json
-import os
 from pathlib import Path
 import re
 import shutil
@@ -26,11 +30,18 @@ MEDIA_EXTENSIONS = {
 class ProjectService:
     def __init__(self, context: Any):
         self.context = context
+        from ...integrations.system_services import LocalStorageProvider
+        self.storage = getattr(context, "storage_provider", None) or LocalStorageProvider(
+            self._configured_projects_root
+        )
+
+    def _configured_projects_root(self) -> Path:
+        configured = self.context.db.settings().get("resource_directory", "").strip()
+        return Path(configured).expanduser().resolve() if configured else self.context.paths.projects.resolve()
 
     @property
     def projects_root(self) -> Path:
-        configured = self.context.db.settings().get("resource_directory", "").strip()
-        return Path(configured).expanduser().resolve() if configured else self.context.paths.projects.resolve()
+        return self.storage.root
 
     @staticmethod
     def _directory_name(name: str) -> str:
@@ -43,10 +54,7 @@ class ProjectService:
         return value[:80]
 
     def ensure_directory(self, project: dict[str, Any]) -> Path:
-        root = self.projects_root
-        directory = (root / str(project["output_subdir"])).resolve()
-        if directory.parent != root:
-            raise ValueError("项目输出目录无效")
+        directory = self.storage.ensure_directory(str(project["output_subdir"]))
         for child in set(MEDIA_DIRECTORIES.values()):
             (directory / child).mkdir(parents=True, exist_ok=True)
         return directory
@@ -93,7 +101,7 @@ class ProjectService:
         for project in projects:
             directory = self.ensure_directory(project)
             project["output_path"] = str(directory)
-            project["asset_count"] = sum(1 for path in directory.rglob("*") if path.is_file())
+            project["asset_count"] = len(self.storage.list_files(str(project["output_subdir"])))
         return projects
 
     def categories(self, project_id: str) -> list[dict[str, Any]]:
@@ -218,17 +226,18 @@ class ProjectService:
             raise ValueError("素材文件不存在")
         return self.authorize(project["id"])
 
-    def update(self, project_id: str, name: str, description: str = "", content_summary: str = "") -> dict[str, Any]:
+    def update(self, project_id: str, name: str, description: str | None = None, content_summary: str | None = None) -> dict[str, Any]:
         project = self.context.db.project(project_id)
         if not project or project.get("status") != "active":
             raise ValueError("项目不存在或已归档")
         display_name = name.strip()
         self._directory_name(display_name)
-        result = self.context.db.update_project(project_id, {
-            "name": display_name,
-            "description": description.strip(),
-            "content_summary": content_summary.strip(),
-        })
+        changes = {"name": display_name}
+        if description is not None:
+            changes["description"] = description.strip()
+        if content_summary is not None:
+            changes["content_summary"] = content_summary.strip()
+        result = self.context.db.update_project(project_id, changes)
         if not result:
             raise ValueError("项目不存在")
         result["output_path"] = str(self.ensure_directory(result))
@@ -288,9 +297,7 @@ class ProjectService:
             path.unlink(missing_ok=True)
         for collaboration_id in collaboration_ids:
             self._delete_collaboration_directory(collaboration_id)
-        project_dir = (self.projects_root / str(project["output_subdir"])).resolve()
-        if self.projects_root in project_dir.parents and project_dir.is_dir():
-            shutil.rmtree(project_dir)
+        self.storage.delete_prefix(str(project["output_subdir"]))
         self.context.db.delete_project(project_id)
         for collaboration_id in collaboration_ids:
             self.context.db.delete_collaboration(collaboration_id)
@@ -417,16 +424,14 @@ class ProjectService:
         project = self.context.db.project(project_id) if project_id else None
         if not project:
             return
-        project_root = self.ensure_directory(project)
         job_id = str(job.get("id") or "")
         # Older records omitted project_path. The job prefix is deterministic and
         # limited to the project's own media directories.
         if job_id:
             for directory in set(MEDIA_DIRECTORIES.values()):
-                media_dir = project_root / directory
-                for target in media_dir.glob(f"{job_id}_*"):
-                    if target.is_file():
-                        target.unlink()
+                for item in self.storage.list_files(f"{project['output_subdir']}/{directory}"):
+                    if Path(item.key).name.startswith(f"{job_id}_"):
+                        self.storage.delete(item.key)
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
         return cleanup_warnings
     def resolve_job_project(self, parent_job_id: str | None = None) -> dict[str, Any]:
@@ -449,32 +454,21 @@ class ProjectService:
         project = self.context.db.project(job.get("project_id")) if job.get("project_id") else None
         if not project:
             raise ValueError("生成任务必须属于一个项目")
-        project_root = self.ensure_directory(project)
         media_kind = job.get("kind", "image")
-        output_dir = project_root / MEDIA_DIRECTORIES.get(media_kind, "images")
+        output_dir = f"{project['output_subdir']}/{MEDIA_DIRECTORIES.get(media_kind, 'images')}"
         published = []
         for index, source in enumerate(paths):
             filename = f"{job['id']}_{index}{source.suffix.lower()}"
-            destination = output_dir / filename
-            if source.resolve() != destination.resolve():
-                temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-                try:
-                    os.link(source, temporary)
-                except OSError:
-                    shutil.copy2(source, temporary)
-                os.replace(temporary, destination)
-            relative = destination.relative_to(self.projects_root).as_posix()
-            published.append({"path": str(destination), "relative_path": relative})
+            relative = f"{output_dir}/{filename}"
+            self.storage.put_file(source, relative, link_if_possible=True)
+            published.append({"path": str(self.storage.local_path(relative)), "relative_path": relative})
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
         return published
 
     def delete_published(self, artifacts: list[dict[str, Any]]) -> None:
-        root = self.projects_root
         for artifact in artifacts:
             relative = str(artifact.get("project_path") or "").strip()
             if not relative:
                 continue
-            target = (root / relative).resolve()
-            if root in target.parents and target.is_file():
-                target.unlink()
+            self.storage.delete(relative)
         self.context.library_cache.update(directory="", created_at=0.0, items=[])

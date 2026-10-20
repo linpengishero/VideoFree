@@ -164,6 +164,12 @@ HTTP/MCP maps errors centrally: `409` for retryable state conflicts, `422` for i
 
 ## Application UI
 
+Contextual `project_tool` panels use the framework's centered dialog. Set
+`dialog: {"width":860,"height":740}` in the tool declaration. Each dimension accepts
+an integer from 1 to 4096 pixels or `"auto"` for content sizing; defaults are
+560 by 680. The host always constrains the panel to its available area. Plugins
+own wrapping and internal scrolling; hiding scrollbars must not disable scrolling.
+
 Reuse `@framework` public components and services. `PluginDialog` and `MediaDialog` provide the dialog shell, backdrop, ESC/close behavior, busy state, focus restoration, and content scrolling. The plugin implements only business content. All plugins may use shared notifications and confirmations; do not create duplicate notification containers or use browser `alert()`/`confirm()`.
 
 ```js
@@ -226,3 +232,29 @@ cmd /c "videofree.bat --check"
 ```
 
 Run plugin-local tests separately when present. Do not manually edit `static/dist`, runtime data, caches, or generated bundles. After changing plugin Python, manifests, workflows, or fixed assets, drain jobs and restart the gateway. Keep model/node requirements and `INSTALL.md` in the plugin. State plugin type, changed files, capability/action IDs, dependencies, validation, and anything requiring a real ComfyUI environment when handing off.
+## UI localization contract
+
+The UI defaults to `zh-CN`. Choosing `en-US` in Settings persists to the framework SQLite settings across restarts and projects. HTTP/MCP IDs, parameter and enum values, prompts and user content remain unchanged.
+
+Register plugin-owned flat string dictionaries:
+```json
+"localization": {
+  "default_locale": "zh-CN",
+  "messages": {
+    "zh-CN": "locales/zh-CN.json",
+    "en-US": "locales/en-US.json"
+  }
+}
+```
+For example, use `{"action.save":"保存"}` and `{"action.save":"Save"}`. Pair presentation fields with explicit keys: `"name":"保存", "name_key":"action.save"`. Supported fields: name, label, description, placeholder, help, title, selection_label, mode_name, model_name and provider_name. Translate option labels, never option values or capability/model/mode/action IDs. Pack paths must stay in the plugin's locales directory.
+
+The catalog publishes messages and key metadata; only the browser resolves translations. Fallback order: selected locale, plugin default_locale, original declaration text. Plugins without packs retain their original text.
+
+Plugin UI receives reactive `locale` and `t(key, fallback?, values?)` props. Components using the host Vue may also inject `videofree:ui-context`: locale is a readonly computed ref, t is the same translator. Example: `t('items.count', '{count} items', {count: 3})`. The framework translates declared fields; plugins translate their own buttons, states and empty views using their own packs. Never store translated text as business state, compare translated labels for control flow, or translate prompt syntax.
+
+Language changes must preserve component instances, drafts and timelines. Watch stable IDs rather than translated objects. Independently built plugins should use the props without importing framework source. Updating packs is a plugin update: drain tasks and restart the gateway.
+
+All bundled plugins provide Chinese and English packs. Voice display names, style names and style categories use their owning plugin's dictionary; preset IDs, style prompts and category filter values remain unchanged. Translate fixed progress messages at display time. Keep LLM replies, user content and confirmation drafts in their original language, and format dates with the context locale. In English UI, request errors use curated translations where available; unknown Chinese errors retain their original diagnostics alongside an English summary.
+
+The framework handles `@` mentions in declarative generation forms: uploaded file names are displayed, typing `@` lists uploaded references, and duplicate names receive suffixes. Mentions bind to `upload_id` and become tokens such as `<Picture 1>`, `<Video 1>` and `<Audio 1>` on submission. Neither file names nor model tokens are translated. Removing a mentioned file blocks submission until its marker is removed or a reference is selected again. Plugins do not need to duplicate this logic.
+

@@ -7,13 +7,15 @@
     {
       "id": "image",
       "name": "图片生成",
-      "icon": "solar:gallery-linear"
+      "icon": "solar:gallery-linear",
+      "name_key": "图片生成"
     }
   ],
   "modes": [
     {
       "name": "直接生成",
-      "id": "direct"
+      "id": "direct",
+      "name_key": "直接生成"
     }
   ],
   "capabilities": {
@@ -47,7 +49,10 @@
       "name": "四宫格分割",
       "model_id": "image-split",
       "model_name": "图片分割工作流",
-      "mode_name": "四宫格分割"
+      "mode_name": "四宫格分割",
+      "name_key": "四宫格分割",
+      "mode_name_key": "四宫格分割",
+      "model_name_key": "图片分割工作流"
     },
     "image.split_6": {
       "kind": "image",
@@ -80,7 +85,10 @@
       "name": "六宫格分割",
       "model_id": "image-split",
       "model_name": "图片分割工作流",
-      "mode_name": "六宫格分割"
+      "mode_name": "六宫格分割",
+      "name_key": "六宫格分割",
+      "mode_name_key": "六宫格分割",
+      "model_name_key": "图片分割工作流"
     }
   },
   "actions": [
@@ -123,7 +131,9 @@
           }
         },
         "additionalProperties": false
-      }
+      },
+      "name_key": "四宫格分割",
+      "description_key": "将四宫格图片切成 4 张独立图片。"
     },
     {
       "id": "split_6",
@@ -164,7 +174,17 @@
           }
         },
         "additionalProperties": false
-      }
+      },
+      "name_key": "六宫格分割",
+      "description_key": "将三列两行的六宫格图片切成 6 张独立图片。"
     }
-  ]
+  ],
+  "name_key": "图片分割",
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  }
 }

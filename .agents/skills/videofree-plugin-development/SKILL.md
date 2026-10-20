@@ -96,3 +96,25 @@ cmd /c "videofree.bat --check"
 Run plugin-local tests separately when present. A plugin that loads is not necessarily usable: verify discovery output, input Schema, default values, automation visibility, project/category ownership, output publication, and understandable failure messages. Do not submit real paid or GPU-heavy generation unless the user requested it.
 
 Finish by stating the plugin type, files changed, exposed capability/action IDs, the location of `INSTALL.md`, required ComfyUI models/nodes or external services, verification results, and anything that still requires a real environment. Remind the user to drain plugin jobs and restart the gateway after installing or changing plugin Python, manifests, workflows, or fixed assets.
+## UI localization contract
+
+The UI defaults to `zh-CN`. Choosing `en-US` in Settings persists to the framework SQLite settings across restarts and projects. HTTP/MCP IDs, parameter and enum values, prompts and user content remain unchanged.
+
+Register plugin-owned flat string dictionaries:
+```json
+"localization": {
+  "default_locale": "zh-CN",
+  "messages": {
+    "zh-CN": "locales/zh-CN.json",
+    "en-US": "locales/en-US.json"
+  }
+}
+```
+For example, use `{"action.save":"保存"}` and `{"action.save":"Save"}`. Pair presentation fields with explicit keys: `"name":"保存", "name_key":"action.save"`. Supported fields: name, label, description, placeholder, help, title, selection_label, mode_name, model_name and provider_name. Translate option labels, never option values or capability/model/mode/action IDs. Pack paths must stay in the plugin's locales directory.
+
+The catalog publishes messages and key metadata; only the browser resolves translations. Fallback order: selected locale, plugin default_locale, original declaration text. Plugins without packs retain their original text.
+
+Plugin UI receives reactive `locale` and `t(key, fallback?, values?)` props. Components using the host Vue may also inject `videofree:ui-context`: locale is a readonly computed ref, t is the same translator. Example: `t('items.count', '{count} items', {count: 3})`. The framework translates declared fields; plugins translate their own buttons, states and empty views using their own packs. Never store translated text as business state, compare translated labels for control flow, or translate prompt syntax.
+
+Language changes must preserve component instances, drafts and timelines. Watch stable IDs rather than translated objects. Independently built plugins should use the props without importing framework source. Updating packs is a plugin update: drain tasks and restart the gateway.
+

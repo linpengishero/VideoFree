@@ -1,0 +1,10 @@
+{
+  "图片分割": "Image splitting",
+  "图片生成": "Image generation",
+  "直接生成": "Generate directly",
+  "四宫格分割": "Split four panels",
+  "图片分割工作流": "Image splitting workflow",
+  "六宫格分割": "Split six panels",
+  "将四宫格图片切成 4 张独立图片。": "Split a four-panel image into four separate images.",
+  "将三列两行的六宫格图片切成 6 张独立图片。": "Split a three-column, two-row image into six separate images."
+}

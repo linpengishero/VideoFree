@@ -1,7 +1,17 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from './services/i18n';
+
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { gateway, readMediaBlob } from "./services/api";
+import { locale, localizeDeclaration, registerPluginMessages, setLocale } from './services/i18n';
 import { confirmAction } from './services/confirmations';
 import ConfirmationHost from './components/ConfirmationHost.vue';
 import PluginComposer from './components/PluginComposer.vue';
@@ -59,8 +69,9 @@ const guideSection = ref(new URLSearchParams(window.location.search).get("guide"
 function syncRoute() {
   studioVisible.value = window.location.pathname === "/studio";
   guideSection.value = new URLSearchParams(window.location.search).get("guide");
-  document.title = studioVisible.value ? "videofree · 工作台" : guideSection.value ? "videofree · 使用教程" : "videofree";
+  document.title = studioVisible.value ? t('videofree · 工作台') : guideSection.value ? t('videofree · 使用教程') : "videofree";
 }
+watch(locale, syncRoute);
 function openGuide(section) {
   window.history.pushState({}, "", `/?guide=${section}`);
   syncRoute();
@@ -78,7 +89,7 @@ const jobs = ref([]),
   postSource = ref(null),
   taskDetails = ref(null),
   drawer = ref(false),
-  health = ref("检测服务中"),
+  health = ref('检测服务中'),
   settings = ref(false),
   settingsNotice = ref(""),
   voices = ref([]);
@@ -86,9 +97,12 @@ const projects = ref([]);
 const currentProject = ref(null);
 const categories = ref([]);
 const currentCategory = ref(null);
-const pluginCategories = ref([]), pluginCapabilities = ref([]), explicitCapabilityId = ref('');
-const applications = ref([]);
-const projectTools = ref([]), activeProjectToolId = ref('');
+const rawCategories = ref([]), rawCapabilities = ref([]), explicitCapabilityId = ref('');
+const rawApplications = ref([]), rawProjectTools = ref([]), activeProjectToolId = ref('');
+const pluginCategories = computed(() => rawCategories.value.map(item => localizeDeclaration(item, item.plugin_id)));
+const pluginCapabilities = computed(() => rawCapabilities.value.map(item => localizeDeclaration(item)));
+const applications = computed(() => rawApplications.value.map(item => localizeDeclaration(item)));
+const projectTools = computed(() => rawProjectTools.value.map(item => ({ ...localizeDeclaration(item), icon_url: applicationIcon(item) })));
 const visibleProjectTools = computed(() => projectTools.value.filter(tool => (tool.requires_project_flags || []).every(flag => currentProject.value?.[flag])));
 const genericComposer = ref(null);
 const selectedCapability = computed(() => pluginCapabilities.value.find(item => item.id === explicitCapabilityId.value));
@@ -110,7 +124,7 @@ async function selectCapability(id) {
 }
 
 async function loadPlugins(){
-  try{const [catalog,generation,postprocess]=await Promise.all([gateway.plugins(),gateway.capabilities(),gateway.capabilities('postprocess')]);applications.value=catalog.applications || [];projectTools.value=(catalog.project_tools || []).map(tool => ({...tool, icon_url: applicationIcon(tool)}));pluginCategories.value=catalog.categories;pluginCapabilities.value=[...generation.items,...postprocess.items];if(!selectedCapability.value && generationCapabilities.value.length)await selectCapability(generationCapabilities.value[0].id);}
+  try{const [catalog,generation,postprocess]=await Promise.all([gateway.plugins(),gateway.capabilities(),gateway.capabilities('postprocess')]);registerPluginMessages(catalog.items || []);rawApplications.value=catalog.applications || [];rawProjectTools.value=catalog.project_tools || [];rawCategories.value=catalog.categories;rawCapabilities.value=[...generation.items,...postprocess.items];if(!selectedCapability.value && generationCapabilities.value.length)await selectCapability(generationCapabilities.value[0].id);}
   catch(error){console.error('插件能力发现失败',error);}
 }
 async function pluginSubmitted(id){await restore();if(jobs.value.some(item=>item.id===id))poll(id);}
@@ -133,7 +147,7 @@ async function saveCategory(name, id, done) {
 }
 async function deleteCategory(category, done) {
   const projectId = currentProject.value.id;
-  if (!await confirmAction(`删除分类“${category.name}”及其全部生成任务和文件？项目资产和其他分类不受影响，此操作不可撤销。`)) return;
+  if (!await confirmAction(t('删除分类“{v0}”及其全部生成任务和文件？项目资产和其他分类不受影响，此操作不可撤销。', undefined, {v0: category.name}))) return;
   if (currentProject.value.id !== projectId) return;
   try { await gateway.deleteCategory(projectId, category.id); selectCategory(null); await loadCategories(); await restore(); done(); }
   catch (error) { notify(error.message); }
@@ -204,7 +218,7 @@ async function deleteProject(project) {
   try {
     const result = await gateway.deleteProject(project.id);
     if (result?.cleanup_warnings?.length) {
-      notify(`项目已删除，但有 ${result.cleanup_warnings.length} 个插件资源待清理；请检查 ComfyUI 文件权限后手动清理。`, { type: 'info', duration: 7000 });
+      notify(t('项目已删除，但有 {v0} 个插件资源待清理；请检查 ComfyUI 文件权限后手动清理。', undefined, {v0: result.cleanup_warnings.length}), { type: 'info', duration: 7000 });
     }
     if (currentProject.value?.id === project.id) {
       localStorage.removeItem(OPEN_PROJECT_KEY);
@@ -284,7 +298,7 @@ async function useAsset(asset) {
   } catch (error) { notify(error.message); }
 }
 async function removeJob(job) {
-  if (!await confirmAction("删除这个生成资源？")) return;
+  if (!await confirmAction(t('删除这个生成资源？'))) return;
   if (job.external) {
     URL.revokeObjectURL(job.artifact_url);
     jobs.value = jobs.value.filter((item) => item.id !== job.id);
@@ -304,7 +318,7 @@ async function removeJob(job) {
 async function clearWorkspace() {
   const projectId = currentProject.value.id;
   if (currentCategory.value === '@public') {
-    if (!await confirmAction('确定删除当前项目的全部项目资产及其归档文件吗？此操作无法撤销。')) return;
+    if (!await confirmAction(t('确定删除当前项目的全部项目资产及其归档文件吗？此操作无法撤销。'))) return;
     if (currentProject.value.id !== projectId) return;
     try {
       await gateway.clearPublicAssets(projectId);
@@ -318,8 +332,8 @@ async function clearWorkspace() {
   }
   if (!categoryJobs.value.length) return;
   const categoryId = currentCategory.value;
-  const scope = categoryId === null ? '当前项目全部素材（包含所有分类）' : categories.value.find(item => item.id === categoryId)?.name;
-  if (!await confirmAction(`确定清空“${scope}”的资源吗？生成产物、参考素材和任务记录都会一起删除，此操作无法撤销。`)) return;
+  const scope = categoryId === null ? t('当前项目全部素材（包含所有分类）') : categories.value.find(item => item.id === categoryId)?.name;
+  if (!await confirmAction(t('确定清空“{v0}”的资源吗？生成产物、参考素材和任务记录都会一起删除，此操作无法撤销。', undefined, {v0: scope}))) return;
   if (currentProject.value.id !== projectId) return;
   try {
     await gateway.clearJobs(categoryId);
@@ -334,7 +348,7 @@ async function clearWorkspace() {
   }
 }
 async function cancelJob(job) {
-  if (!await confirmAction("取消这个生成任务？")) return;
+  if (!await confirmAction(t('取消这个生成任务？'))) return;
   try {
     const result = await gateway.cancelJob(job.id);
     const index = jobs.value.findIndex((item) => item.id === job.id);
@@ -378,7 +392,7 @@ async function regenerateTask({ manifest, draft, replacements, removed = {}, act
     );
     const original = JSON.parse(JSON.stringify(manifest.parameters || {}));
     const params = original.params || {};
-    if (!draft.formValues) throw Error('请更新插件表单后重新编辑');
+    if (!draft.formValues) throw Error(t('请更新插件表单后重新编辑'));
     draft.lyrics = draft.formValues.lyrics ?? draft.lyrics;
     const capabilityId = params.capability_id || original.generation?.capability_id;
     const capability = pluginCapabilities.value.find(item => item.id === capabilityId);
@@ -388,7 +402,7 @@ async function regenerateTask({ manifest, draft, replacements, removed = {}, act
       upload_id:encodedInputs[item.type].find(entry => entry.index === Number(item.index)).value.replace(/^upload:/,''),
     }));
     if (action !== 'direct') {
-      if (!capability?.processing_modes?.some(mode => mode.id === action)) throw Error('原插件不支持此处理模式');
+      if (!capability?.processing_modes?.some(mode => mode.id === action)) throw Error(t('原插件不支持此处理模式'));
       await selectCapability(capabilityId);
       await nextTick();
       await genericComposer.value.startRequest({
@@ -399,7 +413,7 @@ async function regenerateTask({ manifest, draft, replacements, removed = {}, act
         settings:draft.formValues.settings, parameters:draft.formValues.parameters,
         prompt_processing:action,
       },inputs.map((input,index)=>({
-        ...input,name:activeInputs[index].name || `参考素材 ${index+1}`,
+        ...input,name:activeInputs[index].name || t('参考素材 {v0}', undefined, {v0: index+1}),
         preview:replacements[`${activeInputs[index].type}:${activeInputs[index].index}`]
           ? URL.createObjectURL(replacements[`${activeInputs[index].type}:${activeInputs[index].index}`])
           : gateway.taskFileUrl(manifest.task_id,activeInputs[index].path),
@@ -449,7 +463,7 @@ async function submitPost({ source, mode, capabilityId, inputs, done }) {
 async function translateTask({ actionId, text, mode, apply, regeneration, done }) {
   let regenerationStarted = false;
   try {
-    if (!actionId) throw Error("当前插件未声明翻译动作");
+    if (!actionId) throw Error(t('当前插件未声明翻译动作'));
     const response = await gateway.runPluginAction(actionId, {
       projectId: currentProject.value?.id, inputs: { text, mode },
     });
@@ -532,16 +546,17 @@ async function loadVoices() {
 async function checkHealth() {
   try {
     const result = await gateway.health();
-    if (result.comfyui_status !== "ok") health.value = "ComfyUI 离线";
-    else if (Number(result.local_workers_alive) < 1) health.value = "生成服务异常";
-    else health.value = "GPU 网关在线";
+    if (result.comfyui_status !== "ok") health.value = 'ComfyUI 离线';
+    else if (Number(result.local_workers_alive) < 1) health.value = '生成服务异常';
+    else health.value = 'GPU 网关在线';
   } catch {
-    health.value = "网关离线";
+    health.value = '网关离线';
   }
 }
 let timer;
 let workspaceRefreshTimer;
 onMounted(() => {
+  gateway.settings().then(value => setLocale(value.locale)).catch(() => {});
   window.addEventListener("gateway-auth-required", requireAuthentication);
   window.addEventListener("popstate", syncRoute);
   window.addEventListener("focus", refreshWorkspace);
@@ -569,11 +584,11 @@ onUnmounted(() => {
   <NotificationHost />
   <ConfirmationHost />
   <div v-if="authRequired" class="gateway-auth-overlay">
-    <form class="gateway-auth" aria-label="网关认证" @submit.prevent="authenticate">
-      <h2>网关认证</h2>
-      <label>访问令牌<input v-model="accessToken" type="password" autocomplete="current-password" required autofocus maxlength="512" /></label>
+    <form class="gateway-auth" :aria-label="t(&quot;网关认证&quot;)" @submit.prevent="authenticate">
+      <h2>{{ t('网关认证') }}</h2>
+      <label>{{ t('访问令牌') }}<input v-model="accessToken" type="password" autocomplete="current-password" required autofocus maxlength="512" /></label>
       <p v-if="authError" role="alert">{{ authError }}</p>
-      <button type="submit" :disabled="authenticating">{{ authenticating ? '验证中' : '连接网关' }}</button>
+      <button type="submit" :disabled="authenticating">{{ authenticating ? t('验证中') : t('连接网关') }}</button>
     </form>
   </div>
   <GuidePage v-if="!studioVisible && guideSection" :section="guideSection" @home="leaveStudio" @enter="enterStudio" @section="openGuide" />
@@ -586,19 +601,19 @@ onUnmounted(() => {
       <button
         class="topbar-brand"
         type="button"
-        title="返回首页"
+        :title="t(&quot;返回首页&quot;)"
         @click="leaveStudio"
       >
         <img src="/contact/logo.png" alt="" />
         videofree
       </button>
-      <button v-if="!projectHomeVisible" class="topbar-workspace" type="button" title="返回项目" @click="showProjectHome">
+      <button v-if="!projectHomeVisible" class="topbar-workspace" type="button" :title="t(&quot;返回项目&quot;)" @click="showProjectHome">
         <Icon icon="solar:layers-minimalistic-linear" width="15" /><span
-          >{{ currentProject?.name || '当前项目' }}</span
+          >{{ currentProject?.name || t('当前项目') }}</span
         ><b>{{ jobs.length }}</b>
       </button>
-      <nav v-if="!projectHomeVisible" class="project-view-tabs" aria-label="项目视图">
-        <button :class="{ selected: projectView === 'assets' }" @click="projectView = 'assets'"><Icon icon="solar:widget-2-linear" />素材</button>
+      <nav v-if="!projectHomeVisible" class="project-view-tabs" :aria-label="t(&quot;项目视图&quot;)">
+        <button :class="{ selected: projectView === 'assets' }" @click="projectView = 'assets'"><Icon icon="solar:widget-2-linear" />{{ t('素材') }}</button>
         <button v-for="application in applications" :key="application.id" :class="{ selected: projectView === application.id }" @click="projectView = application.id">
           <img v-if="applicationIcon(application)" class="application-icon" :src="applicationIcon(application)" alt="" />
           <span v-else-if="!application.icon" class="application-icon-fallback">{{ application.icon_text }}</span>
@@ -611,13 +626,13 @@ onUnmounted(() => {
           href="https://laobanclaw.top/"
           target="_blank"
           rel="noopener noreferrer"
-          title="访问 videofree 官网"
-          ><Icon icon="solar:global-linear" width="15" />官网</a
+          :title="t(&quot;访问 videofree 官网&quot;)"
+          ><Icon icon="solar:global-linear" width="15" />{{ t('官网') }}</a
         >
-        <span class="health-status" :class="healthClass" :title="`网关状态：${health}`" :aria-label="`网关状态：${health}`" role="status"
+        <span class="health-status" :class="healthClass" :title="t('网关状态：{v0}', undefined, {v0: t(health)})" :aria-label="t('网关状态：{v0}', undefined, {v0: t(health)})" role="status"
           ><i aria-hidden="true"></i></span
         >
-        <button v-if="projectHomeVisible" class="topbar-settings" type="button" aria-label="设置" title="设置" @click="settings = true"><Icon icon="solar:settings-linear" width="18" /></button>
+        <button v-if="projectHomeVisible" class="topbar-settings" type="button" :aria-label="t(&quot;设置&quot;)" :title="t(&quot;设置&quot;)" @click="settings = true"><Icon icon="solar:settings-linear" width="18" /></button>
       </div>
     </header>
     <ProjectHome v-if="projectHomeVisible" :projects="projects" :loading="projectsLoading" @open="openProject" @create="createProject" @edit="updateProject" @delete="deleteProject" />
@@ -628,32 +643,32 @@ onUnmounted(() => {
       :items="categories"
       :selected="currentCategory"
       :category-only="!!activeApplication"
-      :overview-label="activeApplication ? '项目进度' : '全部素材'"
+      :overview-label="activeApplication ? t('项目进度') : t('全部素材')"
       :clear-visible="!activeApplication && projectView === 'assets'"
       :clear-disabled="currentCategory === '@public' ? false : !categoryJobs.length"
-      :clear-label="currentCategory === '@public' ? '删除全部项目资产' : currentCategory === null ? '清空项目素材（包含所有分类）' : '清空当前分类素材'"
+      :clear-label="currentCategory === '@public' ? t('删除全部项目资产') : currentCategory === null ? t('清空项目素材（包含所有分类）') : t('清空当前分类素材')"
       @select="selectCategory"
       @save="saveCategory"
       @delete="deleteCategory"
       @clear="clearWorkspace"
     />
     <PluginApplication v-if="activeApplication" :key="activeApplication.id" :application="activeApplication" :project="currentProject" :category="currentCategoryObject" :category-id="currentCategory" :categories="categories" :jobs="categoryJobs" :resource-picker="openResourcePicker" />
-    <nav v-if="!activeApplication && visibleProjectTools.length" class="project-tool-rail" aria-label="项目小插件">
+    <nav v-if="!activeApplication && visibleProjectTools.length" class="project-tool-rail" :aria-label="t(&quot;项目小插件&quot;)">
       <button v-for="tool in visibleProjectTools" :key="tool.id" type="button" :class="{active:activeProjectToolId === tool.id}" :title="tool.name" :aria-label="tool.name" :data-label="tool.name" @click="activeProjectToolId = activeProjectToolId === tool.id ? '' : tool.id">
         <img v-if="tool.icon_url" :src="tool.icon_url" alt="" />
         <span v-else-if="!tool.icon">{{ tool.icon_text }}</span>
         <Icon v-else :icon="tool.icon" />
       </button>
     </nav>
-    <PluginToolDialog v-if="activeProjectTool" :title="activeProjectTool.name" @close="activeProjectToolId = ''">
+    <PluginToolDialog v-if="activeProjectTool" :title="activeProjectTool.name" :size="activeProjectTool.dialog" @close="activeProjectToolId = ''">
       <PluginApplication :key="activeProjectTool.id" :application="activeProjectTool" :project="currentProject" :category="currentCategoryObject" :category-id="currentCategory" :categories="categories" :jobs="categoryJobs" :resource-picker="openResourcePicker" />
     </PluginToolDialog>
     <template v-if="!activeApplication">
     <nav class="rail">
-       <button aria-label="本地资源" title="本地资源" @click="resourcePickerTypes = []; drawer = true">
+       <button :aria-label="t(&quot;本地资源&quot;)" :title="t(&quot;本地资源&quot;)" @click="resourcePickerTypes = []; drawer = true">
         <Icon icon="solar:folder-with-files-linear" width="20" />
       </button>
-      <button aria-label="设置" title="设置" @click="settings = true">
+      <button :aria-label="t(&quot;设置&quot;)" :title="t(&quot;设置&quot;)" @click="settings = true">
         <Icon icon="solar:settings-linear" width="20" />
       </button>
     </nav>

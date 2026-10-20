@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
 from backend.integrations.system_services import LLMProviderCatalog
 
@@ -78,6 +79,47 @@ class LLMProviderTests(unittest.TestCase):
             catalog = LLMProviderCatalog(root)
             self.assertEqual(catalog.items(), [])
             self.assertIn("defaults", catalog.errors[0]["error"])
+
+    def test_provider_initialization_failure_is_isolated(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            broken = root / "broken"
+            broken.mkdir()
+            (broken / "provider.json").write_text(json.dumps({
+                "schema_version": 1, "id": "broken", "name": "Broken",
+                "entry": "broken/provider.py:Provider",
+            }), encoding="utf-8")
+            (broken / "provider.py").write_text(
+                "class Provider:\n    def __init__(self, manifest):\n        raise RuntimeError('secret')\n",
+                encoding="utf-8",
+            )
+            healthy = root / "healthy"
+            healthy.mkdir()
+            (healthy / "provider.json").write_text(json.dumps({
+                "schema_version": 1, "id": "healthy", "name": "Healthy",
+                "entry": "healthy/provider.py:Provider",
+            }), encoding="utf-8")
+            (healthy / "provider.py").write_text(
+                "class Provider:\n"
+                "    def __init__(self, manifest): pass\n"
+                "    def build_chat_request(self, *args, **kwargs): pass\n"
+                "    def parse_chat_response(self, payload): pass\n"
+                "    def list_models(self, base_url, api_key=''): return []\n",
+                encoding="utf-8",
+            )
+
+            catalog = LLMProviderCatalog(root)
+
+            self.assertTrue(catalog.contains("healthy"))
+            self.assertFalse(catalog.contains("broken"))
+            self.assertEqual(catalog.errors[0]["error"], "Provider initialization failed: RuntimeError")
+
+    def test_model_listing_rejects_malformed_success_response(self):
+        response = MagicMock()
+        response.__enter__().read.return_value = b'{"data": null}'
+        with patch("urllib.request.urlopen", return_value=response):
+            with self.assertRaisesRegex(ValueError, "数据格式无效"):
+                self.catalog.get("openai").list_models("https://llm.example/v1")
 
 
 if __name__ == "__main__":

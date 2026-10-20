@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 import asyncio
 import json
 import mimetypes
@@ -275,7 +280,12 @@ async def delete_job(job_id: str):
         ProjectService(context).check_application_references(item.get('project_id'), {job_id})
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
-    delete_job_files(item)
+    try:
+        delete_job_files(item)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(409, "任务文件清理失败，请检查文件占用或目录权限后重试") from exc
     context.db.delete_job(job_id)
     context.jobs.pop(job_id, None)
     return {"id": job_id, "deleted": True}
@@ -314,7 +324,12 @@ async def clear_jobs(category_id: str | None = None):
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
     for item in items:
-        delete_job_files(item)
+        try:
+            delete_job_files(item)
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(409, "任务文件清理失败，请检查文件占用或目录权限后重试") from exc
         context.db.delete_job(item["id"])
         context.jobs.pop(item["id"], None)
     return {"deleted": len(items)}

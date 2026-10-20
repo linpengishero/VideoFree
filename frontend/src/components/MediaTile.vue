@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import {onBeforeUnmount, ref} from 'vue';
 import {Icon} from '@iconify/vue';
 defineProps({media:{type:Object,required:true},selectable:Boolean,selected:Boolean,compact:Boolean,inlineActions:{type:Boolean,default:true}});
@@ -8,13 +17,13 @@ async function toggle(){
   if(!audio.value)return;
   if(!audio.value.paused){audio.value.pause();return;}
   document.querySelectorAll('audio').forEach(a=>{if(a!==audio.value)a.pause();});
-  try{error.value='';await audio.value.play();}catch{error.value='无法播放该音频';}
+  try{error.value='';await audio.value.play();}catch{error.value=t('无法播放该音频');}
 }
 onBeforeUnmount(()=>audio.value?.pause());
 </script>
 <template>
   <div class="media-tile" :class="{selected,compact}" >
-    <button type="button" class="media-surface" :aria-label="`${selectable?'选择':'预览'} ${media.name||'素材'}`" :aria-pressed="selectable?selected:undefined" @click="selectable?emit('select'):['audio','music'].includes(media.type)?toggle():emit('preview')">
+    <button type="button" class="media-surface" :aria-label="`${selectable?t('选择'):t('预览')} ${media.name||t('素材')}`" :aria-pressed="selectable?selected:undefined" @click="selectable?emit('select'):['audio','music'].includes(media.type)?toggle():emit('preview')">
       <img v-if="media.type==='image'" :src="media.url" :alt="media.name" loading="lazy"/>
       <video v-else-if="media.type==='video'" :src="media.url" muted playsinline preload="metadata"/>
       <Icon v-else :icon="playing?'solar:pause-linear':'solar:play-linear'" width="28"/>
@@ -22,8 +31,8 @@ onBeforeUnmount(()=>audio.value?.pause());
     </button>
     <div class="media-actions">
       <span :title="media.name">{{media.name}}</span>
-      <button v-if="inlineActions && ['audio','music'].includes(media.type)" type="button" :title="playing?'暂停声音':'播放声音'" :aria-label="playing?'暂停声音':'播放声音'" @click.stop="toggle"><Icon :icon="playing?'solar:pause-linear':'solar:play-linear'" width="19"/></button>
-      <button v-if="inlineActions" type="button" title="放大预览" aria-label="放大预览" @click.stop="emit('preview')"><Icon icon="solar:maximize-linear" width="18"/></button>
+      <button v-if="inlineActions && ['audio','music'].includes(media.type)" type="button" :title="playing?t('暂停声音'):t('播放声音')" :aria-label="playing?t('暂停声音'):t('播放声音')" @click.stop="toggle"><Icon :icon="playing?'solar:pause-linear':'solar:play-linear'" width="19"/></button>
+      <button v-if="inlineActions" type="button" :title="t(&quot;放大预览&quot;)" :aria-label="t(&quot;放大预览&quot;)" @click.stop="emit('preview')"><Icon icon="solar:maximize-linear" width="18"/></button>
       <slot/>
     </div>
     <audio v-if="['audio','music'].includes(media.type)" ref="audio" :src="media.url" preload="none" @play="playing=true" @pause="playing=false" @ended="playing=false"/>

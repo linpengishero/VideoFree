@@ -1,10 +1,13 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 """Project-wide reusable asset records and their independently owned media."""
 from __future__ import annotations
 
 import mimetypes
-from pathlib import Path
 import re
-import shutil
 import urllib.parse
 import uuid
 
@@ -75,17 +78,14 @@ class PublicAssetService:
         self.context.db.save_project_asset(asset)
         return asset
 
-    def _root(self, project_id: str, asset_id: str) -> Path:
+    def _media_prefix(self, project_id: str, asset_id: str) -> str:
         project = self.context.db.project(project_id)
-        root = self.projects.ensure_directory(project)
-        target = (root / "public-assets" / asset_id).resolve()
-        if root not in target.parents:
-            raise ValueError("公共资产目录无效")
-        return target
+        if not project:
+            raise ValueError("项目不存在")
+        return f"{project['output_subdir']}/public-assets/{asset_id}"
 
     def attach(self, project_id: str, asset_id: str, source: str, role: str | None = None, transcript: str = "") -> dict:
         asset = self.get(project_id, asset_id)
-        project_root = self.projects.ensure_directory(self.context.db.project(project_id))
         if source.startswith("upload:"):
             identifier = source.removeprefix("upload:")
             if not re.fullmatch(r"[a-f0-9]{32}", identifier):
@@ -96,8 +96,12 @@ class PublicAssetService:
                 raise ValueError("上传文件不存在，请重新上传")
             original = matches[0]
         else:
-            original = (self.projects.projects_root / source).resolve()
-            if project_root not in original.parents or not original.is_file():
+            try:
+                original = self.projects.storage.local_path(source)
+            except (ValueError, FileNotFoundError):
+                original = None
+            project_root = self.projects.ensure_directory(self.context.db.project(project_id))
+            if original is None or project_root not in original.parents:
                 raise ValueError("source 必须是当前项目素材库相对路径，或 upload:<upload_id>；不能直接传 job_id")
         suffix = original.suffix.lower()
         media_type = next((key for key, extensions in MEDIA_EXTENSIONS.items() if suffix in extensions), None)
@@ -110,16 +114,14 @@ class PublicAssetService:
         if len(transcript) > 10000:
             raise ValueError("声音对应文字不能超过10000个字符")
         media_id = uuid.uuid4().hex
-        root = self._root(project_id, asset_id)
-        root.mkdir(parents=True, exist_ok=True)
-        target = root / f"{media_id}{suffix}"
+        key = f"{self._media_prefix(project_id, asset_id)}/{media_id}{suffix}"
         # Copy rather than link: episode deletion and later edits cannot affect this archive.
-        shutil.copy2(original, target)
-        relative = target.relative_to(self.projects.projects_root).as_posix()
+        stored = self.projects.storage.put_file(original, key)
+        relative = stored.key
         media = {"id": media_id, "name": original.name, "path": relative,
                  "url": f"/v1/library/files/{urllib.parse.quote(relative)}",
                  "type": "image" if media_type == "images" else "video" if media_type == "videos" else "music" if asset["kind"] == "music" else "audio",
-                 "media_type": mimetypes.guess_type(target.name)[0], "size": target.stat().st_size,
+                 "media_type": mimetypes.guess_type(original.name)[0], "size": stored.size,
                  "role": role}
         if role == "character_voice":
             media["transcript"] = transcript.strip()
@@ -127,7 +129,7 @@ class PublicAssetService:
         try:
             self.context.db.save_project_asset(asset)
         except Exception:
-            target.unlink(missing_ok=True)
+            self.projects.storage.delete(relative)
             raise
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
         return asset
@@ -151,10 +153,10 @@ class PublicAssetService:
         if not media:
             raise ValueError("资产文件不存在")
         self._check_usage([media])
-        target = (self.projects.projects_root / media["path"]).resolve()
-        if target.parent != self._root(project_id, asset_id):
+        prefix = self._media_prefix(project_id, asset_id) + "/"
+        if not str(media["path"]).startswith(prefix) or "/" in str(media["path"])[len(prefix):]:
             raise ValueError("资产文件目录无效")
-        target.unlink(missing_ok=True)
+        self.projects.storage.delete(media["path"])
         asset["media"] = [item for item in asset["media"] if item["id"] != media_id]
         self.context.db.save_project_asset(asset)
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
@@ -163,9 +165,7 @@ class PublicAssetService:
     def delete(self, project_id: str, asset_id: str) -> None:
         asset = self.get(project_id, asset_id)
         self._check_usage(asset["media"])
-        root = self._root(project_id, asset_id)
-        if root.is_dir():
-            shutil.rmtree(root)
+        self.projects.storage.delete_prefix(self._media_prefix(project_id, asset_id))
         self.context.db.delete_project_asset(project_id, asset_id)
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
 
@@ -175,9 +175,7 @@ class PublicAssetService:
         media = [item for asset in assets for item in asset["media"]]
         self._check_usage(media)
         for asset in assets:
-            root = self._root(project_id, asset["id"])
-            if root.is_dir():
-                shutil.rmtree(root)
+            self.projects.storage.delete_prefix(self._media_prefix(project_id, asset["id"]))
             self.context.db.delete_project_asset(project_id, asset["id"])
         self.context.library_cache.update(directory="", created_at=0.0, items=[])
         return len(assets)

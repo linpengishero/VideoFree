@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 VideoFree individual project author and contributors.
+ * Part of VideoFree: https://github.com/linpengishero/VideoFree
+ * Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+ * Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+ */
+
 .rail button{display:grid;place-items:center}
 .creation-types{display:flex;align-items:center;gap:6px;padding:10px 12px 0;border-bottom:1px solid var(--line)}
 .creation-types button{display:grid;place-items:center;width:34px;height:30px;border-radius:8px;background:transparent;color:var(--muted)}

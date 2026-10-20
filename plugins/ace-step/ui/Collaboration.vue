@@ -1,4 +1,7 @@
 <script setup>
+import { displayError, usePluginI18n } from '@framework/services/i18n';
+const { t } = usePluginI18n('ace-step');
+
 import { computed, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import PluginDialog from '@framework/components/PluginDialog.vue';
@@ -19,20 +22,20 @@ function submitAnswers() { const text = questions.value.map((q) => `${q.text || 
 <template>
   <section v-if="session" class="collaboration-ui" aria-live="polite">
     <div class="conversation">
-      <div v-for="(item,index) in messages" :key="index" class="message" :class="`is-${item.role || 'assistant'}`"><span>{{ item.role === 'user' ? '你' : 'AI' }}</span><p>{{ item.content || item.message }}</p></div>
-      <div v-if="pending" class="thinking"><i></i><i></i><i></i><span>{{ session.message || '等待模型响应' }}</span></div>
-      <div v-if="session.error" class="error" role="alert"><Icon icon="solar:danger-triangle-linear" width="16"/>{{ session.error }}</div>
-      <section v-if="stages.length" class="stages"><div v-for="stage in stages" :key="stage.id" :class="`is-${stage.status}`"><Icon :icon="stage.status==='completed'?'solar:check-circle-bold':stage.status==='error'?'solar:danger-circle-bold':stage.status==='running'?'solar:refresh-circle-linear':'solar:circle-linear'" width="15"/><span><b>{{ stage.label }}</b><small v-if="stage.message">{{ stage.message }}</small></span></div></section>
-      <section v-if="questions.length && !pending" class="questions"><article v-for="question in questions" :key="question.id || question.text"><p>{{ question.text || question.question }}</p><div v-if="question.options?.length" class="options"><button v-for="option in question.options" :key="option" type="button" :class="{selected:selected[question.id || question.text]===option}" @click="choose(question,option)">{{ option }}</button></div></article><button v-if="allAnswered" type="button" class="submit-answers" @click="submitAnswers"><Icon icon="solar:check-circle-linear" width="15"/>提交全部确认（{{ answered }}/{{ questions.length }}）</button><small v-else>请完成全部选择（{{ answered }}/{{ questions.length }}）</small></section>
-      <section v-if="session.confirmation && !pending" class="confirmation"><h4><Icon icon="solar:document-text-linear" width="15"/>生成方案确认</h4><p>{{ session.confirmation.confirmed_prompt_zh }}</p><button class="view-confirmation" type="button" @click="confirmationLanguage='zh';confirmationOpen=true"><Icon icon="solar:eye-linear" width="15"/>放大查看</button></section>
+      <div v-for="(item,index) in messages" :key="index" class="message" :class="`is-${item.role || 'assistant'}`"><span>{{ item.role === 'user' ? t("你") : 'AI' }}</span><p>{{ item.content || item.message }}</p></div>
+      <div v-if="pending" class="thinking"><i></i><i></i><i></i><span>{{ t(session.message || "等待模型响应") }}</span></div>
+      <div v-if="session.error" class="error" role="alert"><Icon icon="solar:danger-triangle-linear" width="16"/>{{ displayError(session.error) }}</div>
+      <section v-if="stages.length" class="stages"><div v-for="stage in stages" :key="stage.id" :class="`is-${stage.status}`"><Icon :icon="stage.status==='completed'?'solar:check-circle-bold':stage.status==='error'?'solar:danger-circle-bold':stage.status==='running'?'solar:refresh-circle-linear':'solar:circle-linear'" width="15"/><span><b>{{ t(stage.label) }}</b><small v-if="stage.message">{{ t(stage.message) }}</small></span></div></section>
+      <section v-if="questions.length && !pending" class="questions"><article v-for="question in questions" :key="question.id || question.text"><p>{{ question.text || question.question }}</p><div v-if="question.options?.length" class="options"><button v-for="option in question.options" :key="option" type="button" :class="{selected:selected[question.id || question.text]===option}" @click="choose(question,option)">{{ option }}</button></div></article><button v-if="allAnswered" type="button" class="submit-answers" @click="submitAnswers"><Icon icon="solar:check-circle-linear" width="15"/>{{ t("提交全部确认（{done}/{total}）", undefined, {done: answered, total: questions.length}) }}</button><small v-else>{{ t("请完成全部选择（{done}/{total}）", undefined, {done: answered, total: questions.length}) }}</small></section>
+      <section v-if="session.confirmation && !pending" class="confirmation"><h4><Icon icon="solar:document-text-linear" width="15"/>{{ t("生成方案确认") }}</h4><p>{{ session.confirmation.confirmed_prompt_zh }}</p><button class="view-confirmation" type="button" @click="confirmationLanguage='zh';confirmationOpen=true"><Icon icon="solar:eye-linear" width="15"/>{{ t("放大查看") }}</button></section>
     </div>
-    <div class="input-wrap"><textarea :value="answer" :disabled="!canAnswer" rows="1" placeholder="补充人物、素材关系或镜头要求…" @input="emit('update:answer',$event.target.value)" @keydown.enter.exact.prevent="canAnswer&&emit('answer')"></textarea><button type="button" :disabled="!canAnswer || !answer?.trim()" aria-label="发送消息" @click="emit('answer')"><Icon icon="solar:arrow-up-linear" width="17"/></button></div>
-    <footer v-if="session.confirmation && !pending"><span><Icon icon="solar:check-circle-bold" width="15"/>已完成生成前检查</span><button type="button" :disabled="busy" @click="emit('confirm')"><Icon icon="solar:play-circle-linear" width="16"/>按此方案生成</button></footer>
-    <PluginDialog :open="confirmationOpen" title="生成方案" @close="confirmationOpen=false">
+    <div class="input-wrap"><textarea :value="answer" :disabled="!canAnswer" rows="1" :placeholder="t(&quot;补充人物、素材关系或镜头要求…&quot;)" @input="emit('update:answer',$event.target.value)" @keydown.enter.exact.prevent="canAnswer&&emit('answer')"></textarea><button type="button" :disabled="!canAnswer || !answer?.trim()" :aria-label="t(&quot;发送消息&quot;)" @click="emit('answer')"><Icon icon="solar:arrow-up-linear" width="17"/></button></div>
+    <footer v-if="session.confirmation && !pending"><span><Icon icon="solar:check-circle-bold" width="15"/>{{ t("已完成生成前检查") }}</span><button type="button" :disabled="busy" @click="emit('confirm')"><Icon icon="solar:play-circle-linear" width="16"/>{{ t("按此方案生成") }}</button></footer>
+    <PluginDialog :open="confirmationOpen" :title="t(&quot;生成方案&quot;)" @close="confirmationOpen=false">
       <div class="confirmation-viewer">
-        <div class="confirmation-tabs" role="tablist" aria-label="确认稿语言">
-          <button v-if="session.confirmation.confirmed_prompt_zh" type="button" role="tab" :aria-selected="confirmationLanguage==='zh'" :class="{active:confirmationLanguage==='zh'}" @click="confirmationLanguage='zh'">中文确认稿</button>
-          <button v-if="session.confirmation.execution_prompt_en" type="button" role="tab" :aria-selected="confirmationLanguage==='en'" :class="{active:confirmationLanguage==='en'}" @click="confirmationLanguage='en'">英文执行稿</button>
+        <div class="confirmation-tabs" role="tablist" :aria-label="t(&quot;确认稿语言&quot;)">
+          <button v-if="session.confirmation.confirmed_prompt_zh" type="button" role="tab" :aria-selected="confirmationLanguage==='zh'" :class="{active:confirmationLanguage==='zh'}" @click="confirmationLanguage='zh'">{{ t("中文确认稿") }}</button>
+          <button v-if="session.confirmation.execution_prompt_en" type="button" role="tab" :aria-selected="confirmationLanguage==='en'" :class="{active:confirmationLanguage==='en'}" @click="confirmationLanguage='en'">{{ t("英文执行稿") }}</button>
         </div>
         <pre class="confirmation-full-text">{{ confirmationText }}</pre>
       </div>

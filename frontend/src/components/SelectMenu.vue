@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { onBeforeUnmount, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import PopoverPanel from './PopoverPanel.vue'
@@ -6,7 +15,7 @@ import PopoverPanel from './PopoverPanel.vue'
 const props = defineProps({
   options: { type: Array, required: true },
   modelValue: { type: [String, Number], required: true },
-  ariaLabel: { type: String, default: '选择' },
+  ariaLabel: { type: String, default: '' },
   icon: { type: String, default: '' }
 })
 const emit = defineEmits(['update:modelValue'])
@@ -45,7 +54,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="select-menu">
-    <button class="select-trigger" type="button" aria-haspopup="listbox" :aria-label="ariaLabel" :aria-expanded="open" @keydown.down.prevent="open = true" @keydown.up.prevent="open = true" @click.stop="open = !open">
+    <button class="select-trigger" type="button" aria-haspopup="listbox" :aria-label="ariaLabel || t('选择')" :aria-expanded="open" @keydown.down.prevent="open = true" @keydown.up.prevent="open = true" @click.stop="open = !open">
       <Icon v-if="icon" :icon="icon" width="16" />
       <span>{{ current()?.label }}</span>
       <Icon class="select-chevron" icon="solar:alt-arrow-down-linear" width="14" />
@@ -56,7 +65,7 @@ onBeforeUnmount(() => {
         <span>{{ option.label }}</span>
         <Icon v-if="String(option.value) === String(modelValue)" icon="solar:check-circle-linear" width="15" />
       </button>
-      <button v-if="option.sample_audio_url" type="button" class="select-option-preview" :aria-label="`试听${option.label}`" @click="preview(option, $event)"><Icon :icon="previewing === option.value ? 'solar:pause-circle-linear' : 'solar:play-circle-linear'" width="15" /></button>
+      <button v-if="option.sample_audio_url" type="button" class="select-option-preview" :aria-label="t('试听{v0}', undefined, {v0: option.label})" @click="preview(option, $event)"><Icon :icon="previewing === option.value ? 'solar:pause-circle-linear' : 'solar:play-circle-linear'" width="15" /></button>
       </div>
     </PopoverPanel>
   </div>

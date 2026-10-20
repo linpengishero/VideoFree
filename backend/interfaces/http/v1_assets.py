@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 import asyncio
 import mimetypes
 import shutil
@@ -5,6 +10,7 @@ import subprocess
 import time
 import urllib.parse
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -134,19 +140,22 @@ def scan_library(kind: str, offset: int, limit: int, sort: str, types: dict[str,
         if context.library_cache["directory"] != directory or time.monotonic() - context.library_cache["created_at"] > 30:
             indexed = []
             output_rules = [app['library_outputs'] for app in PluginCatalog(context.paths.plugins, context).applications() if app.get('library_outputs')]
-            for path in project_directory.rglob("*"):
-                if not path.is_file(): continue
+            storage = ProjectService(context).storage
+            for stored in storage.list_files(str(project["output_subdir"])):
+                path = Path(stored.key)
                 ext = path.suffix.lower()
-                relative_project = path.relative_to(project_directory)
-                if any(relative_project.parts[0] == rule['directory'] and path.name not in rule['filenames'] for rule in output_rules):
+                try:
+                    relative_project = path.relative_to(project["output_subdir"])
+                except ValueError:
+                    continue
+                if any(relative_project.parts and relative_project.parts[0] == rule['directory'] and path.name not in rule['filenames'] for rule in output_rules):
                     continue
                 if relative_project.parts and relative_project.parts[0] == "public-assets":
                     continue
                 media_type = "music" if relative_project.parts and relative_project.parts[0] == "music" else next((name for name, extensions in types.items() if name != "music" and ext in extensions), None)
                 if not media_type: continue
-                stat = path.stat()
-                relative = str(path.relative_to(ProjectService(context).projects_root)).replace("\\", "/")
-                indexed.append({"name": path.name, "path": relative, "type": media_type, "modified": stat.st_mtime, "size": stat.st_size, "url": f"/v1/library/files/{urllib.parse.quote(relative)}"})
+                relative = stored.key
+                indexed.append({"name": path.name, "path": relative, "type": media_type, "modified": stored.modified_at, "size": stored.size, "url": f"/v1/library/files/{urllib.parse.quote(relative)}"})
             indexed.sort(key=lambda item: item["modified"], reverse=True)
             context.library_cache.update(directory=directory, created_at=time.monotonic(), items=indexed)
         items = [item for item in context.library_cache["items"] if kind == "all" or item["type"] == kind]
@@ -158,14 +167,15 @@ def scan_library(kind: str, offset: int, limit: int, sort: str, types: dict[str,
 
 @router.get("/v1/library/files/{path:path}")
 async def library_file(path: str, _: None = Depends(auth)):
-    root = ProjectService(context).projects_root
-    target = (root / path).resolve()
-    if root not in target.parents or not target.is_file(): raise HTTPException(404, "file not found")
-    relative = target.relative_to(root)
-    if not relative.parts:
-        raise HTTPException(404, "file not found")
+    service = ProjectService(context)
     try:
-        ProjectService(context).authorize_library_path(relative)
+        target = service.storage.local_path(path)
+    except (ValueError, FileNotFoundError):
+        raise HTTPException(404, "file not found")
+    relative = Path(path.replace("\\", "/"))
+    if not relative.parts: raise HTTPException(404, "file not found")
+    try:
+        service.authorize_library_path(relative)
     except ValueError as exc:
         raise HTTPException(404, "file not found") from exc
     return FileResponse(target)

@@ -1,0 +1,9 @@
+{
+  "声音生成": "Speech generation",
+  "直接生成": "Generate directly",
+  "声音设计": "Voice design",
+  "语音文本": "Speech text",
+  "声音描述": "Voice description",
+  "语速": "Speech speed",
+  "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。": "Default speed: 1.0. Chinese speech typically averages 4–5 characters per second. Speed ranges from 0.5× to 2.0×; duration varies by voice and pauses."
+}

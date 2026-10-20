@@ -1,10 +1,13 @@
 <script setup>
+import { usePluginI18n, localizedLabels } from '@framework/services/i18n';
+const { t } = usePluginI18n('ai-project-progress');
+
 import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({ project: Object, category: Object, categoryId: String });
 const stages = ref([]), status = ref('pending'), percent = ref(0), loading = ref(false), error = ref('');
-const scopeName = computed(() => props.categoryId == null ? '项目总览' : props.category?.name || '默认分类');
-const statusNames = { pending: '未开始', running: '进行中', completed: '已完成', failed: '失败', blocked: '受阻', skipped: '跳过' };
+const scopeName = computed(() => props.categoryId == null ? t('项目总览') : props.category?.name || t('默认分类'));
+const statusNames = localizedLabels({ pending: '未开始', running: '进行中', completed: '已完成', failed: '失败', blocked: '受阻', skipped: '跳过' }, t);
 
 async function call(action, inputs = {}) {
   const response = await fetch(`/api/v2/plugin-actions/ai-project-progress.${action}/execute`, {
@@ -12,7 +15,7 @@ async function call(action, inputs = {}) {
     body: JSON.stringify({ project_id: props.project.id, category_id: props.categoryId, inputs }),
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(body.detail || '进度操作失败');
+  if (!response.ok) throw new Error(body.detail || t('进度操作失败'));
   return body.result || {};
 }
 
@@ -35,24 +38,25 @@ onMounted(load);
 <template>
   <main class="progress-page">
     <header class="progress-head">
-      <div><p>{{ project?.name }} · {{ scopeName }}</p><h1>AI 制作进度</h1></div>
-      <button type="button" title="刷新进度" aria-label="刷新进度" :disabled="loading" @click="load">↻</button>
+      <div><p>{{ project?.name }} · {{ scopeName }}</p><h1>{{ t('AI 制作进度') }}</h1></div>
+      <button type="button" :title="t('刷新进度')" :aria-label="t('刷新进度')" :disabled="loading" @click="load">↻</button>
     </header>
     <p v-if="error" class="progress-error" role="alert">{{ error }}</p>
-    <section class="progress-summary" aria-label="进度概况">
+    <section class="progress-summary" :aria-label="t('进度概况')">
       <strong>{{ percent }}%</strong><div><span>{{ statusNames[status] || status }}</span><progress :value="percent" max="100" /></div>
     </section>
     <ol class="stage-list">
       <li v-for="stage in stages" :key="stage.id" :class="`stage-${stage.status}`">
         <i aria-hidden="true" /><div><strong>{{ stage.name }}</strong><small>{{ statusNames[stage.status] || stage.status }}<template v-if="stage.note"> · {{ stage.note }}</template></small></div>
       </li>
-      <li v-if="!stages.length && !loading" class="stage-empty">还没有进度记录</li>
+      <li v-if="!stages.length && !loading" class="stage-empty">{{ t('还没有进度记录') }}</li>
     </ol>
   </main>
 </template>
 
 <style scoped>
-.progress-page{box-sizing:border-box;flex:1;height:100%;min-height:0;overflow:auto;padding:24px 30px 40px;color:#e9ecef;background:#171b1d;font-size:13px;letter-spacing:0}
+.progress-page{box-sizing:border-box;flex:1;height:100%;min-width:0;min-height:0;overflow-x:hidden;overflow-y:auto;scrollbar-width:none;padding:24px 30px 40px;color:#e9ecef;background:#171b1d;font-size:13px;letter-spacing:0}
+.progress-page::-webkit-scrollbar{display:none}
 .progress-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #343b3e;padding-bottom:18px}
 .progress-head p{margin:0 0 6px;color:#99a4a9}.progress-head h1{font-size:20px;margin:0;font-weight:600}
 button{border:1px solid #475156;background:#252c30;color:#e9ecef;border-radius:4px;padding:8px 12px;cursor:pointer}button:disabled{opacity:.5;cursor:default}

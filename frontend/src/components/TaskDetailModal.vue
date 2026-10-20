@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t, localizedLabels } from '../services/i18n';
+
 import PluginDialog from './PluginDialog.vue';
 import MediaPreview from './MediaPreview.vue';
 import { computed, onBeforeUnmount, ref, watch } from "vue";
@@ -35,7 +44,7 @@ watch(() => props.manifest?.task_id, () => { resourceNotice.value = ''; });
 const conversionChoiceOpen = ref(false);
 const originalChinesePrompt = ref("");
 const promptLanguage = ref("zh");
-const labels = { image: "图片", video: "视频", audio: "音频" };
+const labels = localizedLabels({ image: "图片", video: "视频", audio: "音频" }, t);
 const groups = computed(() =>
   ["image", "video", "audio"]
     .map((type) => ({
@@ -53,14 +62,15 @@ const generation = computed(() => props.manifest?.parameters?.generation || {});
 const isPostprocess = computed(() => capability.value?.operation === "postprocess");
 const modelLabel = computed(() => {
   const item = generation.value;
-  if (isPostprocess.value && capability.value?.model_name) return capability.value.model_name;
-  if (item.model_version && item.model_version !== item.model_name)
-    return `${item.model_name} · ${item.model_version}`;
-  return item.model_name || item.model_id || "未知模型";
+  const name = capability.value?.model_name || item.model_name || item.model_id || t('未知模型');
+  if (!isPostprocess.value && item.model_version && item.model_version !== name && item.model_version !== item.model_name)
+    return `${name} · ${item.model_version}`;
+  return name;
 });
 const modeLabel = computed(() => isPostprocess.value
-  ? capability.value?.name || generation.value.mode_name || generation.value.mode_id || "未知功能"
-  : generation.value.mode_name || generation.value.mode_id || props.manifest?.parameters?.mode || "未知");
+  ? capability.value?.name || generation.value.mode_name || generation.value.mode_id || t('未知功能')
+  : capability.value?.mode_name || capability.value?.name || generation.value.mode_name || generation.value.mode_id || props.manifest?.parameters?.mode || t('未知'));
+const providerLabel = computed(() => capability.value?.provider_name || generation.value.provider_name);
 const hasBilingualPrompt = computed(() => {
   const params = props.manifest?.parameters?.params || {};
   return Boolean(params.confirmed_prompt_zh || params.execution_prompt_en);
@@ -276,18 +286,18 @@ onBeforeUnmount(clearReplacementUrls);
 </script>
 
 <template>
-  <PluginDialog :open="!!manifest" :busy="submitting" :framed="false" title="编辑并重新生成" @close="emit('close')">
+  <PluginDialog :open="!!manifest" :busy="submitting" :framed="false" :title="t('编辑并重新生成')" @close="emit('close')">
     <div v-if="manifest">
       <section class="task-detail-modal task-editor-modal">
         <header>
           <div>
             <span class="eyebrow">TASK SNAPSHOT</span>
-            <h2>编辑并重新生成</h2>
+            <h2>{{ t('编辑并重新生成') }}</h2>
           </div>
           <button
             type="button"
-            aria-label="关闭"
-            title="关闭"
+            :aria-label="t('关闭')"
+            :title="t('关闭')"
             :disabled="submitting"
             @click="emit('close')"
           >
@@ -301,7 +311,7 @@ onBeforeUnmount(clearReplacementUrls);
             class="task-detail-section"
           >
             <h3>
-              {{ group.label }}素材 <small>{{ group.items.length }}</small>
+              {{ group.label }}{{ t('素材') }}<small>{{ group.items.length }}</small>
             </h3>
             <div class="task-media-grid" :class="`is-${group.type}`">
               <article
@@ -314,16 +324,16 @@ onBeforeUnmount(clearReplacementUrls);
                   v-if="group.type === 'image'"
                   type="button"
                   class="task-media-visual"
-                  title="放大预览"
+                  :title="t('放大预览')"
                   @click="openPreview(item)"
                 >
-                  <img :src="source(item)" alt="参考素材" />
+                  <img :src="source(item)" :alt="t('参考素材')" />
                 </button>
                 <button
                   v-else-if="group.type === 'video'"
                   type="button"
                   class="task-media-visual"
-                  title="放大播放"
+                  :title="t('放大播放')"
                   @click="openPreview(item)"
                 >
                   <video :src="source(item)" muted preload="metadata" /><i
@@ -337,10 +347,10 @@ onBeforeUnmount(clearReplacementUrls);
                   <audio :src="source(item)" controls preload="metadata" />
                 </div>
                 <b v-if="replacements[key(item)]" class="task-media-replaced"
-                  >已重传</b
+                  >{{ t('已重传') }}</b
                 >
                 <div class="task-media-actions">
-                  <label title="重传素材"
+                  <label :title="t('重传素材')"
                     ><Icon
                       icon="solar:upload-minimalistic-linear"
                       width="16" /><input
@@ -351,7 +361,7 @@ onBeforeUnmount(clearReplacementUrls);
                   <button
                     v-if="replacements[key(item)]"
                     type="button"
-                    title="恢复原素材"
+                    :title="t('恢复原素材')"
                     @click="undoReplacement(item)"
                   >
                     <Icon icon="solar:restart-linear" width="16" />
@@ -359,8 +369,8 @@ onBeforeUnmount(clearReplacementUrls);
                   <button
                     type="button"
                     class="task-media-remove"
-                    title="删除素材"
-                    aria-label="删除素材"
+                    :title="t('删除素材')"
+                    :aria-label="t('删除素材')"
                     @click="removeItem(item)"
                   >
                     <Icon icon="solar:trash-bin-minimalistic-linear" width="16" />
@@ -371,7 +381,7 @@ onBeforeUnmount(clearReplacementUrls);
           </section>
           <section class="task-detail-section task-prompt-editor">
             <div class="task-prompt-heading">
-              <h3>{{ isTts ? "生成文本" : isMusic ? "音乐描述" : "描述词" }}</h3>
+              <h3>{{ isTts ? t('生成文本') : isMusic ? t('音乐描述') : t('描述词') }}</h3>
               <div v-if="hasBilingualPrompt" class="task-prompt-tabs" role="tablist">
                 <button
                   type="button"
@@ -379,14 +389,14 @@ onBeforeUnmount(clearReplacementUrls);
                   :aria-selected="promptLanguage === 'zh'"
                   :class="{ active: promptLanguage === 'zh' }"
                   @click="promptLanguage = 'zh'"
-                >中文方案</button>
+                >{{ t('中文方案') }}</button>
                 <button
                   type="button"
                   role="tab"
                   :aria-selected="promptLanguage === 'en'"
                   :class="{ active: promptLanguage === 'en' }"
                   @click="promptLanguage = 'en'"
-                >英文执行稿</button>
+                >{{ t('英文执行稿') }}</button>
               </div>
             </div>
             <textarea
@@ -394,42 +404,41 @@ onBeforeUnmount(clearReplacementUrls);
               rows="7"
               :placeholder="
                 promptLanguage === 'en' && hasBilingualPrompt
-                  ? '输入直接提交给生成模型的英文描述词'
+                  ? t('输入直接提交给生成模型的英文描述词')
                   : isTts
-                  ? '输入需要生成的文本'
+                  ? t('输入需要生成的文本')
                   : isMusic
-                    ? '描述曲风、演唱方式和声音质感'
-                    : '输入生成描述词'
+                    ? t('描述曲风、演唱方式和声音质感')
+                    : t('输入生成描述词')
               "
             />
           </section>
           <section class="task-detail-section">
-            <h3>生成参数</h3>
+            <h3>{{ t('生成参数') }}</h3>
             <dl class="task-generation-summary">
               <template v-if="isPostprocess">
-                <div><dt>处理功能</dt><dd>{{ modeLabel }}</dd></div>
-                <div><dt>工作流</dt><dd>{{ modelLabel }}</dd></div>
+                <div><dt>{{ t('处理功能') }}</dt><dd>{{ modeLabel }}</dd></div>
+                <div><dt>{{ t('工作流') }}</dt><dd>{{ modelLabel }}</dd></div>
               </template>
               <template v-else>
-                <div><dt>模型</dt><dd>{{ modelLabel }}</dd></div>
-                <div><dt>模式</dt><dd>{{ modeLabel }}</dd></div>
+                <div><dt>{{ t('模型') }}</dt><dd>{{ modelLabel }}</dd></div>
+                <div><dt>{{ t('模式') }}</dt><dd>{{ modeLabel }}</dd></div>
               </template>
-              <div v-if="generation.provider_name"><dt>服务</dt><dd>{{ generation.provider_name }}</dd></div>
+              <div v-if="providerLabel"><dt>{{ t('服务') }}</dt><dd>{{ providerLabel }}</dd></div>
             </dl>
             <div class="task-parameter-grid task-editor-fields">
               <PluginField v-for="field in editFields" :key="field.bind" :field="field" :model-value="getValue(formValues,field.bind)" :voices="voices" :plugin-id="capability?.plugin_id" :text="activePrompt" @update:model-value="setValue(formValues,field.bind,$event)" />
-              <p v-if="!capability">原插件未安装，无法编辑生成参数。</p>
+              <p v-if="!capability">{{ t('原插件未安装，无法编辑生成参数。') }}</p>
             </div>
           </section>
         </div>
         <footer>
           <span
             ><Icon icon="solar:shield-check-linear" width="15" />
-            {{ resourceNotice || '原任务和素材不会被覆盖' }}</span
+            {{ resourceNotice || t('原任务和素材不会被覆盖') }}</span
           >
           <div>
-            <button type="button" class="task-cancel" :disabled="submitting" @click="emit('close')">
-              取消</button
+            <button type="button" class="task-cancel" :disabled="submitting" @click="emit('close')">{{ t('取消') }}</button
             ><button
               type="button"
               class="task-regenerate"
@@ -448,7 +457,7 @@ onBeforeUnmount(clearReplacementUrls);
                     : 'solar:magic-stick-3-linear'
                 "
                 width="16"
-              />{{ submitting ? "正在提交" : "直接重新生成" }}
+              />{{ submitting ? t('正在提交') : t('直接重新生成') }}
             </button>
             <PluginApplication v-for="application in resourceApplications" :key="`${application.id}-${manifest.task_id}`" :application="application" extension :manifest="manifest" :disabled="submitting" @notice="resourceNotice = $event" @changed="emit('resource-changed', $event)" />
           </div>
@@ -461,32 +470,32 @@ onBeforeUnmount(clearReplacementUrls);
         >
           <div class="task-editor-progress-card">
             <Icon icon="solar:refresh-circle-linear" width="28" />
-            <strong>正在处理</strong>
-            <span>正在生成英文执行稿并提交任务，请稍候</span>
+            <strong>{{ t('正在处理') }}</strong>
+            <span>{{ t('正在生成英文执行稿并提交任务，请稍候') }}</span>
             <i aria-hidden="true"><b /></i>
           </div>
         </div>
       </section>
-      <PluginDialog :open="conversionChoiceOpen" :framed="false" title="中文描述已修改" @close="conversionChoiceOpen = false">
+      <PluginDialog :open="conversionChoiceOpen" :framed="false" :title="t('中文描述已修改')" @close="conversionChoiceOpen = false">
         <section class="task-conversion-dialog">
-          <h3 id="conversion-choice-title">中文描述已修改</h3>
-          <p>请选择如何生成新的英文执行稿。</p>
+          <h3 id="conversion-choice-title">{{ t('中文描述已修改') }}</h3>
+          <p>{{ t('请选择如何生成新的英文执行稿。') }}</p>
           <div class="task-conversion-options">
             <button v-if="capability?.prompt_translation_action" type="button" @click="chooseConversion('translate')">
               <Icon icon="solar:translation-2-linear" width="18" />
-              <span><b>直接翻译</b><small>保留原有镜头结构，适合文字和措辞修改</small></span>
+              <span><b>{{ t('直接翻译') }}</b><small>{{ t('保留原有镜头结构，适合文字和措辞修改') }}</small></span>
             </button>
             <button v-for="mode in conversionModes" :key="mode.id" type="button" @click="chooseConversion(mode.id)">
               <Icon icon="solar:magic-stick-3-linear" width="18" />
-              <span><b>{{ mode.name }}</b><small>重新分析参考素材与完整描述</small></span>
+              <span><b>{{ mode.name }}</b><small>{{ t('重新分析参考素材与完整描述') }}</small></span>
             </button>
           </div>
-          <button type="button" class="task-conversion-cancel" @click="conversionChoiceOpen = false">取消</button>
+          <button type="button" class="task-conversion-cancel" @click="conversionChoiceOpen = false">{{ t('取消') }}</button>
         </section>
       </PluginDialog>
     </div>
   </PluginDialog>
-  <MediaPreview :media="preview ? {type: preview.type, url: preview.src, name: '参考素材'} : null" @close="preview = null" />
+  <MediaPreview :media="preview ? {type: preview.type, url: preview.src, name: t('参考素材')} : null" @close="preview = null" />
 </template>
 
 <style scoped>

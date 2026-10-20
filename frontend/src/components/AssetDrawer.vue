@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t, localizedLabels } from '../services/i18n';
+
 import { computed, onMounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { gateway } from "../services/api";
@@ -19,16 +28,16 @@ const kind = ref("all"),
   loading = ref(false);
 const scope = ref('local');
 const localCategoryId = ref(props.categoryId || '');
-const assetTypes = {character:'人物',scene:'场景',prop:'道具',music:'配乐',sound:'音效',other:'其他'};
+const assetTypes = localizedLabels({character:'人物',scene:'场景',prop:'道具',music:'配乐',sound:'音效',other:'其他'}, t);
 const publicAssets = ref([]), assetKind = ref('all'), selectedAsset = ref(null), error = ref('');
 const publicAssetTypes = computed(() => [...new Set([...Object.keys(assetTypes), ...publicAssets.value.map(asset => asset.kind).filter(Boolean)])]);
-function assetTypeLabel(kind) { return assetTypes[kind] || kind || '未分类'; }
+function assetTypeLabel(kind) { return assetTypes[kind] || kind || t('未分类'); }
 const visibleAssets = computed(() => publicAssets.value.filter(asset => assetKind.value === 'all' || asset.kind === assetKind.value));
 const mediaPreview = ref(null), activeAudio = ref(null);
 const categoryMenuOpen = ref(false), categoryPicker = ref(null);
 // The API includes the internal empty-id default category; the drawer exposes it as "全部素材".
 const selectableCategories = computed(() => props.categories.filter(item => item.id));
-const selectedCategoryLabel = computed(() => props.categories.find(item => item.id === localCategoryId.value)?.name || '全部素材');
+const selectedCategoryLabel = computed(() => props.categories.find(item => item.id === localCategoryId.value)?.name || t('全部素材'));
 const filteredItems = computed(() => props.pickerTypes.length ? items.value.filter(item => props.pickerTypes.includes(item.type)) : items.value);
 const selectedMedia = computed(() => {
   const media = selectedAsset.value?.media || [];
@@ -116,33 +125,33 @@ onMounted(() => {
 <template>
   <aside class="asset-drawer" :class="{ open }">
     <header>
-      <b>本地资源</b
-      ><button aria-label="关闭资源库" @click="open = false">
+      <b>{{ t('本地资源') }}</b
+      ><button :aria-label="t(&quot;关闭资源库&quot;)" @click="open = false">
         <Icon icon="solar:close-circle-linear" width="22" />
       </button>
     </header>
     <nav>
-      <button :class="{on:scope==='local'}" @click="changeScope('local')">全部素材</button>
-      <button :class="{on:scope==='public'}" @click="changeScope('public')">项目资产</button>
+      <button :class="{on:scope==='local'}" @click="changeScope('local')">{{ t('全部素材') }}</button>
+      <button :class="{on:scope==='public'}" @click="changeScope('public')">{{ t('项目资产') }}</button>
       <div v-if="scope === 'local'" ref="categoryPicker" class="category-picker">
-        <button type="button" class="category-select-trigger" :aria-expanded="categoryMenuOpen" aria-label="选择项目素材分类" @click="categoryMenuOpen = !categoryMenuOpen" @keydown.down.prevent="categoryMenuOpen = true">
+        <button type="button" class="category-select-trigger" :aria-expanded="categoryMenuOpen" :aria-label="t(&quot;选择项目素材分类&quot;)" @click="categoryMenuOpen = !categoryMenuOpen" @keydown.down.prevent="categoryMenuOpen = true">
           <span>{{ selectedCategoryLabel }}</span><Icon icon="solar:alt-arrow-down-linear" />
         </button>
         <PopoverPanel :open="categoryMenuOpen" :anchor="categoryPicker" class="category-select-menu" @close="categoryMenuOpen = false">
-          <button type="button" :class="{active: !localCategoryId}" @click="changeCategory('')">全部素材</button>
+          <button type="button" :class="{active: !localCategoryId}" @click="changeCategory('')">{{ t('全部素材') }}</button>
           <button v-for="category in selectableCategories" :key="category.id" type="button" :class="{active: localCategoryId === category.id}" @click="changeCategory(category.id)">{{ category.name }}</button>
-          <small v-if="!selectableCategories.length">暂无项目分类</small>
+          <small v-if="!selectableCategories.length">{{ t('暂无项目分类') }}</small>
         </PopoverPanel>
       </div>
     </nav>
     <nav v-if="scope === 'local'">
       <button
         v-for="item in [
-          { value: 'all', label: '全部' },
-          { value: 'image', label: '图片' },
-          { value: 'video', label: '视频' },
-          { value: 'audio', label: '声音' },
-          { value: 'music', label: '音乐' },
+          { value: 'all', label: t('全部') },
+          { value: 'image', label: t('图片') },
+          { value: 'video', label: t('视频') },
+          { value: 'audio', label: t('声音') },
+          { value: 'music', label: t('音乐') },
         ]"
         :key="item.value"
         :class="{ on: kind === item.value }"
@@ -152,22 +161,22 @@ onMounted(() => {
       </button>
     </nav>
     <nav v-else-if="!selectedAsset" class="public-type-filter">
-      <button :class="{on:assetKind==='all'}" @click="assetKind='all'">全部</button>
+      <button :class="{on:assetKind==='all'}" @click="assetKind='all'">{{ t('全部') }}</button>
       <button v-for="value in publicAssetTypes" :key="value" :class="{on:assetKind===value}" @click="assetKind=value">{{assetTypeLabel(value)}}</button>
     </nav>
     <div v-else class="public-asset-detail">
-      <button type="button" @click="selectedAsset=null"><Icon icon="solar:alt-arrow-left-linear"/>返回资产列表</button>
+      <button type="button" @click="selectedAsset=null"><Icon icon="solar:alt-arrow-left-linear"/>{{ t('返回资产列表') }}</button>
       <b>{{selectedAsset.name}}</b><small>{{assetTypeLabel(selectedAsset.kind)}}</small>
-      <p>{{selectedAsset.description || '暂无描述'}}</p>
+      <p>{{selectedAsset.description || t('暂无描述')}}</p>
     </div>
-    <p v-if="error" class="drawer-error" role="alert">{{error}}<button type="button" @click="load(true)">重试</button></p>
+    <p v-if="error" class="drawer-error" role="alert">{{error}}<button type="button" @click="load(true)">{{ t('重试') }}</button></p>
     <div v-if="scope === 'public' && !selectedAsset" class="public-entity-grid">
       <button v-for="asset in visibleAssets" :key="asset.id" class="public-entity" type="button" @click="selectedAsset=asset">
         <img v-if="asset.media.find(media=>media.type==='image')" :src="asset.media.find(media=>media.type==='image').url" :alt="asset.name"/>
         <Icon v-else :icon="['music','sound'].includes(asset.kind)?'solar:music-note-3-linear':'solar:box-linear'" width="30"/>
-        <b>{{asset.name}}</b><small>{{assetTypeLabel(asset.kind)}} · {{asset.media.length}} 个文件</small>
+        <b>{{asset.name}}</b><small>{{assetTypeLabel(asset.kind)}} · {{asset.media.length}}{{ t('个文件') }}</small>
       </button>
-      <p v-if="loading">加载中</p><p v-else-if="!visibleAssets.length && !error">暂无项目资产</p>
+      <p v-if="loading">{{ t('加载中') }}</p><p v-else-if="!visibleAssets.length && !error">{{ t('暂无项目资产') }}</p>
     </div>
     <div v-else class="asset-grid" @scroll="scope === 'local' && scroll($event)">
       <article
@@ -179,17 +188,17 @@ onMounted(() => {
           { 'is-playing': activeAudio === asset.path },
         ]"
       >
-        <small v-if="scope==='public' && selectedAsset.kind==='character'" class="character-media-label">{{asset.role==='character_voice'?'角色声音':'角色板'}}</small>
+        <small v-if="scope==='public' && selectedAsset.kind==='character'" class="character-media-label">{{asset.role==='character_voice'?t('角色声音'):t('角色板')}}</small>
         <img v-if="asset.type === 'image'" class="asset-image" :src="asset.url" :alt="asset.name" @click="mediaPreview=asset"/>
         <template v-else-if="asset.type === 'video'">
           <video :src="asset.url" muted playsinline preload="metadata" @click="mediaPreview=asset"></video>
-          <button class="asset-play asset-preview-action" type="button" aria-label="放大播放视频" @click.stop="mediaPreview=asset"><Icon icon="solar:play-circle-linear" width="28"/></button>
+          <button class="asset-play asset-preview-action" type="button" :aria-label="t(&quot;放大播放视频&quot;)" @click.stop="mediaPreview=asset"><Icon icon="solar:play-circle-linear" width="28"/></button>
         </template>
         <template v-else>
           <div class="asset-audio-art" @click="toggleAudio(asset,$event)">
             <Icon icon="solar:music-note-3-linear" width="26"/>
             <span class="audio-bars"><i></i><i></i><i></i><i></i><i></i></span>
-            <button class="asset-play asset-audio-action" type="button" :aria-label="activeAudio===asset.path?'暂停声音':'播放声音'" @click.stop="toggleAudio(asset,$event)"><Icon :icon="activeAudio===asset.path?'solar:pause-linear':'solar:play-linear'" width="17"/></button>
+            <button class="asset-play asset-audio-action" type="button" :aria-label="activeAudio===asset.path?t('暂停声音'):t('播放声音')" @click.stop="toggleAudio(asset,$event)"><Icon :icon="activeAudio===asset.path?'solar:pause-linear':'solar:play-linear'" width="17"/></button>
           </div>
           <audio :src="asset.url" @ended="activeAudio=null"></audio>
         </template>
@@ -197,13 +206,11 @@ onMounted(() => {
           class="asset-use"
           type="button"
           @click.stop="emit('use', asset)"
-        >
-          引用
-        </button>
+        >{{ t('引用') }}</button>
       </article>
-      <div v-if="loading" class="library-loading">加载中</div>
-      <p v-else-if="scope === 'public' && !selectedMedia.length">没有符合条件的项目资产</p>
-      <p v-else-if="scope === 'local' && !loading && !filteredItems.length">没有符合条件的本地资源</p>
+      <div v-if="loading" class="library-loading">{{ t('加载中') }}</div>
+      <p v-else-if="scope === 'public' && !selectedMedia.length">{{ t('没有符合条件的项目资产') }}</p>
+      <p v-else-if="scope === 'local' && !loading && !filteredItems.length">{{ t('没有符合条件的本地资源') }}</p>
     </div>
   </aside>
   <MediaPreview :media="mediaPreview" @close="mediaPreview=null"/>

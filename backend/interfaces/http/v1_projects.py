@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -99,6 +104,8 @@ async def remove_public_asset_media(project_id: str, asset_id: str, media_id: st
         raise HTTPException(422, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(409, "素材文件清理失败，请检查文件占用或目录权限后重试") from exc
 
 
 @router.delete("/v1/projects/{project_id}/public-assets/{asset_id}", dependencies=[Depends(auth)])
@@ -137,8 +144,8 @@ class ProjectSelect(BaseModel):
 
 class ProjectUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    description: str = Field(default="", max_length=500)
-    content_summary: str = Field(default="", max_length=3000)
+    description: str | None = Field(default=None, max_length=500, description="Omit or pass null to preserve; an empty string clears the field.")
+    content_summary: str | None = Field(default=None, max_length=3000, description="Omit or pass null to preserve; an empty string clears the field.")
 
 
 class CategoryWrite(BaseModel):
@@ -236,3 +243,5 @@ async def delete_project(project_id: str):
         raise HTTPException(409 if "不能" in str(exc) else 404, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(409, str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(409, "项目文件清理失败，请检查文件占用或目录权限后重试") from exc

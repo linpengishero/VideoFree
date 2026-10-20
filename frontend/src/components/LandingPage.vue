@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t, localizedLabels } from '../services/i18n';
+
 import { Icon } from "@iconify/vue";
 import { ref } from "vue";
 import PluginDialog from './PluginDialog.vue';
@@ -17,47 +26,46 @@ function closeQr() {
   qrOpen.value = false;
 }
 
-const capabilities = [
+const capabilities = localizedLabels([
   { icon: "solar:widget-5-linear", title: "工作流插件化", description: "把模型、工作流、参数和资源封装成可安装能力。" },
   { icon: "solar:magic-stick-3-linear", title: "大白话创作", description: "按模型规则追问和整理提示词，降低学习门槛。" },
   { icon: "solar:folder-with-files-linear", title: "项目化管理", description: "统一管理剧本、分类、任务、素材与项目资产。" },
   { icon: "solar:link-linear", title: "Agent 稳定调用", description: "通过 MCP/API 发现和调用能力，不接触节点连线。" },
-];
+], t);
 
-const services = [
+const services = localizedLabels([
   { icon: "solar:server-square-cloud-linear", title: "企业级大模型部署", description: "私有化部署、知识库与 RAG、推理服务。" },
   { icon: "solar:stars-minimalistic-linear", title: "企业 AI 自动化", description: "连接业务系统，让 AI 参与实际生产流程。" },
   { icon: "solar:diagram-up-linear", title: "智能体与工作流定制", description: "多智能体协作、媒体工作流与持续维护。" },
-];
+], t);
 </script>
 
 <template>
   <div class="landing-page">
     <header class="landing-nav">
-      <a class="landing-brand" href="/" aria-label="videofree 首页">
+      <a class="landing-brand" href="/" :aria-label="t(&quot;videofree 首页&quot;)">
         <img src="/contact/logo.png" alt="" width="32" height="32" />
         <strong>videofree</strong>
       </a>
-      <button class="studio-button" type="button" @click="$emit('enter')">
-        进入工作台 <Icon icon="solar:arrow-right-linear" width="18" />
+      <button class="studio-button" type="button" @click="$emit('enter')">{{ t('进入工作台') }}<Icon icon="solar:arrow-right-linear" width="18" />
       </button>
     </header>
 
     <main class="landing-main">
       <div class="product-column">
         <section class="product-intro" aria-labelledby="landing-title">
-          <div class="section-label"><span class="label-mark"></span> 本地 AI 视频创作平台</div>
+          <div class="section-label"><span class="label-mark"></span>{{ t('本地 AI 视频创作平台') }}</div>
           <h1 id="landing-title">videofree</h1>
-          <p class="product-subtitle">让复杂的本地工作流，成为真正可用的创作能力。</p>
-          <p class="product-description">以 ComfyUI 为生成引擎，把零散模型、复杂节点、提示词规则和配套资源封装成插件。普通用户可以用大白话创作，开发者可以分发能力，Agent 可以通过稳定接口自动调用。</p>
-          <div class="product-modes" aria-label="支持的创作方式">
-            <span><Icon icon="solar:monitor-linear" width="15" /> 本地模型</span>
-            <span><Icon icon="solar:cloud-linear" width="15" /> 云端生成</span>
-            <span><Icon icon="solar:link-linear" width="15" /> 智能体协作</span>
+          <p class="product-subtitle">{{ t('让复杂的本地工作流，成为真正可用的创作能力。') }}</p>
+          <p class="product-description">{{ t('以 ComfyUI 为生成引擎，把零散模型、复杂节点、提示词规则和配套资源封装成插件。普通用户可以用大白话创作，开发者可以分发能力，Agent 可以通过稳定接口自动调用。') }}</p>
+          <div class="product-modes" :aria-label="t(&quot;支持的创作方式&quot;)">
+            <span><Icon icon="solar:monitor-linear" width="15" />{{ t('本地模型') }}</span>
+            <span><Icon icon="solar:cloud-linear" width="15" />{{ t('云端生成') }}</span>
+            <span><Icon icon="solar:link-linear" width="15" />{{ t('智能体协作') }}</span>
           </div>
         </section>
 
-        <section class="product-features" aria-label="videofree 产品能力">
+        <section class="product-features" :aria-label="t(&quot;videofree 产品能力&quot;)">
           <article v-for="item in capabilities" :key="item.title" class="feature-item">
             <Icon :icon="item.icon" width="22" />
             <div><h2>{{ item.title }}</h2><p>{{ item.description }}</p></div>
@@ -66,25 +74,25 @@ const services = [
 
         <section class="resource-section community-section" aria-labelledby="community-title">
           <div class="resource-copy">
-            <span class="section-label">学习与实践 · 知识星球</span>
-            <h2 id="community-title">把 AI 创作变成可复用的流水线</h2>
-            <p>分享各类 AI 视频自动化流水线、智能体实践与大模型专业知识。从实际案例出发，持续更新可落地的方法与经验。</p>
-            <span class="resource-note">AI 视频自动化 / 智能体 / 大模型</span>
+            <span class="section-label">{{ t('学习与实践 · 知识星球') }}</span>
+            <h2 id="community-title">{{ t('把 AI 创作变成可复用的流水线') }}</h2>
+            <p>{{ t('分享各类 AI 视频自动化流水线、智能体实践与大模型专业知识。从实际案例出发，持续更新可落地的方法与经验。') }}</p>
+            <span class="resource-note">{{ t('AI 视频自动化 / 智能体 / 大模型') }}</span>
             <div class="guide-links">
-              <button type="button" @click="$emit('guide', 'install')"><Icon icon="solar:monitor-linear" width="16" />安装部署教程</button>
-              <button type="button" @click="$emit('guide', 'mcp')"><Icon icon="solar:plug-circle-linear" width="16" />MCP 安装教程</button>
-              <button type="button" @click="$emit('guide', 'skills')"><Icon icon="solar:book-linear" width="16" />全自动技能包教程</button>
-              <button type="button" @click="$emit('guide', 'plugin')"><Icon icon="solar:widget-add-linear" width="16" />插件开发教程</button>
+              <button type="button" @click="$emit('guide', 'install')"><Icon icon="solar:monitor-linear" width="16" />{{ t('安装部署教程') }}</button>
+              <button type="button" @click="$emit('guide', 'mcp')"><Icon icon="solar:plug-circle-linear" width="16" />{{ t('MCP 安装教程') }}</button>
+              <button type="button" @click="$emit('guide', 'skills')"><Icon icon="solar:book-linear" width="16" />{{ t('全自动技能包教程') }}</button>
+              <button type="button" @click="$emit('guide', 'plugin')"><Icon icon="solar:widget-add-linear" width="16" />{{ t('插件开发教程') }}</button>
             </div>
           </div>
           <div class="community-qr-list">
-            <button class="qr-link" type="button" @click="openQr('/contact/zsxq-qr.png', '知识星球')" aria-label="放大知识星球二维码">
-              <img src="/contact/zsxq-qr.png" alt="知识星球二维码" width="200" height="200" loading="lazy" />
-              <span>知识星球</span>
+            <button class="qr-link" type="button" @click="openQr('/contact/zsxq-qr.png', t('知识星球'))" :aria-label="t(&quot;放大知识星球二维码&quot;)">
+              <img src="/contact/zsxq-qr.png" :alt="t(&quot;知识星球二维码&quot;)" width="200" height="200" loading="lazy" />
+              <span>{{ t('知识星球') }}</span>
             </button>
-            <button class="qr-link" type="button" @click="openQr('https://laobanclaw.top/videofree/qrcode.jpg', 'VideoFree 微信交流群')" aria-label="放大 VideoFree 微信交流群二维码">
-              <img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree 微信交流群二维码" width="200" height="200" loading="lazy" referrerpolicy="no-referrer" />
-              <span>微信交流群</span>
+            <button class="qr-link" type="button" @click="openQr('https://laobanclaw.top/videofree/qrcode.jpg', t('VideoFree 微信交流群'))" :aria-label="t(&quot;放大 VideoFree 微信交流群二维码&quot;)">
+              <img src="https://laobanclaw.top/videofree/qrcode.jpg" :alt="t(&quot;VideoFree 微信交流群二维码&quot;)" width="200" height="200" loading="lazy" referrerpolicy="no-referrer" />
+              <span>{{ t('微信交流群') }}</span>
             </button>
           </div>
         </section>
@@ -93,12 +101,12 @@ const services = [
 
       <aside class="business-column" aria-labelledby="contact-title">
         <section class="business-intro">
-          <span class="section-label">AI老林 · 技术服务与合作</span>
-          <h2 id="contact-title">让 AI 进入业务，<br />交付真正可运行的系统。</h2>
-          <p>面向企业与团队，提供从需求梳理、方案设计到部署交付的技术服务，让 AI 能落地，也能长期维护。</p>
+          <span class="section-label">{{ t('AI老林 · 技术服务与合作') }}</span>
+          <h2 id="contact-title">{{ t('让 AI 进入业务，') }}<br />{{ t('交付真正可运行的系统。') }}</h2>
+          <p>{{ t('面向企业与团队，提供从需求梳理、方案设计到部署交付的技术服务，让 AI 能落地，也能长期维护。') }}</p>
         </section>
 
-        <div class="service-list" aria-label="个人技术服务">
+        <div class="service-list" :aria-label="t(&quot;个人技术服务&quot;)">
           <article v-for="service in services" :key="service.title">
             <Icon :icon="service.icon" width="21" />
             <div><h3>{{ service.title }}</h3><p>{{ service.description }}</p></div>
@@ -107,26 +115,26 @@ const services = [
 
         <div class="business-contact">
           <section class="contact-item" aria-labelledby="wechat-title">
-            <h3 id="wechat-title">微信咨询与合作</h3>
-            <p>扫码聊需求</p>
-            <button class="qr-link" type="button" @click="openQr('/contact/weixin.png', '微信咨询与合作')" aria-label="放大微信咨询二维码">
-              <img src="/contact/weixin.png" alt="AI老林微信咨询二维码" width="120" height="120" loading="lazy" />
+            <h3 id="wechat-title">{{ t('微信咨询与合作') }}</h3>
+            <p>{{ t('扫码聊需求') }}</p>
+            <button class="qr-link" type="button" @click="openQr('/contact/weixin.png', t('微信咨询与合作'))" :aria-label="t(&quot;放大微信咨询二维码&quot;)">
+              <img src="/contact/weixin.png" :alt="t(&quot;AI老林微信咨询二维码&quot;)" width="120" height="120" loading="lazy" />
             </button>
           </section>
           <section class="contact-item" aria-labelledby="support-title">
-            <h3 id="support-title">支持 videofree</h3>
-            <p>您的支持，是我前进的动力</p>
-            <button class="qr-link support-qr" type="button" @click="openQr('/contact/wechat-support.jpg', '支持 videofree')" aria-label="放大微信收款码">
-              <img src="/contact/wechat-support.jpg" alt="微信自愿支持收款码" width="745" height="1014" loading="lazy" />
+            <h3 id="support-title">{{ t('支持 videofree') }}</h3>
+            <p>{{ t('您的支持，是我前进的动力') }}</p>
+            <button class="qr-link support-qr" type="button" @click="openQr('/contact/wechat-support.jpg', t('支持 videofree'))" :aria-label="t(&quot;放大微信收款码&quot;)">
+              <img src="/contact/wechat-support.jpg" :alt="t(&quot;微信自愿支持收款码&quot;)" width="745" height="1014" loading="lazy" />
             </button>
           </section>
         </div>
 
         <a class="arsenal-link" href="https://laobanclaw.top/" target="_blank" rel="noopener noreferrer">
           <div>
-            <span class="section-label">AI军火库</span>
+            <span class="section-label">{{ t('AI军火库') }}</span>
             <strong>laobanclaw.top</strong>
-            <p>前沿 AI 技术、工具与实践</p>
+            <p>{{ t('前沿 AI 技术、工具与实践') }}</p>
           </div>
           <Icon icon="solar:arrow-right-up-linear" width="25" />
         </a>
@@ -134,13 +142,13 @@ const services = [
     </main>
 
     <footer class="landing-footer">
-      <span>© 2026 AI老林 · videofree</span>
-      <span>让创作更自由，让技术真正落地。</span>
+      <span>{{ t('© 2026 AI老林 · videofree') }}</span>
+      <span>{{ t('让创作更自由，让技术真正落地。') }}</span>
     </footer>
     <PluginDialog :open="qrOpen" :framed="false" :title="activeQr.title" @close="closeQr"><section class="qr-dialog">
       <header>
         <h2 id="qr-dialog-title">{{ activeQr.title }}</h2>
-        <button type="button" class="qr-close" aria-label="关闭二维码" title="关闭" @click="closeQr"><Icon icon="solar:close-circle-linear" width="24" /></button>
+        <button type="button" class="qr-close" :aria-label="t(&quot;关闭二维码&quot;)" :title="t(&quot;关闭&quot;)" @click="closeQr"><Icon icon="solar:close-circle-linear" width="24" /></button>
       </header>
       <img v-if="activeQr.src" :src="activeQr.src" :alt="activeQr.title" />
     </section></PluginDialog>

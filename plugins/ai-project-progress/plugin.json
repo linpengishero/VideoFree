@@ -10,9 +10,11 @@
     "name": "AI进度",
     "scope": "category",
     "entry": "ui/Progress.vue",
-    "icon": "solar:chart-2-linear",
-    "requires_project_flags": ["ai_created"],
-    "order": 20
+    "requires_project_flags": [
+      "ai_created"
+    ],
+    "order": 20,
+    "name_key": "AI进度"
   },
   "actions": [
     {
@@ -25,7 +27,8 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
-      }
+      },
+      "name_key": "查询 AI 制作进度"
     },
     {
       "id": "ai-project-progress.update",
@@ -36,15 +39,131 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "stage_id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
-          "stage_name": {"type": "string", "minLength": 1, "maxLength": 80},
-          "status": {"enum": ["pending", "running", "completed", "failed", "blocked", "skipped"]},
-          "note": {"type": "string", "maxLength": 2000},
-          "order": {"type": "integer", "minimum": 0, "maximum": 999}
+          "stage_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "stage_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "running",
+              "completed",
+              "failed",
+              "blocked",
+              "skipped"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999
+          },
+          "weight": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000
+          }
         },
-        "required": ["stage_id", "stage_name", "status"],
+        "required": [
+          "stage_id",
+          "stage_name",
+          "status"
+        ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "更新 AI 制作进度"
+    },
+    {
+      "id": "ai-project-progress.plan",
+      "name": "制定 AI 制作计划",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "stages": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "status": {
+                  "enum": [
+                    "pending",
+                    "running",
+                    "completed",
+                    "failed",
+                    "blocked",
+                    "skipped"
+                  ]
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 999
+                },
+                "weight": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "stages"
+        ],
+        "additionalProperties": false
+      },
+      "name_key": "制定 AI 制作计划"
+    },
+    {
+      "id": "ai-project-progress.summary",
+      "name": "查询各分类 AI 制作进度",
+      "scope": "workspace",
+      "automation": true,
+      "handler": "actions.py:execute",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name_key": "查询各分类 AI 制作进度"
     }
-  ]
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  },
+  "name_key": "AI制作进度",
+  "description_key": "按项目与分类记录和查看 AI 制作进展。"
 }

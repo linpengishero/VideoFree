@@ -15,6 +15,7 @@ bootstrap / lifecycle -> all application modules
 - `backend/core/`: environment configuration, runtime context, errors, and logging; it does not depend on business modules.
 - `backend/persistence/`: SQLite persistence and data-access APIs only.
 - `backend/integrations/`: ComfyUI and native vendor adapters; no HTTP routes.
+- `backend/integrations/system_services/storage/`: the file-storage provider contract and local implementation. Project-media code uses stable relative object keys instead of owning file-copy/deletion mechanics.
 - `backend/modules/`: business domains such as generation, collaboration, settings, and presets.
 - `backend/interfaces/http/`: V1/V2 request schemas, capability mapping, and route adapters.
 - `backend/lifecycle.py`: startup recovery, worker creation, cache cleanup, and graceful shutdown.
@@ -66,6 +67,7 @@ Local Python plugins are trusted code, not a sandbox. Arbitrary online code inst
 Native executors are selected by each capability's `executor_handler`. The framework only defines execution context, return values, and cancellation contracts; it does not maintain a vendor allowlist.
 
 Plugin-owned fixed assets, including voice MP3s, must ship inside the plugin and be referenced by plugin-relative paths. The framework must not complete a plugin package with resources from `data/cache`. User uploads, jobs, and generated outputs remain runtime data.
+Project-media bytes are managed by `StorageProvider`; project/category/job ownership metadata remains in framework SQLite. The default `LocalStorageProvider` maps object keys to the configured resource directory and supports streamed writes, file publication, reads, metadata listing, deletion/prefix deletion, and local materialization for tools. Upload staging, task packages, ComfyUI output, and the database retain their existing local paths. Project-media APIs keep their relative object keys and URLs. Only the local provider exists today; remote backends, migration, and HTTP Range proxying are not implemented.
 
 Workflow-specific graph transformations, H3 prompt review, voice-sample preparation, and confirmation-parameter correction belong to plugin `compiler_handler`, `speech_handler`, `confirmation_handler`, and collaboration handlers. Model names, public IDs, aliases, and duration constraints come from plugin declarations.
 

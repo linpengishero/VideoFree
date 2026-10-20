@@ -1,4 +1,7 @@
 <script setup>
+import { usePluginI18n, localizedLabels } from '@framework/services/i18n';
+const { t } = usePluginI18n('film-studio');
+
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { clipDuration, mainOffsets } from './plan';
@@ -9,7 +12,7 @@ const scroller = ref(null), drag = ref(null), scrubbing = ref(false);
 const wide = ref(window.innerWidth > 620);
 // 标签列宽度由 JS 与 CSS 共用同一个变量，坐标换算才不会和视觉错位（遮挡 bug 的根因就是两者分离）。
 const labelWidth = computed(()=>wide.value ? 84 : 56);
-const transLabels = {fade:'淡化', wipeleft:'左擦除', wiperight:'右擦除', slideleft:'左滑', slideright:'右滑', slideup:'上滑', slidedown:'下滑', circleopen:'圆形展开', circleclose:'圆形收拢'};
+const transLabels = localizedLabels({fade:'淡化', wipeleft:'左擦除', wiperight:'右擦除', slideleft:'左滑', slideright:'右滑', slideup:'上滑', slidedown:'下滑', circleopen:'圆形展开', circleclose:'圆形收拢'}, t);
 const main = computed(()=>props.draft.clips || []);
 const overlay = computed(()=>props.draft.overlay_clips || []);
 const audio = computed(()=>props.draft.audio_clips || []);
@@ -27,7 +30,7 @@ const minorTicks = computed(()=>{const s=tickStep.value/5; if(s*props.pps<14) re
 const boundaries = computed(()=>[...offsets.value, mainEnd.value]);
 const media = clip=>props.sources.find(s=>s.id===clip.job_id)?.artifacts?.[clip.artifact_index || 0];
 const libraryName = clip=>clip.library_path?.split(/[\\/]/).pop();
-const title = clip=>media(clip)?.name || libraryName(clip) || clip.job_id || '本地素材';
+const title = clip=>media(clip)?.name || libraryName(clip) || clip.job_id || t('本地素材');
 const proxy = clip=>clip.job_id ? props.proxies[`${clip.job_id}:${clip.artifact_index || 0}`] : clip.library_path ? props.proxies[`path:${clip.library_path}`] : undefined;
 const sourceDuration = clip=>proxy(clip)?.duration || media(clip)?.duration_seconds || props.sources.find(s=>s.id===clip.job_id)?.duration_seconds || (clip.library_path ? clip.out - (clip.in || 0) : 0);
 const fmt = n=>`${Math.floor(n/60).toString().padStart(2,'0')}:${Math.floor(n%60).toString().padStart(2,'0')}`;
@@ -326,7 +329,7 @@ defineExpose({insertBlank, splitAtPlayhead, removeSelected, scrollToPlayhead});
 </script>
 
 <template>
-  <section class="tl" :style="{'--tl-label': labelWidth+'px'}" aria-label="时间线">
+  <section class="tl" :style="{'--tl-label': labelWidth+'px'}" :aria-label="t('时间线')">
     <div class="tl-scroll" ref="scroller" @wheel="onWheel">
       <div class="tl-canvas" :style="{width:canvasWidth+'px'}">
         <div class="tl-ruler" @pointerdown="scrubDown" @pointermove="scrubMove" @pointerup="scrubUp" @pointercancel="scrubUp">
@@ -338,61 +341,61 @@ defineExpose({insertBlank, splitAtPlayhead, removeSelected, scrollToPlayhead});
         </div>
         <div class="tl-inserts" aria-hidden="true">
           <div class="tl-lane">
-            <button v-for="i in main.length+1" :key="i" class="tl-add" :style="{left:boundaryTime(i-1)*pps+'px'}" :disabled="locked" title="在此插入黑场" @pointerdown.stop @click.stop="insertBlank(i-1)">+</button>
+            <button v-for="i in main.length+1" :key="i" class="tl-add" :style="{left:boundaryTime(i-1)*pps+'px'}" :disabled="locked" :title="t('在此插入黑场')" @pointerdown.stop @click.stop="insertBlank(i-1)">+</button>
           </div>
         </div>
         <div class="tl-track main" data-track="main" @pointerdown="trackDown" @dragover.prevent @drop="onDrop($event,'main')">
-          <div class="tl-label"><Icon icon="solar:video-frame-play-horizontal-linear" width="15" />主轨</div>
+          <div class="tl-label"><Icon icon="solar:video-frame-play-horizontal-linear" width="15" />{{ t('主轨') }}</div>
           <div class="tl-lane">
             <div v-for="(clip,index) in main" :key="uid(clip)" class="tl-block" :class="{selected:isSel('main',index),blank:clip.kind==='blank',dragging:dragging(clip)}" :style="blockStyle(clip,offsets[index])" @pointerdown="clipDown($event,'main',index,'move')" @pointermove="pointerRecord" @pointerup="clipUp" @pointercancel="clipCancel" @dblclick="splitAtPoint($event,'main',index)">
-              <span v-if="clip.kind!=='blank'" class="tl-edge in" title="拖拽裁剪入点" @pointerdown.stop="clipDown($event,'main',index,'in')" />
-              <button class="tl-del" :disabled="locked" title="删除片段" @pointerdown.stop @click.stop="removeAt('main',index)"><Icon icon="solar:trash-bin-trash-linear" width="12" /></button>
-              <b>{{ clip.kind==='blank' ? '黑场' : title(clip) }}</b>
+              <span v-if="clip.kind!=='blank'" class="tl-edge in" :title="t('拖拽裁剪入点')" @pointerdown.stop="clipDown($event,'main',index,'in')" />
+              <button class="tl-del" :disabled="locked" :title="t('删除片段')" @pointerdown.stop @click.stop="removeAt('main',index)"><Icon icon="solar:trash-bin-trash-linear" width="12" /></button>
+              <b>{{ clip.kind==='blank' ? t('黑场') : title(clip) }}</b>
               <small>{{ clipDuration(clip).toFixed(2) }}s</small>
               <img v-if="proxy(clip)?.waveform_url" class="tl-wave" :src="proxy(clip).waveform_url" alt="" />
               <span v-if="clip.kind==='clip' && (clip.original===false || clip.volume!==100)" class="tl-badges">
                 <Icon v-if="clip.original===false" icon="solar:close-circle-linear" width="12" />
                 <template v-else-if="clip.volume!==100"><Icon icon="solar:volume-loud-linear" width="12" />{{ clip.volume }}</template>
               </span>
-              <i v-if="clip.transition" class="tl-trans" :title="`转场：${transLabels[clip.transition.type]} ${clip.transition.duration}s`"><Icon icon="solar:double-alt-arrow-right-linear" width="13" /></i>
-              <span class="tl-edge out" title="拖拽裁剪出点" @pointerdown.stop="clipDown($event,'main',index,'out')" />
+              <i v-if="clip.transition" class="tl-trans" :title="t('转场：{v0} {v1}s', undefined, {v0: transLabels[clip.transition.type], v1: clip.transition.duration})"><Icon icon="solar:double-alt-arrow-right-linear" width="13" /></i>
+              <span class="tl-edge out" :title="t('拖拽裁剪出点')" @pointerdown.stop="clipDown($event,'main',index,'out')" />
             </div>
           </div>
         </div>
         <div class="tl-track overlay" data-track="overlay" @pointerdown="trackDown" @dragover.prevent @drop="onDrop($event,'overlay')">
-          <div class="tl-label"><Icon icon="solar:copy-linear" width="15" />叠加</div>
+          <div class="tl-label"><Icon icon="solar:copy-linear" width="15" />{{ t('叠加') }}</div>
           <div class="tl-lane">
             <div v-for="(clip,index) in overlay" :key="uid(clip)" class="tl-block pip" :class="{selected:isSel('overlay',index)}" :style="blockStyle(clip,clip.start || 0)" @pointerdown="clipDown($event,'overlay',index,'move')" @pointermove="pointerRecord" @pointerup="clipUp" @pointercancel="clipCancel" @dblclick="splitAtPoint($event,'overlay',index)">
-              <span class="tl-edge in" title="拖拽裁剪入点" @pointerdown.stop="clipDown($event,'overlay',index,'in')" />
-              <button class="tl-del" :disabled="locked" title="删除片段" @pointerdown.stop @click.stop="removeAt('overlay',index)"><Icon icon="solar:trash-bin-trash-linear" width="12" /></button>
+              <span class="tl-edge in" :title="t('拖拽裁剪入点')" @pointerdown.stop="clipDown($event,'overlay',index,'in')" />
+              <button class="tl-del" :disabled="locked" :title="t('删除片段')" @pointerdown.stop @click.stop="removeAt('overlay',index)"><Icon icon="solar:trash-bin-trash-linear" width="12" /></button>
               <b>{{ title(clip) }}</b>
               <small>{{ clipDuration(clip).toFixed(2) }}s</small>
-              <span class="tl-edge out" title="拖拽裁剪出点" @pointerdown.stop="clipDown($event,'overlay',index,'out')" />
+              <span class="tl-edge out" :title="t('拖拽裁剪出点')" @pointerdown.stop="clipDown($event,'overlay',index,'out')" />
             </div>
           </div>
         </div>
         <div class="tl-track audio" data-track="audio" @pointerdown="trackDown" @dragover.prevent @drop="onDrop($event,'audio')">
-          <div class="tl-label"><Icon icon="solar:music-note-linear" width="15" />音频</div>
+          <div class="tl-label"><Icon icon="solar:music-note-linear" width="15" />{{ t('音频') }}</div>
           <div class="tl-lane">
             <div v-for="(clip,index) in audio" :key="uid(clip)" class="tl-block sound" :class="{selected:isSel('audio',index)}" :style="blockStyle(clip,clip.start || 0)" @pointerdown="clipDown($event,'audio',index,'move')" @pointermove="pointerRecord" @pointerup="clipUp" @pointercancel="clipCancel" @dblclick="splitAtPoint($event,'audio',index)">
-              <span class="tl-edge in" title="拖拽裁剪入点" @pointerdown.stop="clipDown($event,'audio',index,'in')" />
-              <button class="tl-del" :disabled="locked" title="删除片段" @pointerdown.stop @click.stop="removeAt('audio',index)"><Icon icon="solar:trash-bin-trash-linear" width="12" /></button>
+              <span class="tl-edge in" :title="t('拖拽裁剪入点')" @pointerdown.stop="clipDown($event,'audio',index,'in')" />
+              <button class="tl-del" :disabled="locked" :title="t('删除片段')" @pointerdown.stop @click.stop="removeAt('audio',index)"><Icon icon="solar:trash-bin-trash-linear" width="12" /></button>
               <b>{{ title(clip) }}</b>
               <small>{{ clipDuration(clip).toFixed(2) }}s</small>
               <img v-if="proxy(clip)?.waveform_url" class="tl-wave" :src="proxy(clip).waveform_url" alt="" />
               <span v-if="clip.volume!==100" class="tl-badges"><Icon icon="solar:volume-loud-linear" width="12" />{{ clip.volume }}</span>
-              <span class="tl-edge out" title="拖拽裁剪出点" @pointerdown.stop="clipDown($event,'audio',index,'out')" />
+              <span class="tl-edge out" :title="t('拖拽裁剪出点')" @pointerdown.stop="clipDown($event,'audio',index,'out')" />
             </div>
           </div>
         </div>
         <div class="tl-track captions" data-track="caption" @pointerdown="trackDown">
-          <div class="tl-label"><Icon icon="solar:text-field-linear" width="15" />字幕</div>
+          <div class="tl-label"><Icon icon="solar:text-field-linear" width="15" />{{ t('字幕') }}</div>
           <div class="tl-lane">
             <button v-for="(caption,index) in captions" :key="`caption-${index}`" class="tl-block caption" :class="{selected:isSel('caption',index)}" :style="{left:(Number(caption.start)||0)*pps+'px',width:Math.max(20,((Number(caption.end)||0)-(Number(caption.start)||0))*pps)+'px'}" @pointerdown.stop @click.stop="selectCaption(index)" :title="caption.text"><b>{{ caption.text }}</b><small>{{ fmt(caption.start) }}</small></button>
           </div>
         </div>
         <div class="tl-track texts" data-track="text" @pointerdown="trackDown">
-          <div class="tl-label"><Icon icon="solar:text-square-linear" width="15" />文字</div>
+          <div class="tl-label"><Icon icon="solar:text-square-linear" width="15" />{{ t('文字') }}</div>
           <div class="tl-lane">
             <button v-for="(text,index) in texts" :key="`text-${index}`" class="tl-block text" :class="{selected:isSel('text',index)}" :style="{left:(Number(text.start)||0)*pps+'px',width:Math.max(20,((Number(text.end)||0)-(Number(text.start)||0))*pps)+'px'}" @pointerdown.stop @click.stop="selectText(index)" :title="text.text"><b>{{ text.text }}</b><small>{{ fmt(text.start) }}</small></button>
           </div>

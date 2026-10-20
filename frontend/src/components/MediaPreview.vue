@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import {Icon} from '@iconify/vue';
 import MediaDialog from './MediaDialog.vue';
 defineProps({media:Object});
@@ -6,10 +15,10 @@ defineEmits(['close']);
 </script>
 <template>
   <MediaDialog :open="!!media" @close="$emit('close')">
-    <section v-if="media" class="media-preview" role="dialog" aria-label="素材预览">
-      <header><span>{{media.name}}</span><button type="button" aria-label="关闭预览" title="关闭预览" @click="$emit('close')"><Icon icon="solar:close-circle-linear" width="24"/></button></header>
-      <div v-if="media.type==='image' && media.items?.length > 1" class="preview-images"><img v-for="(item,index) in media.items" :key="item.url" :src="item.url" :alt="item.name || `${media.name || '图片'} ${index + 1}`" /></div>
-      <img v-else-if="media.type==='image'" :src="media.url" :alt="media.name || '图片预览'"/>
+    <section v-if="media" class="media-preview" role="dialog" :aria-label="t(&quot;素材预览&quot;)">
+      <header><span>{{media.name}}</span><button type="button" :aria-label="t(&quot;关闭预览&quot;)" :title="t(&quot;关闭预览&quot;)" @click="$emit('close')"><Icon icon="solar:close-circle-linear" width="24"/></button></header>
+      <div v-if="media.type==='image' && media.items?.length > 1" class="preview-images"><img v-for="(item,index) in media.items" :key="item.url" :src="item.url" :alt="item.name || `${media.name || t('图片')} ${index + 1}`" /></div>
+      <img v-else-if="media.type==='image'" :src="media.url" :alt="media.name || t('图片预览')"/>
       <video v-else-if="media.type==='video'" :src="media.url" controls autoplay playsinline/>
       <audio v-else :src="media.url" controls autoplay/>
     </section>

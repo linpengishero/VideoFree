@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 from typing import Any
 import math
 import re
@@ -46,6 +51,7 @@ def capability(capability_id: str, config: dict[str, Any]) -> dict[str, Any]:
     limits = {media: {"min": int(references.get(media, {}).get("min", 0)), "max": int(references.get(media, {}).get("max", 0))} for media in roles}
     return {
         "id": capability_id, "name": config.get("name", config.get("mode_name", capability_id)), "type": kind,
+        **{key: config[key] for key in ("name_key", "mode_name_key", "model_name_key", "provider_name_key", "description_key") if key in config},
         "category": config.get("category", kind),
         "plugin_id": config.get("plugin_id"), "plugin_version": config.get("plugin_version"),
         "plugin_folder": config.get("plugin_folder"), "collaboration_ui": config.get("collaboration_ui"),
@@ -64,7 +70,7 @@ def capability(capability_id: str, config: dict[str, Any]) -> dict[str, Any]:
         "collaboration_supported": collaboration_supported,
         "collaboration_modes": ["quick" if item["id"] == "compile" else item["id"] for item in processing_modes if item["id"] != "direct"],
         "operation": config.get("operation", "generate"), "inputs": limits,
-        "input_roles": roles, "variants": [{"id": key, "name": value.get("label", key)} for key, value in variants.items()],
+        "input_roles": roles, "variants": [{"id": key, "name": value.get("label", key), "name_key": value.get("label_key", "")} for key, value in variants.items()],
         "models": list(config.get("models", [])), "ratios": declared_options(config, "settings.ratio"), "resolutions": declared_options(config, "settings.resolution"),
         "duration": declared_duration(config),
         "supports_style": kind == "image" and config.get("operation") != "postprocess", "requirements": config.get("requirements", {}),

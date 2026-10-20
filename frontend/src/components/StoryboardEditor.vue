@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { Icon } from "@iconify/vue";
 defineProps({ referenceLabels: { type: Array, required: true } });
 const shots = defineModel("shots", { type: Array });
@@ -16,20 +25,20 @@ function select(event, index) {
         ><span>{{ name }}</span
         ><span class="story-file"
           ><Icon icon="solar:add-circle-linear" width="20" />{{
-            references[i]?.name || "选择参考图"
+            references[i]?.name || t('选择参考图')
           }}</span
         ><input type="file" accept="image/*" @change="select($event, i)"
       /></label>
     </div>
     <div class="story-shots">
       <label v-for="(_, i) in shots" :key="i"
-        ><span>镜头 {{ i + 1 }}</span
+        ><span>{{ t('镜头') }}{{ i + 1 }}</span
         ><textarea
           :value="shots[i]"
           @input="
             shots = shots.map((v, j) => (j === i ? $event.target.value : v))
           "
-          placeholder="描述画面、动作与机位"
+          :placeholder="t('描述画面、动作与机位')"
         />
       </label>
     </div>

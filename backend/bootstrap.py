@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 from pathlib import Path
 import json
 from html.parser import HTMLParser
@@ -6,7 +11,7 @@ from urllib.parse import urlsplit
 from .core.context import ApplicationContext
 from .core.config import EnvironmentConfig, ProjectPaths
 from .integrations.comfyui import ComfyUIClient
-from .integrations.system_services import LLMProviderCatalog
+from .integrations.system_services import LLMProviderCatalog, LocalStorageProvider
 from .persistence import Database
 
 
@@ -17,13 +22,20 @@ def create_context(root: Path) -> ApplicationContext:
     paths = ProjectPaths.from_root(root)
     paths.ensure_runtime_directories()
     config = EnvironmentConfig.load(paths)
+    db = Database(paths.data / "media_gateway.db")
+
+    def project_storage_root() -> Path:
+        configured = db.settings().get("resource_directory", "").strip()
+        return Path(configured).expanduser().resolve() if configured else paths.projects.resolve()
+
     return ApplicationContext(
         paths=paths,
         config=config,
-        db=Database(paths.data / "media_gateway.db"),
+        db=db,
         comfyui_url=config.default_comfyui_url,
         comfyui_output_dir=config.default_comfyui_output_dir,
         system_services=LLMProviderCatalog(root / "backend" / "integrations" / "system_services" / "llm_providers"),
+        storage_provider=LocalStorageProvider(project_storage_root),
     )
 
 

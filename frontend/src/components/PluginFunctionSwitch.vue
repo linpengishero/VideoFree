@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import {computed} from 'vue';
 const props = defineProps({capabilities:Array, selected:Object, disabled:Boolean});
 const emit = defineEmits(['select']);
@@ -10,8 +19,8 @@ const options = computed(() => (props.capabilities || []).filter(item =>
 ).sort((a,b) => (a.selector_order || 0) - (b.selector_order || 0) || a.id.localeCompare(b.id)).map(item => ({value:item.id,label:item.mode_name})));
 </script>
 <template>
-  <div class="plugin-function-switch" :inert="disabled || undefined" aria-label="生成子功能">
-    <div role="tablist" aria-label="生成子功能">
+  <div class="plugin-function-switch" :inert="disabled || undefined" :aria-label="t(&quot;生成子功能&quot;)">
+    <div role="tablist" :aria-label="t(&quot;生成子功能&quot;)">
       <button v-for="option in options" :key="option.value" type="button" role="tab" :aria-selected="option.value===selected?.id" :class="{active:option.value===selected?.id}" @click="emit('select',option.value)">{{option.label}}</button>
     </div>
   </div>

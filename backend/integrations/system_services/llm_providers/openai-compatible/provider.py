@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 import json
 import urllib.error
 import urllib.request
@@ -75,5 +80,7 @@ class Provider:
         except (OSError, urllib.error.HTTPError, json.JSONDecodeError) as exc:
             raise ValueError(f"无法获取模型列表: {exc}") from exc
         rows = payload.get("data", payload.get("models", [])) if isinstance(payload, dict) else []
+        if not isinstance(rows, list):
+            raise ValueError("无法获取模型列表: 服务返回的数据格式无效")
         return sorted({str(item.get("id") or item.get("name")) for item in rows
                        if isinstance(item, dict) and (item.get("id") or item.get("name"))}, key=str.lower)

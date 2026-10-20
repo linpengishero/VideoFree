@@ -1,3 +1,12 @@
+
+import { t, displayError } from '../services/i18n';
+/*
+ * Copyright (c) 2026 VideoFree individual project author and contributors.
+ * Part of VideoFree: https://github.com/linpengishero/VideoFree
+ * Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+ * Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+ */
+
 async function request(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const response = await fetch(path, { ...options, headers });
@@ -13,9 +22,9 @@ async function request(path, options = {}) {
 
 function errorMessage(data, status) {
   const detail = data?.detail || data?.error;
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) return detail.map(item => typeof item === 'string' ? item : item?.msg || '参数无效').join('；');
-  return `请求失败 (${status})`;
+  if (typeof detail === 'string') return displayError(detail, status);
+  if (Array.isArray(detail)) return detail.map(item => displayError(typeof item === 'string' ? item : item?.msg || t('参数无效'), status)).join('; ');
+  return t('请求失败 ({v0})', undefined, {v0: status});
 }
 
 export async function readMediaBlob(url) {

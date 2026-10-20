@@ -8,18 +8,21 @@
     {
       "id": "music",
       "name": "音乐生成",
-      "icon": "solar:vinyl-record-linear"
+      "icon": "solar:vinyl-record-linear",
+      "name_key": "音乐生成"
     }
   ],
   "modes": [
     {
       "name": "直接生成",
-      "id": "direct"
+      "id": "direct",
+      "name_key": "直接生成"
     },
     {
       "id": "director",
       "handler": "collaboration/handler.py:director",
-      "name": "智能协作"
+      "name": "智能协作",
+      "name_key": "智能协作"
     }
   ],
   "capabilities": {
@@ -75,19 +78,22 @@
         "music_bpm": [
           {
             "node": "4",
-            "input": "bpm", "default": 120
+            "input": "bpm",
+            "default": 120
           }
         ],
         "music_key": [
           {
             "node": "4",
-            "input": "keyscale", "default": "C minor"
+            "input": "keyscale",
+            "default": "C minor"
           }
         ],
         "music_timesignature": [
           {
             "node": "4",
-            "input": "timesignature", "default": "4"
+            "input": "timesignature",
+            "default": "4"
           }
         ]
       },
@@ -128,7 +134,8 @@
             "label": "描述词",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "描述词"
           },
           {
             "bind": "settings.duration",
@@ -139,7 +146,8 @@
             "step": 0.1,
             "default": 30,
             "component": "number",
-            "required": true
+            "required": true,
+            "label_key": "时长（秒）"
           },
           {
             "bind": "settings.music_bpm",
@@ -159,62 +167,77 @@
             "options": [
               {
                 "value": "C major",
-                "label": "C 大调"
+                "label": "C 大调",
+                "label_key": "C 大调"
               },
               {
                 "value": "C minor",
-                "label": "C 小调"
+                "label": "C 小调",
+                "label_key": "C 小调"
               },
               {
                 "value": "D major",
-                "label": "D 大调"
+                "label": "D 大调",
+                "label_key": "D 大调"
               },
               {
                 "value": "D minor",
-                "label": "D 小调"
+                "label": "D 小调",
+                "label_key": "D 小调"
               },
               {
                 "value": "E major",
-                "label": "E 大调"
+                "label": "E 大调",
+                "label_key": "E 大调"
               },
               {
                 "value": "E minor",
-                "label": "E 小调"
+                "label": "E 小调",
+                "label_key": "E 小调"
               },
               {
                 "value": "F major",
-                "label": "F 大调"
+                "label": "F 大调",
+                "label_key": "F 大调"
               },
               {
                 "value": "F minor",
-                "label": "F 小调"
+                "label": "F 小调",
+                "label_key": "F 小调"
               },
               {
                 "value": "G major",
-                "label": "G 大调"
+                "label": "G 大调",
+                "label_key": "G 大调"
               },
               {
                 "value": "G minor",
-                "label": "G 小调"
+                "label": "G 小调",
+                "label_key": "G 小调"
               },
               {
                 "value": "A major",
-                "label": "A 大调"
+                "label": "A 大调",
+                "label_key": "A 大调"
               },
               {
                 "value": "A minor",
-                "label": "A 小调"
+                "label": "A 小调",
+                "label_key": "A 小调"
               },
               {
                 "value": "B major",
-                "label": "B 大调"
+                "label": "B 大调",
+                "label_key": "B 大调"
               },
               {
                 "value": "B minor",
-                "label": "B 小调"
+                "label": "B 小调",
+                "label_key": "B 小调"
               }
             ],
-            "component": "select"
+            "component": "select",
+            "label_key": "调式"
           },
           {
             "bind": "settings.music_timesignature",
@@ -239,7 +262,8 @@
                 "label": "6/8"
               }
             ],
-            "component": "select"
+            "component": "select",
+            "label_key": "拍号"
           }
         ]
       },
@@ -252,7 +276,8 @@
         "max": 360,
         "default": 5
       },
-      "confirmation_handler": "collaboration/handler.py:confirmation"
+      "confirmation_handler": "collaboration/handler.py:confirmation",
+      "name_key": "ACE-Step 背景配乐"
     }
   },
   "ui_models": [
@@ -264,9 +289,17 @@
       "functions": [
         {
           "capability_id": "music.ace_step.background",
-          "name": "背景配乐"
+          "name": "背景配乐",
+          "name_key": "背景配乐"
         }
       ]
     }
-  ]
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  }
 }

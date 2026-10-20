@@ -1,4 +1,7 @@
 <script setup>
+import { usePluginI18n } from '@framework/services/i18n';
+const { t } = usePluginI18n('film-studio');
+
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import MediaDialog from '@framework/components/MediaDialog.vue';
@@ -34,21 +37,21 @@ async function add() {
       job_id:props.manifest.task_id,artifact_index:artifact.value,in:0,
       out:Number(props.manifest.parameters?.duration_seconds) || 5,original:true,
     });
-    emit('notice',`已添加到「${result.name}」`); emit('changed',result); open.value=false;
+    emit('notice',t('已添加到「{v0}」', undefined, {v0: result.name})); emit('changed',result); open.value=false;
   } catch(e) {error.value=e.message;}
   finally {busy.value=false;}
 }
 </script>
 <template>
-  <button type="button" class="task-film-add" :disabled="busy || disabled" @click="show"><Icon icon="solar:clapperboard-play-linear" width="16" />添加到成片</button>
+  <button type="button" class="task-film-add" :disabled="busy || disabled" @click="show"><Icon icon="solar:clapperboard-play-linear" width="16" />{{ t('添加到成片') }}</button>
   <MediaDialog :open="open" :busy="busy" @close="open=false">
     <section class="task-film-picker" aria-labelledby="film-picker-title">
-      <header><h3 id="film-picker-title">添加到成片</h3><button type="button" aria-label="关闭成片选择" :disabled="busy" @click="open=false"><Icon icon="solar:close-circle-linear" width="22" /></button></header>
+      <header><h3 id="film-picker-title">{{ t('添加到成片') }}</h3><button type="button" :aria-label="t('关闭成片选择')" :disabled="busy" @click="open=false"><Icon icon="solar:close-circle-linear" width="22" /></button></header>
       <p v-if="error" class="film-picker-error" role="alert">{{ error }}</p>
-      <label>目标成片<select v-model="target" :disabled="busy" aria-label="目标成片"><option v-for="film in films" :key="film.id" :value="film.id" :disabled="['queued','running'].includes(film.render?.status)">{{ film.name }}{{ ['queued','running'].includes(film.render?.status) ? '（合成中）' : '' }}</option><option value="@new">新建成片…</option></select></label>
-      <label v-if="target==='@new'">成片名称<input v-model="name" maxlength="80" :disabled="busy" aria-label="新成片名称" /></label>
-      <label v-if="outputs.length>1">视频文件<select v-model="artifact" :disabled="busy" aria-label="视频文件"><option v-for="item in outputs" :key="item.index" :value="item.index">{{ item.name || item.filename || `视频 ${item.index+1}` }}</option></select></label>
-      <footer><button type="button" :disabled="busy" @click="open=false">取消</button><button type="button" class="film-picker-confirm" :disabled="busy || !target || (target==='@new' && !name.trim())" @click="add">{{ busy ? '正在处理…' : '确认添加' }}</button></footer>
+      <label>{{ t('目标成片') }}<select v-model="target" :disabled="busy" :aria-label="t('目标成片')"><option v-for="film in films" :key="film.id" :value="film.id" :disabled="['queued','running'].includes(film.render?.status)">{{ film.name }}{{ ['queued','running'].includes(film.render?.status) ? t('（合成中）') : '' }}</option><option value="@new">{{ t('新建成片…') }}</option></select></label>
+      <label v-if="target==='@new'">{{ t('成片名称') }}<input v-model="name" maxlength="80" :disabled="busy" :aria-label="t('新成片名称')" /></label>
+      <label v-if="outputs.length>1">{{ t('视频文件') }}<select v-model="artifact" :disabled="busy" :aria-label="t('视频文件')"><option v-for="item in outputs" :key="item.index" :value="item.index">{{ item.name || item.filename || t('视频 {v0}', undefined, {v0: item.index+1}) }}</option></select></label>
+      <footer><button type="button" :disabled="busy" @click="open=false">{{ t('取消') }}</button><button type="button" class="film-picker-confirm" :disabled="busy || !target || (target==='@new' && !name.trim())" @click="add">{{ busy ? t('正在处理…') : t('确认添加') }}</button></footer>
     </section>
   </MediaDialog>
 </template>

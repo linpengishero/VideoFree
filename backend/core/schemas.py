@@ -1,6 +1,11 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 """Runtime request contracts shared by interfaces, domains, and integrations."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -36,6 +41,7 @@ class TTSRequest(BaseModel):
 
 
 class SettingsRequest(BaseModel):
+    locale: Literal["zh-CN", "en-US"] | None = None
     gateway_token: str | None = Field(default=None, max_length=512)
     comfyui_url: str | None = None
     comfyui_output_dir: str | None = None

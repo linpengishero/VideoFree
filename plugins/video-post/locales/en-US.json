@@ -1,0 +1,10 @@
+{
+  "视频后期处理": "Video post-processing",
+  "视频生成": "Video generation",
+  "直接生成": "Generate directly",
+  "视频补帧": "Frame interpolation",
+  "LTX 2.5 视频放大": "LTX 2.5 video upscaling",
+  "视频放大": "Video upscaling",
+  "为视频插入中间帧，让运动更流畅。": "Insert intermediate frames for smoother motion.",
+  "从视频文件重新编码并放大增强，无需原始生成检查点。": "Re-encode and upscale a video without its original generation checkpoint."
+}

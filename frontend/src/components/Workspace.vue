@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { Icon } from "@iconify/vue";
 import JobCard from "./JobCard.vue";
 defineProps({ jobs: Array, applications: { type: Array, default: () => [] } });
@@ -28,7 +37,7 @@ function onDrop(event) {
       <span class="empty-mark"
         ><Icon icon="solar:stars-minimalistic-linear" width="24"
       /></span>
-      <b>等待创作</b><small>新的生成结果会出现在这里</small>
+      <b>{{ t('等待创作') }}</b><small>{{ t('新的生成结果会出现在这里') }}</small>
     </div>
     <div class="stage">
       <JobCard

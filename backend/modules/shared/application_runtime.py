@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 """Project-scoped storage and managed tasks for installed application plugins."""
 import asyncio
 import re
@@ -58,9 +63,13 @@ class ApplicationRuntime:
         project = self.project(project_id)
         if not isinstance(relative_path, str) or not relative_path.strip():
             raise ValueError("素材路径无效")
-        root = ProjectService(self._context).ensure_directory(project).resolve()
-        path = (self.projects_root / relative_path).resolve()
-        if root not in path.parents or not path.is_file():
+        service = ProjectService(self._context)
+        root = service.ensure_directory(project).resolve()
+        try:
+            path = service.storage.local_path(relative_path)
+        except (ValueError, FileNotFoundError) as exc:
+            raise ValueError("项目素材文件不存在") from exc
+        if root not in path.parents:
             raise ValueError("项目素材文件不存在")
         if allowed_suffixes and path.suffix.lower() not in set(allowed_suffixes):
             raise ValueError("素材文件类型不符合用途")

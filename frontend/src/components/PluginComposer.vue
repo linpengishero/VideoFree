@@ -1,4 +1,14 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+import { referenceMentions as buildMentions, promptSegments } from '../config/promptMentions';
+
 import {computed,nextTick,onBeforeUnmount,ref,watch} from 'vue';
 import PluginView from './PluginView.vue';
 import {Icon} from '@iconify/vue';
@@ -25,15 +35,8 @@ const collaborationComponent=computed(()=>{
 const fields=computed(()=>props.selected?.ui?.fields || []);
 const section=name=>fields.value.filter(field=>(field.section || 'settings')===name&&field.component!=='media');
 const mediaFields=computed(()=>fields.value.filter(field=>field.component==='media'));
-function mentionsFor(items){
-  const counts={image:0,video:0,audio:0};
-  const names={image:['参考图','Picture'],video:['参考视频','Video'],audio:['参考音频','Audio']};
-  return items.filter(item=>names[item.type]).map(item=>{
-    const index=++counts[item.type],namesForType=names[item.type];
-    return {...item,id:item.upload_id,alias:`@${namesForType[0]}${index}`,label:`<${namesForType[1]} ${index}>`};
-  });
-}
-const referenceMentions=computed(()=>mentionsFor(inputs.value));
+const mentionBindings=new Map();
+const referenceMentions=computed(()=>buildMentions(inputs.value,mentionBindings));
 const firstInput=computed(()=>inputs.value[0] || null);
 const pending=computed(()=>['queued','running'].includes(session.value?.status));
 const activeSession=computed(()=>session.value && !['failed','cancelled','submitted','deleted'].includes(session.value.status));
@@ -42,8 +45,8 @@ const canAnswer=computed(()=>!!session.value && ['needs_input','awaiting_confirm
 const locked=computed(()=>busy.value);
 const sessionKey=computed(()=>`videofree-form-session-${props.projectId}-${props.categoryId || 'all'}-${props.selected?.id}`);
 let timer,activityTimer,revision=0;
-function reportError(error,title='操作失败'){
-  notify(error?.message || error || '操作失败',{type:'error',title});
+function reportError(error,title=t('操作失败')){
+  notify(error?.message || error || t('操作失败'),{type:'error',title});
 }
 async function refreshActivities(){
   const projectId=props.projectId;
@@ -58,7 +61,7 @@ async function openActivity(){
 }
 async function cancelActivity(id){
   try{await gateway.cancelCollaboration(id);await refreshActivities();if(session.value?.id===id)await newTask();}
-  catch(e){if(session.value?.id===id)reportError(e,'无法取消协作');}
+  catch(e){if(session.value?.id===id)reportError(e,t('无法取消协作'));}
 }
 async function cancelAllActivities(){
   const active=activities.value.filter(item=>!['cancelled','deleted'].includes(item.status));
@@ -66,7 +69,7 @@ async function cancelAllActivities(){
   await refreshActivities();
   if(session.value && active.some(item=>item.id===session.value.id))await newTask();
 }
-function clearInputs(){for(const item of inputs.value)URL.revokeObjectURL(item.preview);inputs.value=[];}
+function clearInputs(){for(const item of inputs.value)URL.revokeObjectURL(item.preview);mentionBindings.clear();inputs.value=[];}
 watch([()=>props.selected?.id,()=>props.projectId,()=>props.categoryId],()=>{
   revision++;clearTimeout(timer);clearInputs();referencesOpen.value=false;preview.value=null;answer.value='';busy.value=false;
   values.value=defaults(props.selected?.ui);processing.value=props.selected?.processing_modes?.[0]?.id || 'direct';session.value=null;collaborationOpen.value=true;
@@ -79,17 +82,19 @@ watch([()=>props.voices,()=>props.selected?.id],()=>{
   }
 },{immediate:true});
 function validate(){
+  const missing=promptSegments(values.value.prompt,referenceMentions.value).find(segment=>segment.mention&&!segment.reference.available);
+  if(missing)throw Error(t('引用的素材已移除：{name}。请删除该引用或重新选择素材。',undefined,{name:missing.reference.name}));
   for(const field of fields.value){
     if(field.component==='media'){
       const count=inputs.value.filter(item=>item.type===field.media).length,limits=props.selected.inputs[field.media];
-      if(count<limits.min || count>limits.max)throw Error(`${field.label}需要 ${limits.min}-${limits.max} 个`);
-    }else if(field.required){const value=getValue(values.value,field.bind);if(value==null || typeof value==='string'&&!value.trim())throw Error(`${field.label}不能为空`);}
+      if(count<limits.min || count>limits.max)throw Error(t('{v0}需要 {v1}-{v2} 个', undefined, {v0: field.label, v1: limits.min, v2: limits.max}));
+    }else if(field.required){const value=getValue(values.value,field.bind);if(value==null || typeof value==='string'&&!value.trim())throw Error(t('{v0}不能为空', undefined, {v0: field.label}));}
   }
 }
 async function addFiles(event){await addFilesList(Array.from(event.target.files));event.target.value='';}
 async function addFile(file){await addFilesList([file]);}
 async function startRequest(request,references=[]){
-  if(activeSession.value)throw Error('请先完成或取消当前协作任务');
+  if(activeSession.value)throw Error(t('请先完成或取消当前协作任务'));
   clearInputs();inputs.value=references;
   values.value={...request,settings:{...request.settings},parameters:{...request.parameters}};
   processing.value=request.prompt_processing;
@@ -103,42 +108,29 @@ async function addFilesList(files){
   busy.value=true;const token=revision;
   try{for(const file of files){
     const type=file.type.split('/')[0];
-    if(!mediaFields.value.some(field=>field.media===type))throw Error('当前功能不接受此类参考素材');
+    if(!mediaFields.value.some(field=>field.media===type))throw Error(t('当前功能不接受此类参考素材'));
     const same=inputs.value.filter(item=>item.type===type);
-    if(same.length>=(props.selected.inputs[type]?.max || 0))throw Error('参考素材已达到数量上限');
+    if(same.length>=(props.selected.inputs[type]?.max || 0))throw Error(t('参考素材已达到数量上限'));
     const uploaded=await gateway.upload(file);if(token!==revision)return;
     const roles=props.selected.input_roles?.[type] || [];
     inputs.value.push({type,upload_id:uploaded.upload_id,name:file.name,preview:URL.createObjectURL(file),role:roles.find(role=>!same.some(item=>item.role===role)) || 'reference'});
-  }}catch(e){if(token===revision)reportError(e,'无法添加参考素材');}finally{if(token===revision)busy.value=false;}
+  }}catch(e){if(token===revision)reportError(e,t('无法添加参考素材'));}finally{if(token===revision)busy.value=false;}
 }
 function remove(item){
-  const before=referenceMentions.value,index=inputs.value.indexOf(item);
+  const index=inputs.value.indexOf(item);
   if(index<0)return;
   inputs.value.splice(index,1);if(item.preview)URL.revokeObjectURL(item.preview);
-  const after=mentionsFor(inputs.value),markers=[];
-  let prompt=String(values.value.prompt || '');
-  before.forEach((mention,position)=>{
-    const marker=`\uE000vf-reference-${position}\uE001`;markers.push(marker);
-    prompt=prompt.split(mention.alias).join(marker);
-  });
-  before.forEach((mention,position)=>{
-    const replacement=after.find(candidate=>candidate.upload_id===mention.upload_id)?.alias || '';
-    prompt=prompt.split(markers[position]).join(replacement);
-  });
-  values.value.prompt=prompt;
 }
 function serializedPrompt(){
-  let prompt=String(values.value.prompt || '');
-  for(const mention of [...referenceMentions.value].sort((a,b)=>b.alias.length-a.alias.length))prompt=prompt.split(mention.alias).join(mention.label);
-  return prompt;
+  return promptSegments(values.value.prompt,referenceMentions.value).map(segment=>segment.mention?segment.reference.label:segment.text).join('');
 }
-async function resume(saved,token){session.value=saved;try{await accept(await gateway.collaboration(saved.id),token);}catch(e){if(token===revision){reportError(e,'无法恢复智能协作');session.value=null;localStorage.removeItem(sessionKey.value);}}}
+async function resume(saved,token){session.value=saved;try{await accept(await gateway.collaboration(saved.id),token);}catch(e){if(token===revision){reportError(e,t('无法恢复智能协作'));session.value=null;localStorage.removeItem(sessionKey.value);}}}
 async function accept(result,token){
   if(token!==revision)return;
   if(result.job_id){localStorage.removeItem(sessionKey.value);session.value=null;delete values.value.parent_job_id;emit('submitted',result.job_id);return;}
-  if(!result.id)throw Error('服务未返回任务或协作会话标识');
+  if(!result.id)throw Error(t('服务未返回任务或协作会话标识'));
   session.value=result;collaborationOpen.value=true;localStorage.setItem(sessionKey.value,JSON.stringify(result));
-  if(['queued','running'].includes(result.status))timer=setTimeout(async()=>{try{await accept(await gateway.collaboration(result.id),token);}catch(e){if(token===revision)reportError(e,'智能协作中断');}},1200);
+  if(['queued','running'].includes(result.status))timer=setTimeout(async()=>{try{await accept(await gateway.collaboration(result.id),token);}catch(e){if(token===revision)reportError(e,t('智能协作中断'));}},1200);
 }
 function onComposerKeydown(event){
   if(event.key!=='Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey ||
@@ -151,7 +143,7 @@ async function submit(action='create'){
   if(busy.value)return;
   if(action==='answer' && !canAnswer.value)return;
   if(action==='confirm' && (!session.value || session.value.status!=='awaiting_confirmation'))return;
-  if(action==='create' && activeSession.value){reportError('请先完成或取消当前协作任务','暂时无法提交');return;}
+  if(action==='create' && activeSession.value){reportError(t('请先完成或取消当前协作任务'),t('暂时无法提交'));return;}
   busy.value=true;const token=revision;
   try{
     let result;
@@ -159,11 +151,11 @@ async function submit(action='create'){
     else if(action==='answer'){result=await gateway.answerCollaboration(session.value.id,answer.value);answer.value='';}
     else{validate();result=await gateway.createGeneration({...values.value,prompt:serializedPrompt(),project_id:props.projectId,category_id:props.categoryId || '',capability_id:props.selected.id,prompt_processing:processing.value,inputs:inputs.value.map(({type,upload_id,role})=>({type,upload_id,role}))});}
     await accept(result,token);
-  }catch(e){if(token===revision)reportError(e,action==='create'?'无法提交任务':'智能协作操作失败');}finally{if(token===revision)busy.value=false;}
+  }catch(e){if(token===revision)reportError(e,action==='create'?t('无法提交任务'):t('智能协作操作失败'));}finally{if(token===revision)busy.value=false;}
 }
 async function newTask(){
   if(session.value?.id && session.value.status !== 'cancelled'){
-    try{await gateway.cancelCollaboration(session.value.id);}catch(e){reportError(e,'无法取消当前任务');return;}
+    try{await gateway.cancelCollaboration(session.value.id);}catch(e){reportError(e,t('无法取消当前任务'));return;}
   }
   revision++;clearTimeout(timer);
   localStorage.removeItem(sessionKey.value);session.value=null;
@@ -174,60 +166,60 @@ onBeforeUnmount(()=>{revision++;clearTimeout(timer);clearInterval(activityTimer)
 </script>
 <template>
   <section class="plugin-panel" :class="{'is-locked':locked}"><form @submit.prevent="submit()" @keydown="onComposerKeydown">
-    <header class="composer-top"><PluginFunctionSwitch :capabilities="capabilities" :selected="selected" :disabled="locked" @select="emit('select-capability',$event)"/><div v-if="selected?.processing_modes?.length>1" class="plugin-processing" role="group" aria-label="处理模式"><button v-for="mode in selected.processing_modes" :key="mode.id" type="button" :class="{active:processing===mode.id}" :aria-pressed="processing===mode.id" :disabled="locked" @click="processing=mode.id">{{mode.name}}</button></div></header>
+    <header class="composer-top"><PluginFunctionSwitch :capabilities="capabilities" :selected="selected" :disabled="locked" @select="emit('select-capability',$event)"/><div v-if="selected?.processing_modes?.length>1" class="plugin-processing" role="group" :aria-label="t(&quot;处理模式&quot;)"><button v-for="mode in selected.processing_modes" :key="mode.id" type="button" :class="{active:processing===mode.id}" :aria-pressed="processing===mode.id" :disabled="locked" @click="processing=mode.id">{{mode.name}}</button></div></header>
     <fieldset :disabled="locked" :inert="locked || undefined">
       <div class="plugin-content">
-        <button v-if="mediaFields.length" type="button" class="plugin-reference-trigger" :class="{'has-references':inputs.length}" :aria-label="inputs.length?`管理${inputs.length}个参考素材`:'添加参考素材'" :title="inputs.length?`已选择 ${inputs.length} 个素材`:'添加参考素材'" @click="referencesOpen=true"><img v-if="firstInput?.type==='image' && firstInput.preview" :src="firstInput.preview" alt=""/><Icon v-else :icon="!firstInput?'solar:add-circle-linear':firstInput.type==='video'?'solar:videocamera-record-linear':firstInput.type==='audio'?'solar:music-note-linear':'solar:gallery-linear'" width="25"/><span v-if="inputs.length" class="plugin-reference-add"><Icon icon="solar:add-circle-bold" width="16"/></span><b v-if="inputs.length">{{inputs.length}}</b></button>
+        <button v-if="mediaFields.length" type="button" class="plugin-reference-trigger" :class="{'has-references':inputs.length}" :aria-label="inputs.length?t('管理{v0}个参考素材', undefined, {v0: inputs.length}):t('添加参考素材')" :title="inputs.length?t('已选择 {v0} 个素材', undefined, {v0: inputs.length}):t('添加参考素材')" @click="referencesOpen=true"><img v-if="firstInput?.type==='image' && firstInput.preview" :src="firstInput.preview" alt=""/><Icon v-else :icon="!firstInput?'solar:add-circle-linear':firstInput.type==='video'?'solar:videocamera-record-linear':firstInput.type==='audio'?'solar:music-note-linear':'solar:gallery-linear'" width="25"/><span v-if="inputs.length" class="plugin-reference-add"><Icon icon="solar:add-circle-bold" width="16"/></span><b v-if="inputs.length">{{inputs.length}}</b></button>
         <div class="plugin-body"><PluginField v-for="field in section('body')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :voices="voices" :plugin-id="selected?.plugin_id" :mentions="field.bind==='prompt'?referenceMentions:[]" @update:model-value="setValue(values,field.bind,$event)"/></div>
       </div>
       <footer class="plugin-toolbar">
         <div class="plugin-settings"><PluginCapabilitySelect :categories="categories" :capabilities="capabilities" :selected="selected" :disabled="locked" @select="emit('select-capability',$event)"/><PluginField v-for="field in section('settings')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :voices="voices" :plugin-id="selected?.plugin_id" @update:model-value="setValue(values,field.bind,$event)"/></div>
-        <div class="plugin-submit"><PluginField v-for="field in section('submit')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :text="values.prompt" @update:model-value="setValue(values,field.bind,$event)"/><button v-if="!session" class="plugin-send" type="submit" :disabled="busy || !selected?.ui" aria-label="开始生成" :title="busy?'正在提交':'开始生成'"><Icon :icon="busy?'solar:refresh-circle-linear':'solar:arrow-up-linear'" width="21"/></button></div>
+        <div class="plugin-submit"><PluginField v-for="field in section('submit')" :key="field.bind" :field="field" :model-value="getValue(values,field.bind)" :text="values.prompt" @update:model-value="setValue(values,field.bind,$event)"/><button v-if="!session" class="plugin-send" type="submit" :disabled="busy || !selected?.ui" :aria-label="t(&quot;开始生成&quot;)" :title="busy?t('正在提交'):t('开始生成')"><Icon :icon="busy?'solar:refresh-circle-linear':'solar:arrow-up-linear'" width="21"/></button></div>
       </footer>
     </fieldset>
-    <p v-if="selected && !selected.ui" role="alert" class="plugin-error">此插件尚未声明 UI 表单，请更新插件。</p>
+    <p v-if="selected && !selected.ui" role="alert" class="plugin-error">{{ t('此插件尚未声明 UI 表单，请更新插件。') }}</p>
   </form></section>
   <Teleport to="body">
-    <button v-if="session && !collaborationOpen" class="plugin-collaboration-reopen" type="button" aria-label="打开智能协作" @click="collaborationOpen=true"><Icon icon="solar:stars-minimalistic-bold-duotone" width="19"/><span>智能协作</span></button>
-    <aside v-if="session && collaborationOpen" class="plugin-collaboration-dock" aria-label="智能协作面板">
+    <button v-if="session && !collaborationOpen" class="plugin-collaboration-reopen" type="button" :aria-label="t(&quot;打开智能协作&quot;)" @click="collaborationOpen=true"><Icon icon="solar:stars-minimalistic-bold-duotone" width="19"/><span>{{ t('智能协作') }}</span></button>
+    <aside v-if="session && collaborationOpen" class="plugin-collaboration-dock" :aria-label="t(&quot;智能协作面板&quot;)">
       <header class="plugin-collaboration-header">
         <span class="plugin-collaboration-mark"><Icon icon="solar:stars-minimalistic-bold-duotone" width="18"/></span>
-        <strong>智能协作</strong>
-        <button v-if="activities.filter(item=>!['cancelled','deleted'].includes(item.status)).length>1" type="button" aria-label="取消全部智能协作" title="取消全部智能协作" @click="cancelAllActivities"><Icon icon="solar:forbidden-circle-linear" width="17"/></button>
-        <button v-if="session" type="button" aria-label="取消当前任务" title="取消当前任务" @click="newTask"><Icon icon="solar:stop-circle-linear" width="17"/></button>
-        <button type="button" aria-label="收起智能协作" title="收起" @click="collaborationOpen=false"><Icon icon="solar:minimize-square-3-linear" width="17"/></button>
+        <strong>{{ t('智能协作') }}</strong>
+        <button v-if="activities.filter(item=>!['cancelled','deleted'].includes(item.status)).length>1" type="button" :aria-label="t(&quot;取消全部智能协作&quot;)" :title="t(&quot;取消全部智能协作&quot;)" @click="cancelAllActivities"><Icon icon="solar:forbidden-circle-linear" width="17"/></button>
+        <button v-if="session" type="button" :aria-label="t(&quot;取消当前任务&quot;)" :title="t(&quot;取消当前任务&quot;)" @click="newTask"><Icon icon="solar:stop-circle-linear" width="17"/></button>
+        <button type="button" :aria-label="t(&quot;收起智能协作&quot;)" :title="t(&quot;收起&quot;)" @click="collaborationOpen=false"><Icon icon="solar:minimize-square-3-linear" width="17"/></button>
       </header>
-      <section v-if="activities.length > 1" class="plugin-collaboration-activities" aria-label="协作会话列表">
+      <section v-if="activities.length > 1" class="plugin-collaboration-activities" :aria-label="t(&quot;协作会话列表&quot;)">
         <article v-for="item in activities" :key="item.id" :class="{current:item.id===session.id}">
           <button type="button" @click="activityId=item.id;openActivity()"><b>{{capabilities.find(cap=>cap.id===item.capability_id)?.name || item.capability_id}}</b><span>{{item.mode_id || item.collaboration_mode}} · {{item.status}}</span></button>
-          <button v-if="!['cancelled','deleted'].includes(item.status)" type="button" title="取消此协作" aria-label="取消此协作" @click="cancelActivity(item.id)"><Icon icon="solar:stop-circle-linear" width="15"/></button>
+          <button v-if="!['cancelled','deleted'].includes(item.status)" type="button" :title="t(&quot;取消此协作&quot;)" :aria-label="t(&quot;取消此协作&quot;)" @click="cancelActivity(item.id)"><Icon icon="solar:stop-circle-linear" width="15"/></button>
         </article>
       </section>
-      <PluginView v-if="collaborationComponent" :loader="collaborationComponent" :session="session" :busy="busy" :pending="pending" :can-answer="canAnswer" :answer="answer" @update:answer="answer=$event" @confirm="submit('confirm')" @answer="submit('answer')" @new-task="newTask" />
+      <PluginView v-if="collaborationComponent" :loader="collaborationComponent" :plugin-id="selected?.plugin_id" :session="session" :busy="busy" :pending="pending" :can-answer="canAnswer" :answer="answer" @update:answer="answer=$event" @confirm="submit('confirm')" @answer="submit('answer')" @new-task="newTask" />
       <div v-else class="plugin-collaboration-fallback" role="status">{{session.error || session.message || session.status}}</div>
     </aside>
   </Teleport>
   <MediaDialog :open="referencesOpen" :busy="busy" @close="referencesOpen=false">
-    <section class="plugin-references-dialog" role="dialog" aria-label="添加参考素材">
-      <header><h3>参考素材</h3><button type="button" aria-label="关闭素材弹框" :disabled="busy" @click="referencesOpen=false"><Icon icon="solar:close-circle-linear" width="23"/></button></header>
+    <section class="plugin-references-dialog" role="dialog" :aria-label="t(&quot;添加参考素材&quot;)">
+      <header><h3>{{ t('参考素材') }}</h3><button type="button" :aria-label="t(&quot;关闭素材弹框&quot;)" :disabled="busy" @click="referencesOpen=false"><Icon icon="solar:close-circle-linear" width="23"/></button></header>
       <div class="plugin-reference-groups" :aria-busy="busy">
         <section v-for="field in mediaFields" :key="field.bind" class="plugin-reference-group" :aria-label="field.label">
           <h4>{{field.label}}<span>{{inputs.filter(item=>item.type===field.media).length}} / {{selected.inputs[field.media].max}}</span></h4>
           <div class="plugin-reference-grid">
             <div v-for="item in inputs.filter(item=>item.type===field.media)" :key="item.upload_id" class="plugin-reference">
-              <button type="button" class="plugin-reference-preview" :aria-label="'预览'+item.name" :title="item.name" @click="preview={type:item.type,name:item.name,url:item.preview}">
+              <button type="button" class="plugin-reference-preview" :aria-label="t('预览 {name}',undefined,{name:item.name})" :title="item.name" @click="preview={type:item.type,name:item.name,url:item.preview}">
                 <img v-if="item.type==='image'" :src="item.preview" :alt="item.name"/><Icon v-else :icon="item.type==='video'?'solar:videocamera-record-linear':'solar:music-note-linear'" width="27"/>
               </button>
               <span class="reference-caption" :title="item.name">{{item.name}}</span>
-              <select v-if="selected.input_roles?.[item.type]?.length" v-model="item.role" :disabled="locked" :aria-label="item.name+'用途'"><option v-for="role in selected.input_roles[item.type]" :key="role" :disabled="inputs.some(other=>other!==item&&other.type===item.type&&other.role===role)">{{role}}</option></select>
-              <button type="button" class="reference-remove" :disabled="locked" :aria-label="'移除'+item.name" title="移除参考" @click="remove(item)"><Icon icon="solar:close-circle-bold" width="18"/></button>
+              <select v-if="selected.input_roles?.[item.type]?.length" v-model="item.role" :disabled="locked" :aria-label="t('{name} 的用途',undefined,{name:item.name})"><option v-for="role in selected.input_roles[item.type]" :key="role" :disabled="inputs.some(other=>other!==item&&other.type===item.type&&other.role===role)">{{role}}</option></select>
+              <button type="button" class="reference-remove" :disabled="locked" :aria-label="t('移除 {name}',undefined,{name:item.name})" :title="t(&quot;移除参考&quot;)" @click="remove(item)"><Icon icon="solar:close-circle-bold" width="18"/></button>
             </div>
-            <label class="plugin-upload" :class="{'is-disabled':locked || inputs.filter(item=>item.type===field.media).length>=selected.inputs[field.media].max}" :title="'添加'+field.label"><Icon icon="solar:add-circle-linear" width="25"/><input type="file" :multiple="selected.inputs[field.media].max>1" :disabled="locked || inputs.filter(item=>item.type===field.media).length>=selected.inputs[field.media].max" :accept="field.media+'/*'" :aria-label="'上传'+field.label" @change="addFiles"/></label>
+            <label class="plugin-upload" :class="{'is-disabled':locked || inputs.filter(item=>item.type===field.media).length>=selected.inputs[field.media].max}" :title="t('添加 {name}',undefined,{name:field.label})"><Icon icon="solar:add-circle-linear" width="25"/><input type="file" :multiple="selected.inputs[field.media].max>1" :disabled="locked || inputs.filter(item=>item.type===field.media).length>=selected.inputs[field.media].max" :accept="field.media+'/*'" :aria-label="t('上传 {name}',undefined,{name:field.label})" @change="addFiles"/></label>
           </div>
         </section>
       </div>
-      <p v-if="busy" class="plugin-reference-status" role="status">正在上传…</p>
-      <footer><button type="button" :disabled="busy" @click="referencesOpen=false">完成</button></footer>
+      <p v-if="busy" class="plugin-reference-status" role="status">{{ t('正在上传…') }}</p>
+      <footer><button type="button" :disabled="busy" @click="referencesOpen=false">{{ t('完成') }}</button></footer>
     </section>
   </MediaDialog>
   <MediaPreview :media="preview" @close="preview=null"/>

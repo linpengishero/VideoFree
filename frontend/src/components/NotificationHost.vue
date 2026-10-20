@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { onMounted, onUnmounted, ref } from 'vue';
 
 const notices = ref([]);
@@ -48,7 +57,7 @@ onUnmounted(() => {
   <div class="notification-host" aria-live="polite" aria-atomic="false" @click.stop @pointerdown.stop>
     <article v-for="notice in notices" :key="notice.id" class="notification" :class="`is-${notice.type}`" role="status">
       <div class="notification-copy"><strong v-if="notice.title">{{ notice.title }}</strong><span>{{ notice.message }}</span></div>
-      <button type="button" aria-label="关闭通知" title="关闭通知" @click="remove(notice.id)">×</button>
+      <button type="button" :aria-label="t(&quot;关闭通知&quot;)" :title="t(&quot;关闭通知&quot;)" @click="remove(notice.id)">×</button>
     </article>
   </div>
   </Teleport>

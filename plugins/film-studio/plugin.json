@@ -27,7 +27,9 @@
         "final.mp4"
       ]
     },
-    "startup": "actions.py:startup"
+    "startup": "actions.py:startup",
+    "name_key": "剪辑",
+    "selection_label_key": "已入选成片"
   },
   "actions": [
     {
@@ -40,7 +42,8 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
-      }
+      },
+      "name_key": "查询项目成片"
     },
     {
       "id": "film.sources",
@@ -52,7 +55,8 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
-      }
+      },
+      "name_key": "查询入选视频"
     },
     {
       "id": "film.assets",
@@ -60,7 +64,12 @@
       "scope": "workspace",
       "automation": true,
       "handler": "actions.py:execute",
-      "input_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "name_key": "查询成片导入素材"
     },
     {
       "id": "film.get",
@@ -80,7 +89,8 @@
           "film_id"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "查询成片详情与进度"
     },
     {
       "id": "film.save",
@@ -272,7 +282,9 @@
                   "type": "object",
                   "properties": {
                     "kind": {
-                      "enum": ["clip"],
+                      "enum": [
+                        "clip"
+                      ],
                       "default": "clip"
                     },
                     "job_id": {
@@ -420,7 +432,9 @@
                   "type": "object",
                   "properties": {
                     "kind": {
-                      "enum": ["clip"],
+                      "enum": [
+                        "clip"
+                      ],
                       "default": "clip"
                     },
                     "job_id": {
@@ -528,11 +542,27 @@
                 "items": {
                   "type": "object",
                   "properties": {
-                    "text": {"type": "string", "minLength": 1, "maxLength": 2000},
-                    "start": {"type": "number", "minimum": 0, "maximum": 86400},
-                    "end": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400}
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "start": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 86400
+                    },
+                    "end": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 86400
+                    }
                   },
-                  "required": ["text", "start", "end"],
+                  "required": [
+                    "text",
+                    "start",
+                    "end"
+                  ],
                   "additionalProperties": false
                 }
               },
@@ -543,15 +573,50 @@
                 "items": {
                   "type": "object",
                   "properties": {
-                    "text": {"type": "string", "minLength": 1, "maxLength": 2000},
-                    "start": {"type": "number", "minimum": 0, "maximum": 86400},
-                    "end": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400},
-                    "x": {"type": "integer", "minimum": 0, "maximum": 8192},
-                    "y": {"type": "integer", "minimum": 0, "maximum": 8192},
-                    "font_size": {"type": "integer", "minimum": 12, "maximum": 300, "default": 64},
-                    "color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "default": "#FFFFFF"}
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "start": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 86400
+                    },
+                    "end": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 86400
+                    },
+                    "x": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 8192
+                    },
+                    "y": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 8192
+                    },
+                    "font_size": {
+                      "type": "integer",
+                      "minimum": 12,
+                      "maximum": 300,
+                      "default": 64
+                    },
+                    "color": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$",
+                      "default": "#FFFFFF"
+                    }
                   },
-                  "required": ["text", "start", "end", "x", "y"],
+                  "required": [
+                    "text",
+                    "start",
+                    "end",
+                    "x",
+                    "y"
+                  ],
                   "additionalProperties": false
                 }
               },
@@ -573,7 +638,9 @@
           "plan"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "创建或保存成片方案",
+      "description_key": "不传film_id创建；传film_id时部分更新方案，省略字段保留原值，显式传空数组或null才清空。clips是主轨（顺序即时间，kind=blank为黑场），overlay_clips为叠加轨、audio_clips为额外音轨，用start绝对落点。视频须先入选，或使用film.add-clip追加并自动入选。"
     },
     {
       "id": "film.add-clip",
@@ -621,8 +688,16 @@
               "out"
             ],
             "anyOf": [
-              {"required": ["job_id"]},
-              {"required": ["library_path"]}
+              {
+                "required": [
+                  "job_id"
+                ]
+              },
+              {
+                "required": [
+                  "library_path"
+                ]
+              }
             ],
             "additionalProperties": false
           }
@@ -632,7 +707,8 @@
           "clip"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "将视频加入指定成片"
     },
     {
       "id": "film.select-source",
@@ -656,7 +732,8 @@
           "selected"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "设置成片入选视频"
     },
     {
       "id": "film.import-asset",
@@ -680,7 +757,8 @@
           "upload_id"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "导入本地素材到成片素材区"
     },
     {
       "id": "film.delete-asset",
@@ -698,9 +776,13 @@
             "maxLength": 1000
           }
         },
-        "required": ["library_path"],
+        "required": [
+          "library_path"
+        ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "删除成片导入素材",
+      "description_key": "仅删除当前项目中由成片插件导入、且没有被任何成片方案引用的素材。"
     },
     {
       "id": "film.progress",
@@ -753,7 +835,8 @@
           "progress"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "填写成片制作阶段进度"
     },
     {
       "id": "film.render",
@@ -774,7 +857,9 @@
           "film_id"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "提交基础剪辑合成",
+      "description_key": "使用系统安装的 FFmpeg 异步合成，返回成片详情；用 film.get 查询 render.status 和 progress，composition 阶段由系统维护。"
     },
     {
       "id": "film.validate",
@@ -791,9 +876,13 @@
             "pattern": "^film-[a-f0-9]{12}$"
           }
         },
-        "required": ["film_id"],
+        "required": [
+          "film_id"
+        ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "校验成片方案",
+      "description_key": "在预览或正式导出前只读检查素材文件、裁剪范围、音视频轨、字幕和输出参数，不创建渲染任务。valid=false 时按 issues 修正方案后重新校验。"
     },
     {
       "id": "film.delete",
@@ -813,7 +902,8 @@
           "film_id"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "删除成片及合成输出"
     },
     {
       "id": "film.preview",
@@ -834,7 +924,9 @@
           "film_id"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "生成时间线预览",
+      "description_key": "用系统安装的 FFmpeg 以低画质快速合成预览，用于剪辑确认；结果在 preview.url，不影响正式成片。用 film.get 查询 preview.status 和 progress。"
     },
     {
       "id": "film.cancel",
@@ -846,12 +938,26 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "film_id": {"type": "string", "pattern": "^film-[a-f0-9]{12}$"},
-          "quality": {"type": "string", "enum": ["final", "preview"], "default": "final"}
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "final",
+              "preview"
+            ],
+            "default": "final"
+          }
         },
-        "required": ["film_id"],
+        "required": [
+          "film_id"
+        ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "取消成片合成",
+      "description_key": "取消当前成片的正式合成或预览任务；不会删除已完成的历史版本。"
     },
     {
       "id": "film.transcribe",
@@ -863,13 +969,35 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "film_id": {"type": "string", "pattern": "^film-[a-f0-9]{12}$"},
-          "language": {"type": "string", "default": "auto", "maxLength": 40},
-          "model": {"type": "string", "enum": ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"], "default": "large-v3-turbo"}
+          "film_id": {
+            "type": "string",
+            "pattern": "^film-[a-f0-9]{12}$"
+          },
+          "language": {
+            "type": "string",
+            "default": "auto",
+            "maxLength": 40
+          },
+          "model": {
+            "type": "string",
+            "enum": [
+              "tiny",
+              "base",
+              "small",
+              "medium",
+              "large-v3",
+              "large-v3-turbo"
+            ],
+            "default": "large-v3-turbo"
+          }
         },
-        "required": ["film_id"],
+        "required": [
+          "film_id"
+        ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "识别全时间线生成字幕",
+      "description_key": "提取并混合时间线上所有启用的主轨视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper 一次生成全片字幕。"
     },
     {
       "id": "film.proxies",
@@ -897,9 +1025,31 @@
             "default": 0
           }
         },
-        "anyOf": [{"required": ["job_id"]}, {"required": ["library_path"]}],
+        "anyOf": [
+          {
+            "required": [
+              "job_id"
+            ]
+          },
+          {
+            "required": [
+              "library_path"
+            ]
+          }
+        ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "生成时间线缩略图与波形",
+      "description_key": "为视频生成缩略图条与波形、为音频生成波形，返回图片地址与素材时长；同一素材重复调用直接复用缓存。"
     }
-  ]
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  },
+  "name_key": "剪辑",
+  "description_key": "项目成片管理、时间线剪辑、自动字幕与 FFmpeg 合成。"
 }

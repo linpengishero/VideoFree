@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -47,7 +56,7 @@ onBeforeUnmount(() => {
       ref="element"
       class="plugin-dialog-shell"
       :aria-labelledby="labelledBy || undefined"
-      :aria-label="!labelledBy ? title || '对话框' : undefined"
+      :aria-label="!labelledBy ? title || t('对话框') : undefined"
       @cancel.stop.prevent="close"
       @keydown.esc.stop
       @pointerdown.stop="backdropPressed = $event.target === element"
@@ -57,7 +66,7 @@ onBeforeUnmount(() => {
       <section v-if="framed" class="plugin-dialog-panel">
         <header v-if="title || $slots.header" class="plugin-dialog-header">
           <slot name="header"><h2 :id="labelledBy || undefined">{{ title }}</h2></slot>
-          <button type="button" aria-label="关闭" title="关闭" :disabled="busy" @click="close">×</button>
+          <button type="button" :aria-label="t(&quot;关闭&quot;)" :title="t(&quot;关闭&quot;)" :disabled="busy" @click="close">×</button>
         </header>
         <div class="plugin-dialog-body"><slot /></div>
         <footer v-if="$slots.footer" class="plugin-dialog-footer"><slot name="footer" /></footer>

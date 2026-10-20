@@ -1,18 +1,30 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { computed, onMounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
 import { gateway } from "../services/api";
 import PluginDialog from './PluginDialog.vue';
 import { confirmAction } from '../services/confirmations';
+import { locale, setLocale, localizeDeclaration } from '../services/i18n';
 
 const open = defineModel("open", { type: Boolean, default: false });
 defineProps({ notice: { type: String, default: "" } });
 const emit = defineEmits(["saved"]);
 const form = ref({ gateway_token: "", comfyui_url: "", resource_directory: "", ai_provider: "openai", ai_base_url: "", ai_api_key: "", ai_model: "gpt-4.1-mini", ai_multimodal_video: true, ai_thinking_mode: "medium" });
 const plugins = ref([]);
+const localizedPlugins = computed(() => plugins.value.map(plugin => localizeDeclaration(plugin)));
 const pluginValues = ref({});
 const active = ref("basic");
 const saving = ref(false);
+const changingLocale = ref(false);
 const choosing = ref(false);
 const message = ref("");
 const messageType = ref('error');
@@ -22,7 +34,18 @@ const llmProviders = ref([]);
 const loadingModels = ref(false);
 const showAiKey = ref(false);
 const visiblePluginSecrets = ref(new Set());
-const activePlugin = computed(() => plugins.value.find(item => `plugin:${item.id}` === active.value));
+const activePlugin = computed(() => localizeDeclaration(plugins.value.find(item => `plugin:${item.id}` === active.value)));
+async function changeLocale(event) {
+  if (changingLocale.value || saving.value) return;
+  changingLocale.value = true;
+  const next = event.target.value;
+  try {
+    const saved = await gateway.updateSettings({ locale: next });
+    form.value.locale = saved.locale;
+    setLocale(saved.locale);
+  } catch (error) { event.target.value = locale.value; feedback(error.message); }
+  finally { changingLocale.value = false; }
+}
 
 async function load() {
   const [data, catalog, providerCatalog] = await Promise.all([gateway.settings(), gateway.pluginSettings(), gateway.llmProviders()]);
@@ -34,7 +57,6 @@ async function load() {
     const result = await gateway.pluginSettingValues(plugin.id);
     pluginValues.value[plugin.id] = result.values || {};
   }));
-  if (!llmProviders.value.some(item => item.id === form.value.ai_provider)) form.value.ai_provider = llmProviders.value[0]?.id || "custom";
   if (["auto", "on"].includes(form.value.ai_thinking_mode)) form.value.ai_thinking_mode = "medium";
 }
 function applyProviderDefaults() {
@@ -51,6 +73,7 @@ async function chooseDirectory() {
   finally { choosing.value = false; }
 }
 async function save() {
+  if (changingLocale.value || saving.value) return;
   saving.value = true;
   message.value = "";
   try {
@@ -61,7 +84,7 @@ async function save() {
       const saved = await gateway.updateSettings(form.value);
       form.value.gateway_token = saved.gateway_token;
     }
-    feedback('已保存', 'success');
+    feedback(t('已保存'), 'success');
     emit("saved");
   } catch (error) { feedback(error.message); }
   finally { saving.value = false; }
@@ -79,24 +102,24 @@ function togglePluginSecret(key) {
   visiblePluginSecrets.value = values;
 }
 async function clearSystemSecret() {
-  if (!await confirmAction("确定清空系统 LLM API Key 吗？")) return;
+  if (!await confirmAction(t('确定清空系统 LLM API Key 吗？'))) return;
   saving.value = true;
   try {
     await gateway.clearSensitiveSettings();
     form.value.ai_api_key = "";
     showAiKey.value = false;
-    feedback('已清空', 'success');
+    feedback(t('已清空'), 'success');
   } catch (error) { feedback(error.message); }
   finally { saving.value = false; }
 }
 async function fetchModels() {
-  if (!form.value.ai_base_url.trim()) return feedback('请先填写 API Base URL');
+  if (!form.value.ai_base_url.trim()) return feedback(t('请先填写 API Base URL'));
   loadingModels.value = true;
   try {
     const result = await gateway.aiModels({ ai_provider: form.value.ai_provider, ai_base_url: form.value.ai_base_url, ai_api_key: form.value.ai_api_key });
     models.value = result.items || [];
     if (models.value.length && !models.value.includes(form.value.ai_model)) form.value.ai_model = models.value[0];
-    if (!models.value.length) feedback('服务未返回可用模型');
+    if (!models.value.length) feedback(t('服务未返回可用模型'));
   } catch (error) { feedback(error.message); }
   finally { loadingModels.value = false; }
 }
@@ -104,38 +127,39 @@ onMounted(() => load().catch(error => { feedback(error.message); }));
 </script>
 
 <template>
-  <PluginDialog :open="open" :busy="saving || choosing" :framed="false" title="设置" @close="open = false">
+  <PluginDialog :open="open" :busy="saving || choosing || changingLocale" :framed="false" :title="t('设置')" @close="open = false">
     <section class="settings-modal settings-modal-nav">
-      <header><div><span class="eyebrow">GATEWAY CONFIG</span><h2>设置</h2></div><button aria-label="关闭设置" :disabled="saving || choosing" @click="open = false"><Icon icon="solar:close-circle-linear" width="22" /></button></header>
+      <header><div><span class="eyebrow">GATEWAY CONFIG</span><h2>{{ t('设置') }}</h2></div><button :aria-label="t('关闭设置')" :disabled="saving || choosing || changingLocale" @click="open = false"><Icon icon="solar:close-circle-linear" width="22" /></button></header>
       <div class="settings-layout">
-        <nav class="settings-nav" aria-label="设置分类">
-          <button :class="{ active: active === 'basic' }" @click="active = 'basic'"><Icon icon="solar:server-square-linear" width="17" />基础设置</button>
-          <button :class="{ active: active === 'llm' }" @click="active = 'llm'"><Icon icon="solar:magic-stick-3-linear" width="17" />LLM 服务</button>
-          <template v-if="plugins.length"><small>插件配置</small><button v-for="plugin in plugins" :key="plugin.id" :class="{ active: active === `plugin:${plugin.id}` }" @click="active = `plugin:${plugin.id}`"><Icon icon="solar:plug-circle-linear" width="17" />{{ plugin.name }}</button></template>
+        <nav class="settings-nav" :aria-label="t('设置分类')">
+          <button :class="{ active: active === 'basic' }" @click="active = 'basic'"><Icon icon="solar:server-square-linear" width="17" />{{ t('基础设置') }}</button>
+          <button :class="{ active: active === 'llm' }" @click="active = 'llm'"><Icon icon="solar:magic-stick-3-linear" width="17" />{{ t('LLM 服务') }}</button>
+          <template v-if="plugins.length"><small>{{ t('插件配置') }}</small><button v-for="plugin in localizedPlugins" :key="plugin.id" :class="{ active: active === `plugin:${plugin.id}` }" @click="active = `plugin:${plugin.id}`"><Icon icon="solar:plug-circle-linear" width="17" />{{ plugin.name }}</button></template>
         </nav>
         <div class="settings-body">
-          <div v-if="notice" class="settings-notice"><Icon icon="solar:info-circle-linear" width="18" /><span>{{ notice }}<small>这些设置均可稍后补充，关闭窗口即可跳过。</small></span></div>
+          <div v-if="notice" class="settings-notice"><Icon icon="solar:info-circle-linear" width="18" /><span>{{ notice }}<small>{{ t('这些设置均可稍后补充，关闭窗口即可跳过。') }}</small></span></div>
           <section v-if="active === 'basic'" class="settings-section">
-            <div class="settings-section-title"><Icon icon="solar:server-square-linear" width="17" /><span><b>基础设置</b><small>本地服务与新素材存储位置</small></span></div>
+            <div class="settings-section-title"><Icon icon="solar:server-square-linear" width="17" /><span><b>{{ t('基础设置') }}</b><small>{{ t('本地服务与新素材存储位置') }}</small></span></div>
             <div class="settings-grid one-column">
-              <label>网关访问令牌<input v-model="form.gateway_token" type="password" autocomplete="new-password" maxlength="512" /><small>工作台、HTTP API 和 MCP 共用。默认留空不认证；清空并保存可关闭认证。</small></label>
-              <label>ComfyUI 地址<input v-model="form.comfyui_url" placeholder="http://127.0.0.1:8189" /></label>
-              <label>本地资源存储目录<div class="settings-directory-row"><input v-model="form.resource_directory" placeholder="留空使用 data/projects" /><button type="button" :disabled="choosing" title="选择目录" @click="chooseDirectory"><Icon icon="solar:folder-open-linear" width="18" /></button></div><small>修改后只读写新目录，不移动或继续读取旧目录素材。</small></label>
+              <label>{{ t('界面语言 / Language') }}<select :value="locale" :disabled="changingLocale || saving" @change="changeLocale"><option value="zh-CN">简体中文</option><option value="en-US">English</option></select></label>
+              <label>{{ t('网关访问令牌') }}<input v-model="form.gateway_token" type="password" autocomplete="new-password" maxlength="512" /><small>{{ t('工作台、HTTP API 和 MCP 共用。默认留空不认证；清空并保存可关闭认证。') }}</small></label>
+              <label>{{ t('ComfyUI 地址') }}<input v-model="form.comfyui_url" placeholder="http://127.0.0.1:8189" /></label>
+              <label>{{ t('本地资源存储目录') }}<div class="settings-directory-row"><input v-model="form.resource_directory" :placeholder="t('留空使用 data/projects')" /><button type="button" :disabled="choosing" :title="t('选择目录')" @click="chooseDirectory"><Icon icon="solar:folder-open-linear" width="18" /></button></div><small>{{ t('修改后只读写新目录，不移动或继续读取旧目录素材。') }}</small></label>
             </div>
           </section>
           <section v-else-if="active === 'llm'" class="settings-section">
-            <div class="settings-section-title"><Icon icon="solar:magic-stick-3-linear" width="17" /><span><b>LLM 服务</b><small>系统公共能力，供智能协作插件调用</small></span></div>
+            <div class="settings-section-title"><Icon icon="solar:magic-stick-3-linear" width="17" /><span><b>{{ t('LLM 服务') }}</b><small>{{ t('系统公共能力，供智能协作插件调用') }}</small></span></div>
             <div class="settings-grid">
-              <label>模型服务<select v-model="form.ai_provider" @change="applyProviderDefaults"><option v-for="provider in llmProviders" :key="provider.id" :value="provider.id">{{ provider.name }}</option></select></label>
+              <label>{{ t('模型服务') }}<select v-model="form.ai_provider" @change="applyProviderDefaults"><option v-if="!llmProviders.some(item => item.id === form.ai_provider)" :value="form.ai_provider" disabled>{{ t('当前服务不可用（') }}{{ form.ai_provider }}）</option><option v-for="provider in llmProviders" :key="provider.id" :value="provider.id">{{ provider.name }}</option></select><small v-if="!llmProviders.some(item => item.id === form.ai_provider)">{{ t('服务配置保留未变；请选择已加载的服务后再更改模型服务。') }}</small></label>
               <label>API Base URL<input v-model="form.ai_base_url" placeholder="https://api.openai.com/v1" /></label>
-              <label>模型名称<div class="settings-model-row"><select v-if="models.length" v-model="form.ai_model"><option v-for="model in models" :key="model" :value="model">{{ model }}</option></select><input v-else v-model="form.ai_model" placeholder="gpt-4.1-mini" /><button type="button" :disabled="loadingModels" title="获取模型列表" @click="fetchModels"><Icon icon="solar:refresh-linear" width="17" /></button></div></label>
-              <label>API Key<div class="settings-secret"><input v-model="form.ai_api_key" :type="showAiKey ? 'text' : 'password'" placeholder="留空保持不变" /><button type="button" @click="toggleAiSecret"><Icon :icon="showAiKey ? 'solar:eye-closed-linear' : 'solar:eye-linear'" width="17" /></button></div></label>
-              <label>思考强度<select v-model="form.ai_thinking_mode"><option value="low">低</option><option value="medium">中（默认）</option><option value="high">高</option><option value="off">关闭思考</option></select></label>
-              <label class="settings-toggle"><span><b>视频智能体多模态</b><small>允许视觉模型识别参考图片</small></span><input v-model="form.ai_multimodal_video" type="checkbox" /><i></i></label>
+              <label>{{ t('模型名称') }}<div class="settings-model-row"><select v-if="models.length" v-model="form.ai_model"><option v-for="model in models" :key="model" :value="model">{{ model }}</option></select><input v-else v-model="form.ai_model" placeholder="gpt-4.1-mini" /><button type="button" :disabled="loadingModels" :title="t('获取模型列表')" @click="fetchModels"><Icon icon="solar:refresh-linear" width="17" /></button></div></label>
+              <label>API Key<div class="settings-secret"><input v-model="form.ai_api_key" :type="showAiKey ? 'text' : 'password'" :placeholder="t('留空保持不变')" /><button type="button" @click="toggleAiSecret"><Icon :icon="showAiKey ? 'solar:eye-closed-linear' : 'solar:eye-linear'" width="17" /></button></div></label>
+              <label>{{ t('思考强度') }}<select v-model="form.ai_thinking_mode"><option value="low">{{ t('低') }}</option><option value="medium">{{ t('中（默认）') }}</option><option value="high">{{ t('高') }}</option><option value="off">{{ t('关闭思考') }}</option></select></label>
+              <label class="settings-toggle"><span><b>{{ t('视频智能体多模态') }}</b><small>{{ t('允许视觉模型识别参考图片') }}</small></span><input v-model="form.ai_multimodal_video" type="checkbox" /><i></i></label>
             </div>
           </section>
           <section v-else-if="activePlugin" class="settings-section">
-            <div class="settings-section-title"><Icon icon="solar:plug-circle-linear" width="17" /><span><b>{{ activePlugin.name }}</b><small>{{ activePlugin.schema.description || '插件专属配置' }}</small></span></div>
+            <div class="settings-section-title"><Icon icon="solar:plug-circle-linear" width="17" /><span><b>{{ activePlugin.name }}</b><small>{{ activePlugin.schema.description || t('插件专属配置') }}</small></span></div>
             <div class="settings-grid one-column">
               <label v-for="field in activePlugin.schema.fields" :key="field.key">{{ field.label }}
                 <select v-if="field.type === 'select'" v-model="pluginValues[activePlugin.id][field.key]"><option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option></select>
@@ -147,7 +171,7 @@ onMounted(() => load().catch(error => { feedback(error.message); }));
           </section>
         </div>
       </div>
-      <footer><span class="ui-feedback" :class="`is-${messageType}`" :role="messageType === 'error' ? 'alert' : 'status'">{{ message }}</span><div class="settings-footer-actions"><button v-if="active === 'llm'" class="clear-secrets" :disabled="saving || choosing" @click="clearSystemSecret">清空密钥</button><button class="save-settings" :disabled="saving || choosing" @click="save">{{ saving ? "处理中…" : "保存设置" }}</button></div></footer>
+      <footer><span class="ui-feedback" :class="`is-${messageType}`" :role="messageType === 'error' ? 'alert' : 'status'">{{ message }}</span><div class="settings-footer-actions"><button v-if="active === 'llm'" class="clear-secrets" :disabled="saving || choosing || changingLocale" @click="clearSystemSecret">{{ t('清空密钥') }}</button><button class="save-settings" :disabled="saving || choosing || changingLocale" @click="save">{{ saving ? t('处理中…') : t('保存设置') }}</button></div></footer>
     </section>
   </PluginDialog>
 </template>

@@ -20,6 +20,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PluginTests(unittest.TestCase):
+    def test_project_tool_dialog_dimensions(self):
+        (self.folder / 'ui').mkdir()
+        (self.folder / 'ui' / 'Tool.vue').write_text('<template><div /></template>', encoding='utf-8')
+        self.manifest['project_tool'] = {'name': 'Tool', 'entry': 'ui/Tool.vue',
+                                         'dialog': {'width': 860, 'height': 'auto'}}
+        self.assertEqual(self.catalog().public()['project_tools'][0]['dialog'],
+                         {'width': 860, 'height': 'auto'})
+        for invalid in ({'width': 0}, {'height': True}, {'width': '80vw'},
+                        {'height': 4097}, {'unknown': 500}, []):
+            self.manifest['project_tool']['dialog'] = invalid
+            with self.subTest(dialog=invalid):
+                self.assertTrue(self.catalog().public()['errors'])
+
     def test_gpt_image_version_selector_precedes_image_settings(self):
         capabilities = PluginCatalog(ROOT / 'plugins').capabilities()
         configs = [config for config in capabilities.values() if config['plugin_id'] == 'gpt-image']
@@ -90,6 +103,26 @@ class PluginTests(unittest.TestCase):
     def test_install_guide_is_required(self):
         (self.folder / 'INSTALL.md').unlink()
         self.assertIn('INSTALL.md', self.catalog().scan()[1][0]['error'])
+
+    def test_locale_packs_are_contained_versioned_and_do_not_translate_api_names(self):
+        folder = self.folder / 'locales'
+        folder.mkdir()
+        pack = folder / 'zh-CN.json'
+        pack.write_text(json.dumps({'example.name': '本地名称'}), encoding='utf-8')
+        self.manifest['name'] = 'Original API name'
+        self.manifest['name_key'] = 'example.name'
+        self.manifest['localization'] = {'default_locale': 'zh-CN', 'messages': {'zh-CN': 'locales/zh-CN.json'}}
+        catalog = self.catalog()
+        first = catalog.capabilities()['example.create']['plugin_revision']
+        public = catalog.public()['items'][0]
+        self.assertEqual(public['name'], 'Original API name')
+        self.assertEqual(public['ui_messages']['zh-CN']['example.name'], '本地名称')
+        pack.write_text(json.dumps({'example.name': 'Changed'}), encoding='utf-8')
+        self.assertNotEqual(first, self.catalog().capabilities()['example.create']['plugin_revision'])
+        pack.write_text('{"bad": {"nested": true}}', encoding='utf-8')
+        self.assertTrue(self.catalog().scan()[1])
+        self.manifest['localization']['messages']['zh-CN'] = '../zh-CN.json'
+        self.assertTrue(self.catalog().scan()[1])
 
     def catalog(self):
         (self.folder / 'plugin.json').write_text(json.dumps(self.manifest), encoding='utf-8')
@@ -423,7 +456,7 @@ class PluginTests(unittest.TestCase):
         catalog = PluginCatalog(ROOT / 'plugins')
         plugins, errors = catalog.scan()
         self.assertEqual(errors, [])
-        self.assertEqual(len(plugins), 13)
+        self.assertEqual(len(plugins), 14)
         self.assertEqual(catalog.public()['applications'][0]['id'], 'film-studio')
         self.assertIn('ai-project-progress', [item['id'] for item in catalog.public()['project_tools']])
         self.assertEqual(sum(len(p['capabilities']) for p in plugins), 35)

@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { computed } from 'vue';
 import PluginView from './PluginView.vue';
 
@@ -25,7 +34,7 @@ const runtimeComponent = computed(() => {
 
 <template>
   <div v-if="runtimeComponent || component" class="plugin-application">
-    <PluginView :loader="runtimeComponent || component" :application="application" :resource-picker="resourcePicker" v-bind="$attrs" />
+    <PluginView :loader="runtimeComponent || component" :plugin-id="application.id" :application="application" :resource-picker="resourcePicker" v-bind="$attrs" />
   </div>
-  <p v-else-if="!extension" role="alert">应用插件界面不可用。</p>
+  <p v-else-if="!extension" role="alert">{{ t('应用插件界面不可用。') }}</p>
 </template>

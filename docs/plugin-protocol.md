@@ -418,6 +418,11 @@ async def review(request, runtime):
 
 应用不必注册生成能力，也不必进入底部操作栏。声明 `application` 后顶部项目导航自动出现入口；业务实现和页面都留在插件内，例如 `plugins/film-studio/`。需要在分类栏右侧提供轻量项目工具时，声明 `project_tool`；它只打开悬浮工具面板并继承当前项目/分类上下文，不是独立应用：
 
+`project_tool.dialog` 可配置通用容器尺寸，例如 `{"width":860,"height":740}`。
+宽高分别接受 `1..4096` 的像素整数或 `"auto"`（由内容决定），省略时默认
+`560 × 680`。框架始终将尺寸限制在宿主可用区域内，并隐藏外层滚动条但保留滚动。
+插件应设置 `min-width:0` 并自行安排内部内容布局、换行和滚动，不能通过框架选择器修改业务页面。
+
 ```json
 {
   "application": {
@@ -509,3 +514,29 @@ if (await confirmAction('删除这份记录？', { title: '删除记录', confir
 工作台通过 `GET /api/v2/collaborations?project_id=<ID>` 查询未结束会话，通过 `POST /api/v2/collaborations/<ID>/cancel` 取消。框架负责恢复、轮询和调用这些接口；提问、进度、确认和错误的界面由能力所属插件的 `collaboration_ui` 组件实现，不另外保留按模型提交的框架协作界面。
 
 保留仍在使用的能力 ID、V1 界面入口和任务结构；能力注册唯一来源是 `plugins/*/plugin.json`，不再读取 `workflows/registry.json`。处理模式完全由插件声明，不根据模型名称推断。Python 处理器支持插件内部相对导入，每个插件版本隔离加载。
+## UI 中英双语约定
+
+界面语言默认 `zh-CN`，用户在设置中选择 `en-US` 后持久化到框架 SQLite settings；不随项目切换，不依赖浏览器系统语言。HTTP/MCP 的 ID、参数、枚举值、提示词和用户内容保持原样。
+
+插件通过以下清单注册自己的扁平字符串语言包：
+```json
+"localization": {
+  "default_locale": "zh-CN",
+  "messages": {
+    "zh-CN": "locales/zh-CN.json",
+    "en-US": "locales/en-US.json"
+  }
+}
+```
+语言包使用 `{"action.save":"保存"}` / `{"action.save":"Save"}`。声明中的显示字段用配套键标记，例如 `"name":"保存", "name_key":"action.save"`；同样适用于 label、description、placeholder、help、title、selection_label、mode_name、model_name、provider_name。选项只翻译 label，不翻译 value；能力、模型、模式和动作 ID 不变。语言包路径必须位于插件自己的 locales 目录。
+
+框架只发布语言包与键元数据，由浏览器解析；不按语言改写 API/MCP 目录。缺少当前语言的键时，回退插件 default_locale，再回退原声明文本。无语言包插件继续显示原文。
+
+插件 UI 收到响应式 `locale` 和 `t(key, fallback?, values?)` props；使用宿主 Vue 的插件也可注入 `videofree:ui-context`，其中 locale 为只读 computed ref，t 为同一翻译函数。例：`t('items.count', '共 {count} 项', {count: 3})`。声明式字段由框架本地化，插件内部按钮、状态、空态等由插件自己的语言包与 t 实现。翻译只在展示时发生，禁止把翻译文案写入业务状态、判断状态或修改提示词语法。
+
+切换语言不得重建插件组件、重置草稿/时间线或监听翻译后对象来重新加载数据；监听稳定 ID。第三方独立构建插件优先使用 props，不导入框架源码。更新语言包属于插件更新，排空任务并重启网关。
+
+音色与风格的显示名、风格分类使用插件自己的语言包，筛选和提交仍使用原 ID/值。固定进度提示在展示处翻译，用户/LLM 内容不自动翻译。日期遵循上下文 locale；没有翻译的服务错误保留原始诊断，并可附当前语言摘要。
+
+声明式生成表单的 `@` 引用显示上传文件名，不随界面语言变化。输入 `@` 可筛选已上传素材；同名文件增加序号，引用在当前草稿内绑定 `upload_id`。提交时按当前各媒体类型的输入顺序转换成 `<Picture 1>`、`<Video 1>`、`<Audio 1>` 等模型标签。删除被引用素材后保留标记并阻止提交，避免错指其他素材。
+

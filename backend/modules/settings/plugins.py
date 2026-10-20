@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 """Declarative plugin settings stored as literal values in each plugin's .env."""
 import json
 import os
@@ -87,6 +92,7 @@ class PluginSettings:
 
     def catalog(self):
         return [{"id": p["id"], "name": p["settings"].get("title", p.get("name", p["id"])),
+                 "name_key": p["settings"].get("title_key", p.get("name_key", "")),
                  "schema": p["settings"]} for p in self._plugins()]
 
     def read(self, plugin_id):

@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 import json
 import os
 from pathlib import Path
@@ -20,6 +25,7 @@ class SettingsService:
 
     def read(self) -> dict[str, Any]:
         defaults = {
+            "locale": "zh-CN",
             "gateway_token": self.access_token(self.context),
             "comfyui_url": self.context.comfyui_url,
             "comfyui_output_dir": str(self.context.comfyui_output_dir),
@@ -43,13 +49,12 @@ class SettingsService:
             except (OSError, json.JSONDecodeError):
                 pass
         defaults.update({key: stored[key] for key in defaults.keys() & stored.keys()})
+        if defaults["locale"] not in {"zh-CN", "en-US"}:
+            defaults["locale"] = "zh-CN"
         defaults["ai_multimodal_video"] = str(defaults.get("ai_multimodal_video", "true")).lower() in {
             "1", "true", "yes", "on",
         }
         providers = getattr(self.context, "system_services", None)
-        if providers and not providers.contains(defaults.get("ai_provider")):
-            available = providers.items()
-            defaults["ai_provider"] = "custom" if providers.contains("custom") else (available[0]["id"] if available else "custom")
         if str(defaults.get("ai_thinking_mode", "")).lower() in {"", "auto", "on"}:
             defaults["ai_thinking_mode"] = "medium"
         return defaults
@@ -107,10 +112,18 @@ class SettingsService:
         values = settings or self.read()
         if not str(values.get("ai_base_url", "")).strip() or not str(values.get("ai_model", "")).strip():
             return False
+        providers = getattr(self.context, "system_services", None)
+        if providers and not providers.contains(values.get("ai_provider", "")):
+            return False
         return values.get("ai_provider") == "custom" or bool(str(values.get("ai_api_key", "")).strip())
 
     def apply(self, values: dict[str, str]) -> dict[str, Any]:
+        if "locale" in values and values["locale"] not in {"zh-CN", "en-US"}:
+            raise ValueError("Unsupported UI locale")
         settings = self.read()
+        if set(values) == {"locale"}:
+            self.context.db.save_settings({"locale": values["locale"]})
+            return {**settings, "locale": values["locale"]}
         directory = values.get("resource_directory")
         if directory is not None and directory.strip() != settings.get("resource_directory", ""):
             if (any(job.get("status") in {"queued", "running"} for job in getattr(self.context, "jobs", {}).values())
@@ -135,8 +148,13 @@ class SettingsService:
         if not settings["comfyui_url"]:
             raise ValueError("comfyui_url is required")
         providers = getattr(self.context, "system_services", None)
-        if providers and providers.items() and not providers.contains(settings.get("ai_provider", "")):
-            raise ValueError("所选 LLM Provider 未注册或不可用")
+        if providers and not providers.contains(settings.get("ai_provider", "")):
+            stored_provider = self.context.db.settings().get(
+                "ai_provider", os.getenv("AI_PROVIDER", "openai")
+            )
+            requested_provider = values.get("ai_provider", stored_provider)
+            if requested_provider != stored_provider:
+                raise ValueError("所选 LLM Provider 未注册或不可用，请选择已加载的服务")
         self.context.comfyui_url = settings["comfyui_url"].rstrip("/")
         self.comfyui.configure(self.context.comfyui_url)
         getattr(self.context, "comfyui_output_locations", {}).clear()

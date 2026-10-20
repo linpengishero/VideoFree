@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 import asyncio
 import contextvars
 from dataclasses import dataclass, field
@@ -20,6 +25,7 @@ class ApplicationContext:
     comfyui_url: str
     comfyui_output_dir: Path
     system_services: Any = None
+    storage_provider: Any = None
     comfyui_output_locations: dict[str, tuple[float, Path | None]] = field(default_factory=dict)
     plugin_catalogs: dict[str, Any] = field(default_factory=dict)
     plugin_catalog_lock: threading.RLock = field(default_factory=threading.RLock)

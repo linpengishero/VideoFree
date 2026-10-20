@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import {computed} from 'vue';
 import SelectMenu from './SelectMenu.vue';
 const props = defineProps({categories:Array, capabilities:Array, selected:Object, disabled:Boolean});
@@ -22,8 +31,8 @@ function chooseCategory(id) {
 </script>
 <template>
   <div class="plugin-capability-select" :inert="disabled || undefined">
-    <SelectMenu :options="categoryOptions" :model-value="category" :icon="categoryOptions.find(item=>item.value===category)?.icon || ''" aria-label="生成分类" @update:model-value="chooseCategory" />
-    <SelectMenu :options="options" :model-value="selected?.selector_model ? modelKey(selected) : ''" icon="solar:cpu-linear" aria-label="生成模型" @update:model-value="chooseModel" />
+    <SelectMenu :options="categoryOptions" :model-value="category" :icon="categoryOptions.find(item=>item.value===category)?.icon || ''" :aria-label="t(&quot;生成分类&quot;)" @update:model-value="chooseCategory" />
+    <SelectMenu :options="options" :model-value="selected?.selector_model ? modelKey(selected) : ''" icon="solar:cpu-linear" :aria-label="t(&quot;生成模型&quot;)" @update:model-value="chooseModel" />
   </div>
 </template>
 <style scoped>

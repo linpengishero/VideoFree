@@ -1,4 +1,13 @@
+<!--
+Copyright (c) 2026 VideoFree individual project author and contributors.
+Part of VideoFree: https://github.com/linpengishero/VideoFree
+Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+-->
+
 <script setup>
+import { t } from '../services/i18n';
+
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import PluginDialog from './PluginDialog.vue';
@@ -8,9 +17,9 @@ const props = defineProps({
   selected: String,
   clearVisible: { type: Boolean, default: false },
   clearDisabled: { type: Boolean, default: false },
-  clearLabel: { type: String, default: '删除当前资源' },
+  clearLabel: { type: String, default: '' },
   categoryOnly: { type: Boolean, default: false },
-  overviewLabel: { type: String, default: '全部素材' },
+  overviewLabel: { type: String, default: '' },
 });
 const emit = defineEmits(['select', 'save', 'delete', 'clear']);
 const bar = ref(null), menuOpen = ref(false), search = ref('');
@@ -27,38 +36,38 @@ function save() {
 }
 </script>
 <template>
-  <nav ref="bar" class="project-categories" aria-label="项目分类" @keydown.esc="menuOpen = false">
-    <button :class="{active:selected === null}" @click="choose(null)">{{ overviewLabel }}</button>
-    <button v-if="!categoryOnly" :class="{active:selected === '@public'}" @click="choose('@public')">项目资产</button>
+  <nav ref="bar" class="project-categories" :aria-label="t('项目分类')" @keydown.esc="menuOpen = false">
+    <button :class="{active:selected === null}" @click="choose(null)">{{ overviewLabel || t('全部素材') }}</button>
+    <button v-if="!categoryOnly" :class="{active:selected === '@public'}" @click="choose('@public')">{{ t('项目资产') }}</button>
     <div v-if="named.length" ref="categoryAnchor" class="category-overflow">
-      <button :class="{active:selectedCategory}" aria-label="选择素材分类" :aria-expanded="menuOpen" :title="selectedCategory?.name || '选择分类'" @keydown.down.prevent="menuOpen = true" @click="menuOpen = !menuOpen; search = ''"><span>{{ selectedCategory?.name || '选择分类' }}</span><Icon icon="solar:alt-arrow-down-linear" /></button>
+      <button :class="{active:selectedCategory}" :aria-label="t('选择素材分类')" :aria-expanded="menuOpen" :title="selectedCategory?.name || t('选择分类')" @keydown.down.prevent="menuOpen = true" @click="menuOpen = !menuOpen; search = ''"><span>{{ selectedCategory?.name || t('选择分类') }}</span><Icon icon="solar:alt-arrow-down-linear" /></button>
       <PopoverPanel :open="menuOpen" :anchor="categoryAnchor" class="category-menu" @close="menuOpen = false">
-        <input v-model="search" type="search" aria-label="搜索分类" placeholder="搜索分类" />
+        <input v-model="search" type="search" :aria-label="t('搜索分类')" :placeholder="t('搜索分类')" />
         <div class="category-results">
           <div v-for="item in matches" :key="item.id" class="category-menu-row">
             <button :class="{active:selected === item.id}" :title="item.name" @click="choose(item.id)"><span>{{ item.name }}</span></button>
-            <button class="category-tool" :title="`管理分类：${item.name}`" @click="edit(item)"><Icon icon="solar:pen-linear" /></button>
+            <button class="category-tool" :title="t('管理分类：{v0}', undefined, {v0: item.name})" @click="edit(item)"><Icon icon="solar:pen-linear" /></button>
           </div>
-          <p v-if="!matches.length">没有匹配的分类</p>
+          <p v-if="!matches.length">{{ t('没有匹配的分类') }}</p>
         </div>
       </PopoverPanel>
     </div>
-    <button class="category-add" title="创建分类" @click="edit()"><Icon icon="solar:add-folder-linear" />新建分类</button>
+    <button class="category-add" :title="t('创建分类')" @click="edit()"><Icon icon="solar:add-folder-linear" />{{ t('新建分类') }}</button>
     <button
       v-if="clearVisible"
       class="category-clear"
       type="button"
       :disabled="clearDisabled"
-      :aria-label="clearLabel"
-      :title="clearLabel"
+      :aria-label="clearLabel || t('删除当前资源')"
+      :title="clearLabel || t('删除当前资源')"
       @click="emit('clear')"
     ><Icon icon="solar:trash-bin-minimalistic-linear" width="17" /></button>
   </nav>
-  <PluginDialog :open="dialog" :busy="busy" :framed="false" title="分类设置" @close="dialog = false">
+  <PluginDialog :open="dialog" :busy="busy" :framed="false" :title="t('分类设置')" @close="dialog = false">
     <form class="category-dialog" @submit.prevent="save">
-      <header><h2>{{ editing ? '管理分类' : '创建分类' }}</h2><button type="button" title="关闭" :disabled="busy" @click="dialog = false"><Icon icon="solar:close-circle-linear" /></button></header>
-      <label>分类名称<input v-model="name" required maxlength="80" placeholder="例如：第01集" :disabled="busy" /></label>
-      <footer><button v-if="editing" type="button" class="category-delete" :disabled="busy" @click="emit('delete', editing, () => dialog = false)">删除分类</button><button type="button" :disabled="busy" @click="dialog = false">取消</button><button type="submit" class="category-save" :disabled="busy || !name.trim()">{{ busy ? '保存中' : '保存' }}</button></footer>
+      <header><h2>{{ editing ? t('管理分类') : t('创建分类') }}</h2><button type="button" :title="t('关闭')" :disabled="busy" @click="dialog = false"><Icon icon="solar:close-circle-linear" /></button></header>
+      <label>{{ t('分类名称') }}<input v-model="name" required maxlength="80" :placeholder="t('例如：第01集')" :disabled="busy" /></label>
+      <footer><button v-if="editing" type="button" class="category-delete" :disabled="busy" @click="emit('delete', editing, () => dialog = false)">{{ t('删除分类') }}</button><button type="button" :disabled="busy" @click="dialog = false">{{ t('取消') }}</button><button type="submit" class="category-save" :disabled="busy || !name.trim()">{{ busy ? t('保存中') : t('保存') }}</button></footer>
     </form>
   </PluginDialog>
 </template>

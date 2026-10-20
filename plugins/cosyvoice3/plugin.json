@@ -8,13 +8,15 @@
     {
       "id": "tts",
       "name": "声音生成",
-      "icon": "solar:music-note-3-linear"
+      "icon": "solar:music-note-3-linear",
+      "name_key": "声音生成"
     }
   ],
   "modes": [
     {
       "name": "直接生成",
-      "id": "direct"
+      "id": "direct",
+      "name_key": "直接生成"
     }
   ],
   "capabilities": {
@@ -47,14 +49,16 @@
             "label": "语音文本",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "语音文本"
           },
           {
             "bind": "settings.reference_audio",
             "component": "media",
             "media": "audio",
             "label": "参考声音",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考声音"
           },
           {
             "bind": "settings.voice_speed",
@@ -65,14 +69,16 @@
             "step": 0.1,
             "default": 1,
             "normal_chars_per_second": 4.5,
-            "component": "number"
+            "component": "number",
+            "label_key": "语速"
           },
           {
             "bind": "settings.voice_id",
             "label": "预设音色",
             "section": "settings",
             "component": "voice",
-            "required": true
+            "required": true,
+            "label_key": "预设音色"
           }
         ]
       },
@@ -80,7 +86,8 @@
       "name": "CosyVoice3 预设音色",
       "model_id": "cosyvoice3",
       "model_name": "CosyVoice3",
-      "speech_handler": "compiler.py:prepare_speech"
+      "speech_handler": "compiler.py:prepare_speech",
+      "name_key": "CosyVoice3 预设音色"
     },
     "tts.cosyvoice3.clone": {
       "kind": "tts",
@@ -111,14 +118,16 @@
             "label": "语音文本",
             "section": "body",
             "rows": 3,
-            "required": true
+            "required": true,
+            "label_key": "语音文本"
           },
           {
             "bind": "settings.reference_audio",
             "component": "media",
             "media": "audio",
             "label": "参考声音",
-            "section": "body"
+            "section": "body",
+            "label_key": "参考声音"
           },
           {
             "bind": "settings.voice_speed",
@@ -129,7 +138,8 @@
             "step": 0.1,
             "default": 1,
             "normal_chars_per_second": 4.5,
-            "component": "number"
+            "component": "number",
+            "label_key": "语速"
           }
         ]
       },
@@ -137,7 +147,8 @@
       "name": "CosyVoice3 音色克隆",
       "model_id": "cosyvoice3",
       "model_name": "CosyVoice3",
-      "speech_handler": "compiler.py:prepare_speech"
+      "speech_handler": "compiler.py:prepare_speech",
+      "name_key": "CosyVoice3 音色克隆"
     }
   },
   "ui_models": [
@@ -149,11 +160,13 @@
       "functions": [
         {
           "capability_id": "tts.cosyvoice3.preset",
-          "name": "预设声音"
+          "name": "预设声音",
+          "name_key": "预设声音"
         },
         {
           "capability_id": "tts.cosyvoice3.clone",
-          "name": "声音克隆"
+          "name": "声音克隆",
+          "name_key": "声音克隆"
         }
       ]
     }
@@ -197,7 +210,9 @@
           "preset_id"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "预设声音",
+      "description_key": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。"
     },
     {
       "id": "speech_clone",
@@ -235,7 +250,9 @@
           "reference_upload_id"
         ],
         "additionalProperties": false
-      }
+      },
+      "name_key": "声音克隆",
+      "description_key": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。"
     }
   ],
   "assets": [
@@ -257,5 +274,12 @@
     "samples/warm_male.mp3",
     "samples/young_female.mp3",
     "samples/young_male.mp3"
-  ]
+  ],
+  "localization": {
+    "default_locale": "zh-CN",
+    "messages": {
+      "zh-CN": "locales/zh-CN.json",
+      "en-US": "locales/en-US.json"
+    }
+  }
 }

@@ -8,6 +8,17 @@ from backend.interfaces.http.mcp import _tool_definitions, _tool_result
 
 
 class MCPContractTest(unittest.IsolatedAsyncioTestCase):
+    def test_job_limit_matches_http_validation(self):
+        from backend.app import app
+
+        route = next(route for route in app.routes if getattr(route, 'path', '') == '/api/v2/jobs')
+        field = next(field for field in route.dependant.query_params if field.name == 'limit')
+        tools = {tool['name']: tool for tool in _tool_definitions()}
+        maximum = tools['list_jobs']['inputSchema']['properties']['limit']['maximum']
+        self.assertEqual(maximum, 100)
+        self.assertFalse(field.validate(maximum, {}, loc=('query', 'limit'))[1])
+        self.assertTrue(field.validate(maximum + 1, {}, loc=('query', 'limit'))[1])
+
     async def test_wait_stays_below_client_request_timeout(self):
         tools = {tool['name']: tool for tool in _tool_definitions()}
         self.assertEqual(tools['wait_job']['inputSchema']['properties']['timeout']['maximum'], 30)

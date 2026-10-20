@@ -1,4 +1,7 @@
 <script setup>
+import { displayError, usePluginI18n } from '@framework/services/i18n';
+const { t } = usePluginI18n('krea2');
+
 import { computed, ref, watch } from 'vue';
 import PluginDialog from '@framework/components/PluginDialog.vue';
 const props = defineProps({ session: Object, busy: Boolean, pending: Boolean, canAnswer: Boolean, answer: String });
@@ -9,13 +12,13 @@ watch(() => props.session?.id, () => { confirmationOpen.value = false; confirmat
 </script>
 <template>
   <section v-if="session" class="collaboration-ui" aria-live="polite">
-    <header><span class="status-dot" :class="session.status" /> <strong>{{ session.message || session.status }}</strong></header>
-    <p v-if="session.error" class="error" role="alert">{{ session.error }}</p>
-    <ul v-if="session.progress?.stages?.length" class="stages"><li v-for="stage in session.progress.stages" :key="stage.id"><i :class="stage.status" />{{ stage.label }}<small>{{ stage.message || stage.status }}</small></li></ul>
-    <div v-if="session.questions?.length" class="questions"><p v-for="(question,index) in session.questions" :key="index">{{ typeof question === 'string' ? question : question.text || question.question || JSON.stringify(question) }}</p><textarea :value="answer" :disabled="!canAnswer" rows="2" placeholder="补充说明" @input="emit('update:answer', $event.target.value)"/><button type="button" :disabled="!canAnswer || !answer?.trim()" @click="emit('answer')">回复</button></div>
-    <div v-if="session.confirmation" class="confirmation"><pre>{{ session.confirmation.confirmed_prompt_zh }}</pre><button type="button" class="view-confirmation" @click="confirmationLanguage='zh';confirmationOpen=true">放大查看</button><button type="button" :disabled="busy" @click="emit('confirm')">确认并生成</button></div>
-    <PluginDialog :open="confirmationOpen" title="生成方案" @close="confirmationOpen=false">
-      <div class="confirmation-viewer"><div class="confirmation-tabs" role="tablist" aria-label="确认稿语言"><button v-if="session.confirmation.confirmed_prompt_zh" type="button" role="tab" :aria-selected="confirmationLanguage==='zh'" :class="{active:confirmationLanguage==='zh'}" @click="confirmationLanguage='zh'">中文确认稿</button><button v-if="session.confirmation.execution_prompt_en" type="button" role="tab" :aria-selected="confirmationLanguage==='en'" :class="{active:confirmationLanguage==='en'}" @click="confirmationLanguage='en'">英文执行稿</button></div><pre class="confirmation-full-text">{{ confirmationText }}</pre></div>
+    <header><span class="status-dot" :class="session.status" /> <strong>{{ t(session.message || session.status) }}</strong></header>
+    <p v-if="session.error" class="error" role="alert">{{ displayError(session.error) }}</p>
+    <ul v-if="session.progress?.stages?.length" class="stages"><li v-for="stage in session.progress.stages" :key="stage.id"><i :class="stage.status" />{{ t(stage.label) }}<small>{{ t(stage.message || stage.status) }}</small></li></ul>
+    <div v-if="session.questions?.length" class="questions"><p v-for="(question,index) in session.questions" :key="index">{{ typeof question === 'string' ? question : question.text || question.question || JSON.stringify(question) }}</p><textarea :value="answer" :disabled="!canAnswer" rows="2" :placeholder="t(&quot;补充说明&quot;)" @input="emit('update:answer', $event.target.value)"/><button type="button" :disabled="!canAnswer || !answer?.trim()" @click="emit('answer')">{{ t("回复") }}</button></div>
+    <div v-if="session.confirmation" class="confirmation"><pre>{{ session.confirmation.confirmed_prompt_zh }}</pre><button type="button" class="view-confirmation" @click="confirmationLanguage='zh';confirmationOpen=true">{{ t("放大查看") }}</button><button type="button" :disabled="busy" @click="emit('confirm')">{{ t("确认并生成") }}</button></div>
+    <PluginDialog :open="confirmationOpen" :title="t(&quot;生成方案&quot;)" @close="confirmationOpen=false">
+      <div class="confirmation-viewer"><div class="confirmation-tabs" role="tablist" :aria-label="t(&quot;确认稿语言&quot;)"><button v-if="session.confirmation.confirmed_prompt_zh" type="button" role="tab" :aria-selected="confirmationLanguage==='zh'" :class="{active:confirmationLanguage==='zh'}" @click="confirmationLanguage='zh'">{{ t("中文确认稿") }}</button><button v-if="session.confirmation.execution_prompt_en" type="button" role="tab" :aria-selected="confirmationLanguage==='en'" :class="{active:confirmationLanguage==='en'}" @click="confirmationLanguage='en'">{{ t("英文执行稿") }}</button></div><pre class="confirmation-full-text">{{ confirmationText }}</pre></div>
     </PluginDialog>
   </section>
 </template>

@@ -1,3 +1,8 @@
+# Copyright (c) 2026 VideoFree individual project author and contributors.
+# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
+# Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
+
 """Small MCP-over-HTTP adapter for LAN AI clients.
 
 The adapter exposes discovery, generation, speech and post-processing tools.
@@ -237,7 +242,7 @@ def _tool_definitions() -> list[dict[str, Any]]:
         ("create_public_asset", "创建公共资产档案。", ["project_id", "name", "kind"], {"project_id": string, "name": string, "kind": string, "description": string, "voice_text": string}),
         ("update_public_asset", "修改公共资产档案。", ["project_id", "asset_id", "name", "kind"], {"project_id": string, "asset_id": string, "name": string, "kind": string, "description": string, "voice_text": string}),
         ("attach_public_asset_media", "为项目资产绑定素材。source 使用 get_job_artifacts/list_library 返回的当前项目 project_path，或 upload_reference 返回的 upload:<upload_id>；不能直接传 job_id。", ["project_id", "asset_id", "source"], {"project_id": string, "asset_id": string, "source": string, "role": string, "transcript": string}),
-        ("update_project", "修改项目名称、简介与内容摘要。", ["project_id", "name"], {"project_id": string, "name": string, "description": string, "content_summary": string}),
+        ("update_project", "修改项目名称、简介与内容摘要；未传入的简介与摘要保留原值，传空字符串则清空。", ["project_id", "name"], {"project_id": string, "name": string, "description": string, "content_summary": string}),
         ("list_plugins", "查询插件清单、注册状态及错误。", [], {}),
         ("list_plugin_presets", "查询插件声明的预设选项及音色，无需插件专用工具。", ["plugin_id"], {"plugin_id": string}),
     ):
