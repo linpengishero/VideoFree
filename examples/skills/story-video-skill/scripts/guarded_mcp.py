@@ -8,7 +8,10 @@ import sys
 import urllib.request
 import uuid
 
-from validate import fingerprint, request_contract, validate_confirmation, validate_gate, validate_request
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from validate import (candidate_seed as validate_candidate_seed, fingerprint, request_contract,
+                      validate_confirmation, validate_gate, validate_request)
 
 PROGRESS_STAGES = (("preproduction", "定稿包与前期QA"), ("drafts", "主体草稿"), ("references", "定版参考与声音"),
                    ("grids", "四宫格分镜图"), ("storyboard", "分镜单格"), ("compiled", "H3编译确认"),
@@ -17,11 +20,13 @@ PROGRESS_STATUSES = {"pending", "running", "completed", "failed", "blocked", "sk
 ARCHIVE_TYPES = ("script", "storyboard", "prompts", "characters", "scenes", "final-package", "continuity")
 
 
-def make_request(plan, operation, key, attempt=1):
+def make_request(plan, operation, key, attempt=1, candidate_index=None):
     if type(attempt) is not int or not 1 <= attempt <= plan["config"]["max_attempts_per_shot"]:
         raise ValueError("Attempt exceeds the approved retry limit")
     capability, sources = request_contract(plan, operation, key)
     settings = dict(plan["config"].get("generation_settings", {}).get(operation, {}))
+    if candidate_index is not None:
+        settings["seed"] = validate_candidate_seed(plan, operation, key, candidate_index, attempt)
     settings["ratio"] = "16:9" if capability == "image.qwen.character" else plan["config"]["aspect"]
     if operation in ("drafts", "references"):
         asset = next(a for a in plan["episode_assets"] if a["id"] == key)
@@ -43,7 +48,8 @@ def make_request(plan, operation, key, attempt=1):
                  "inputs": [{"type": kind, "upload_id": value.get("upload_id"), "role": "reference"} for kind, value in sources],
                  "prompt_processing": "compile" if operation == "compilations" else "direct",
                  "project_id": plan["config"]["project_id"]}
-    arguments["idempotency_key"] = f"dialogue-{fingerprint(arguments)}-{attempt}"
+    candidate_suffix = f"-candidate-{candidate_index}" if candidate_index is not None else ""
+    arguments["idempotency_key"] = f"short-video-{fingerprint(arguments)}-{attempt}{candidate_suffix}"
     return arguments
 
 
@@ -65,7 +71,8 @@ def call(endpoint, name, arguments):
     return json.loads(next(item["text"] for item in result["content"] if item["type"] == "text"))
 
 
-def execute(plan, root, endpoint, operation, key, arguments, caller=call):
+def execute(plan, root, endpoint, operation, key, arguments, caller=call, candidate_index=None,
+            candidate_attempt=1):
     root = Path(root)
     if operation == "confirm":
         errors = validate_confirmation(plan, root, key, arguments)
@@ -79,7 +86,7 @@ def execute(plan, root, endpoint, operation, key, arguments, caller=call):
             errors.append("Continue only the recorded needs_input session with an answer")
         name = "submit_generation"
     else:
-        errors = validate_request(plan, root, operation, key, arguments)
+        errors = validate_request(plan, root, operation, key, arguments, candidate_index, candidate_attempt)
         name = "submit_generation"
     if operation == "continue" and arguments.get("project_id") != plan["config"]["project_id"]:
         errors.append("Wrong project_id")
@@ -103,6 +110,25 @@ def execute(plan, root, endpoint, operation, key, arguments, caller=call):
     return result
 
 
+def execute_candidates(plan, root, endpoint, operation, key, attempt, count, caller=call):
+    if operation not in ("drafts", "references", "grids") or type(count) is not int or not 2 <= count <= 4:
+        raise ValueError("2-4 candidates are supported for drafts, references, and grids only")
+    results = []
+    for candidate_index in range(1, count + 1):
+        arguments = make_request(plan, operation, key, attempt, candidate_index)
+        try:
+            response = execute(plan, root, endpoint, operation, key, arguments, caller,
+                               candidate_index, attempt)
+            results.append({"candidate_index": candidate_index, "seed": arguments["settings"]["seed"],
+                            "status": "submitted", "response": response})
+        except Exception as exc:
+            results.append({"candidate_index": candidate_index, "seed": arguments["settings"]["seed"],
+                            "status": "failed", "error": str(exc)})
+    succeeded = sum(item["status"] == "submitted" for item in results)
+    return {"status": "completed" if succeeded == count else "partial" if succeeded else "failed",
+            "operation": operation, "key": key, "candidates": results}
+
+
 def archive_content(plan, root, key, override):
     root = Path(root)
     if key == "continuity":
@@ -111,13 +137,14 @@ def archive_content(plan, root, key, override):
             raise ValueError("continuity requires --inputs with string decisions/completed/blockers/next_action")
         return override
     if key == "script":
-        return (root / "dialogue_script.yaml").read_text(encoding="utf-8-sig")
+        return (root / "story_script.yaml").read_text(encoding="utf-8-sig")
     selected = plan.get("media_progress", {}).get("selected", {})
     if key == "storyboard":
         shots = []
         for shot in plan["shots"]:
             item = {"id": shot["id"], "scene": shot["scene_id"], "scene_id": shot["scene_id"],
                     "duration": shot["duration"], "audio_mode": shot["audio_mode"], "camera": shot["camera"],
+                    "story_beat_ids": shot.get("story_beat_ids", []),
                     "visual": shot["storyboard_prompt"], "storyboard_prompt": shot["storyboard_prompt"],
                     "action_start": shot["action_start"], "action_process": shot["action_process"],
                     "action_end": shot["action_end"], "required_assets": shot["required_assets"],
@@ -228,6 +255,8 @@ def main():
     parser.add_argument("--key", required=True)
     parser.add_argument("--inputs", type=Path)
     parser.add_argument("--attempt", type=int, default=1)
+    parser.add_argument("--candidates", type=int, default=1, choices=(1, 2, 3, 4),
+                        help="Submit 2-4 independently seeded image candidates")
     args = parser.parse_args()
     from preproduction import load_production
     plan = load_production(args.production)
@@ -235,6 +264,15 @@ def main():
         override = json.loads(args.inputs.read_text(encoding="utf-8")) if args.inputs else None
         result = execute_project(plan, args.production.resolve().parent, args.endpoint, args.operation, args.key, override)
         print(json.dumps(result, ensure_ascii=False))
+        return
+    if args.candidates > 1:
+        if args.inputs:
+            raise ValueError("--candidates cannot be combined with custom --inputs")
+        result = execute_candidates(plan, args.production.resolve().parent, args.endpoint,
+                                    args.operation, args.key, args.attempt, args.candidates)
+        print(json.dumps(result, ensure_ascii=False))
+        if result["status"] == "failed":
+            sys.exit(1)
         return
     if args.inputs:
         arguments = json.loads(args.inputs.read_text(encoding="utf-8"))

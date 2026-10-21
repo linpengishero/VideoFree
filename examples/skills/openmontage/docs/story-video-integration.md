@@ -1,16 +1,17 @@
-# dialogue-video integration additions
+# story-video integration additions
 
 This source distribution preserves OpenMontage's original name, source, README,
 copyright notices and GNU AGPL v3 LICENSE. The following local additions integrate
-the independently installed dialogue-video-skill, and are not upstream official releases:
+the independently installed story-video-skill, and are not upstream official releases:
 
 - SKILL.md: discoverable skill entry.
-- pipeline_defs/dialogue-video.yaml: portable dialogue pipeline.
-- skills/pipelines/dialogue-video/director.md: caller-specific stage guidance.
-  The caller now requires Qwen-only new imagery, four-panel split storyboards,
+- pipeline_defs/story-video.yaml: VideoFree Studio story-video checkpoints.
+- skills/pipelines/story-video/director.md: caller-specific stage guidance.
+  The current VideoFree adapter uses Qwen imagery, four-panel split storyboards,
   H3 compile sessions and cumulative file/hash/QA evidence gates in its bridge.
-  Guarded submissions persist requests and receipts; generated character and voice
-  reference uploads are required in grids and H3 compiles. Selected-media and final
+  Guarded submissions persist requests and receipts; recurring visual references
+  are bound where continuity requires them, while voice references are story-dependent.
+  Selected-media and final
   gates bind refinement parent
   receipts, film-studio composition evidence and reviewed downloaded output hashes.
   Scoped explicit user delegation is distinct from default manual H3 confirmation.
@@ -21,7 +22,8 @@ the independently installed dialogue-video-skill, and are not upstream official 
   production.json is an automatically built source/hash index with execution records;
   canonical artifacts are projections of the final package, not a second authored script.
   Generation requests derive final asset, four-panel and H3 prompts from their respective
-  documents, binding actual uploads without replanning the film during generation.
+  documents, binding actual uploads without replanning the film during generation. Dialogue
+  turns and voice assets are optional and depend on each story and shot.
   Editing, audio mixing and rendering run gateway-side through the videofree film-studio
   plugin; this caller does not use OpenMontage video_compose/audio_mixer, and the bridge
   exposes no composition tool channel.

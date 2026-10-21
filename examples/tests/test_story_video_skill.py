@@ -12,11 +12,11 @@ from unittest.mock import Mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL = ROOT / "examples/skills/dialogue-video-skill"
+SKILL = ROOT / "examples/skills/story-video-skill"
 
 
 def load(name):
-    spec = importlib.util.spec_from_file_location(f"dialogue_{name}", SKILL / f"scripts/{name}.py")
+    spec = importlib.util.spec_from_file_location(f"story_video_{name}", SKILL / f"scripts/{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -79,7 +79,7 @@ def write_package(root, plan):
     docs = {
         "task_config.yaml": {"revision": data["revision"], "config": data["config"]},
         "research_notes.md": {"research": data["research"]},
-        "dialogue_script.yaml": {"turns": data["turns"]},
+        "story_script.yaml": {"story_beats": data.get("story_beats", []), "turns": data["turns"]},
         "asset_manifest.yaml": {"episode_assets": [{k: v for k, v in a.items() if k not in ("prompts", "scene_design")} for a in assets]},
         "scene_plan.yaml": {"scenes": [a["scene_design"] for a in assets if a["kind"] == "location"]},
         "storyboard_groups.yaml": {"shots": [{k: v for k, v in s.items() if k not in
@@ -93,7 +93,7 @@ def write_package(root, plan):
         if name.endswith(".md"):
             text = "# Final document\n\n```json\n" + text + "\n```\n"
         (root / name).write_text(text, encoding="utf-8")
-    (root / "production_plan.md").write_text("# Final plan\nUse Qwen then H3, native OpenMontage composition.\n", encoding="utf-8")
+    (root / "production_plan.md").write_text("# Final plan\nUse Qwen then H3, videofree film-studio composition.\n", encoding="utf-8")
     review = {"qa": data["preproduction_qa"], "source_sha256": {
         name: package.digest(root / name) for name in package.DOCUMENTS if name != "preproduction_qa.md"}}
     (root / "preproduction_qa.md").write_text("# Review\n```json\n" + json.dumps(review) + "\n```\n", encoding="utf-8")
@@ -181,7 +181,7 @@ class FinalPackageTests(unittest.TestCase):
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         request = copy.deepcopy(fixture.plan["media_progress"]["grids"]["g1"]["request"])
-        request["settings"]["shots"] = [s["prompt"]["execution"] for s in fixture.plan["shots"]]
+        request["prompt"] = " ".join(s["prompt"]["execution"] for s in fixture.plan["shots"])
         self.assertTrue(validator.check_request(fixture.plan, "grids", "g1", request))
         request = copy.deepcopy(fixture.plan["media_progress"]["drafts"]["lab"]["request"])
         request["prompt"] = "Invent a new design during generation"
@@ -236,6 +236,43 @@ class ContractTests(unittest.TestCase):
         report.update(review_mode="self_review", limitations=["User authorized non-independent review"])
         self.assertEqual(validator.validate_qa(report, "final", 1, ["s0"], True), [])
 
+    def test_extra_check_requires_an_issue_but_does_not_fail_the_required_gate(self):
+        report = qa("image", ["asset-a"])
+        report["checks"]["color_style"] = "FAIL"
+        report["issues"] = [{"check": "color_style", "severity": "minor", "evidence": "Slight tint"}]
+        self.assertEqual(validator.validate_qa(report, "image", 1, ["asset-a"]), [])
+        report["issues"] = []
+        self.assertTrue(validator.validate_qa(report, "image", 1, ["asset-a"]))
+
+    def test_silent_media_checks_accept_explained_na_only(self):
+        report = qa("media", ["s0"])
+        report["checks"].update(speaker="N/A", dialogue="N/A", voice="N/A")
+        self.assertEqual(validator.validate_qa(report, "media", 1, ["s0"], shot_audio_modes={"s0": "silent"}), [])
+        self.assertTrue(validator.validate_qa(report, "media", 1, ["s0"], shot_audio_modes={"s0": "h3_dialogue"}))
+        self.assertTrue(validator.validate_qa(report, "media", 1, ["s0"]))
+        report["checks"]["voice"] = "PASS"
+        self.assertEqual(validator.validate_qa(report, "media", 1, ["s0"], shot_audio_modes={"s0": "narration"}), [])
+
+    def test_batch_qa_splits_single_review_into_hash_bound_reports(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        paths = {"asset-a-1": "a.png", "asset-a-2": "b.png"}
+        report = {"reviewer": "independent-reviewer", "review_mode": "independent", "limitations": [],
+                  "candidates": []}
+        for key, relative in paths.items():
+            content = key.encode()
+            (root / relative).write_bytes(content)
+            report["candidates"].append({"id": key, "path": relative,
+                "sha256": hashlib.sha256(content).hexdigest(), "status": "PASS",
+                "checks": {name: "PASS" for name in validator.CHECKS["draft"]},
+                "evidence": [f"Reviewed {key}"], "issues": []})
+        result = validator.materialize_candidate_qa(report, root, "draft", 1, list(paths.items()))
+        self.assertEqual(set(result), set(paths))
+        self.assertEqual(result["asset-a-1"]["input_sha256"]["a.png"], report["candidates"][0]["sha256"])
+        report["candidates"].pop()
+        with self.assertRaises(ValueError):
+            validator.materialize_candidate_qa(report, root, "draft", 1, list(paths.items()))
+
 
 class ProductionGateTests(unittest.TestCase):
     def setUp(self):
@@ -246,13 +283,16 @@ class ProductionGateTests(unittest.TestCase):
         progress = {key: {} for key in ("drafts", "references", "grids", "panels", "compilations", "videos")}
         self.plan["media_progress"] = progress
 
-        def artifact(section, key, capability, ids, parent=None, stage="image"):
+        def artifact(section, key, capability, ids, parent=None, stage=None):
             path = f"{section}-{key}.bin"
             content = path.encode()
             (self.root / path).write_bytes(content)
             digest = hashlib.sha256(content).hexdigest()
-            report = qa(stage, ids)
-            report["input_sha256"] = {path: digest}
+            if stage is None and section != "panels":
+                stage = "draft" if section == "drafts" else "image"
+            report = qa(stage, ids) if stage else {}
+            if stage:
+                report["input_sha256"] = {path: digest}
             value = {"path": path, "sha256": digest, "revision": 1, "job_id": f"job-{section}-{key}",
                      "capability_id": capability, "qa": report, "upload_id": f"upload-{section}-{key}"}
             if parent is not None:
@@ -261,7 +301,7 @@ class ProductionGateTests(unittest.TestCase):
             return value
 
         draft = artifact("drafts", "lab", "image.qwen.text_to_image", ["lab"])
-        reference = artifact("references", "lab", "image.qwen.scene", ["lab"], draft["sha256"])
+        reference = artifact("references", "lab", "image.qwen.image_to_image", ["lab"], draft["sha256"])
         grid = artifact("grids", "g1", "image.qwen.storyboard_4", [f"s{i}" for i in range(4)])
         grid["reference_sha256"] = {"lab": reference["sha256"]}
         progress["fixed_uploads"] = {
@@ -296,22 +336,10 @@ class ProductionGateTests(unittest.TestCase):
         for section in ("drafts", "references", "grids", "panels", "compilations"):
             for key, value in p[section].items():
                 capability, sources = validator.request_contract(self.plan, section, key)
-                request = value.setdefault("request", {})
-                request.update(capability_id=capability, prompt_processing="compile" if section == "compilations" else "direct",
-                               project_id="p1", workspace_id="test1", idempotency_key=f"{section}-{key}")
-                request.setdefault("prompt", "Test prompt")
-                if section in ("drafts", "references"):
-                    asset = next(a for a in self.plan["episode_assets"] if a["id"] == key)
-                    request["prompt"] = asset["prompts"]["draft" if section == "drafts" else "reference"]
-                request["inputs"] = [{"type": kind, "upload_id": source["upload_id"]} for kind, source in sources]
-                ratio = "16:9" if capability == "image.qwen.character" else "9:16"
-                request["settings"] = {"ratio": ratio}
-                if section == "grids":
-                    group = next(g for g in self.plan["storyboard_groups"] if g["id"] == key)
-                    shots = {s["id"]: s for s in self.plan["shots"]}
-                    request["settings"]["shots"] = [shots[s]["storyboard_prompt"] for s in group["shot_ids"]]
+                request = guard.make_request(self.plan, section, key)
+                request["idempotency_key"] = f"{section}-{key}"
+                value["request"] = request
                 if section == "compilations":
-                    request["settings"]["duration"] = next(s["duration"] for s in self.plan["shots"] if s["id"] == key)
                     value["response"].update(revision=1, confirmed_prompt_zh="Test")
                     video = p["videos"][key]
                     video["compiled_sha256"] = validator.fingerprint(value["response"]["confirmation"]["execution_prompt_en"])
@@ -505,28 +533,50 @@ class ProductionGateTests(unittest.TestCase):
             self.assertTrue(validator.validate_gate(self.plan, self.root, "selected"))
             entry[field] = original
 
-    def compose_inputs(self):
-        return {"output_path": str(self.root / "final.mp4"),
-                "asset_manifest": {"assets": [{"id": key, "type": "video", "path": str(self.root / value["path"])}
-                    for key, value in self.plan["media_progress"]["videos"].items()]},
-                "edit_decisions": {"cuts": [{"id": s["id"], "source": s["id"]} for s in self.plan["shots"]]}}
+    def composition_evidence(self):
+        film_id = "film-" + hashlib.sha256(b"test-film").hexdigest()[:12]
+        preview = self.root / "preview.mp4"
+        preview.write_bytes(b"offline preview fixture")
+        output = self.root / "final.mp4"
+        output.write_bytes(b"offline final fixture")
+        return {"film_id": film_id,
+                "sources": [{"shot_id": s["id"], "job_id": self.plan["media_progress"]["selected"][s["id"]],
+                             "audio_mode": s["audio_mode"]} for s in self.plan["shots"]],
+                "audio_clips": [],
+                "validate": {"status": "completed", "film_id": film_id},
+                "preview": {"status": "completed", "film_id": film_id, "path": "preview.mp4",
+                            "sha256": hashlib.sha256(preview.read_bytes()).hexdigest()},
+                "render": {"status": "completed", "film_id": film_id, "url": "http://gateway/films/final.mp4"},
+                "output": {"path": "final.mp4",
+                           "sha256": hashlib.sha256(output.read_bytes()).hexdigest()}}
 
     def test_final_gate_binds_render_sources_and_output(self):
-        inputs = self.compose_inputs()
         progress = self.plan["media_progress"]
-        self.assertEqual(validator.validate_composition(self.plan, self.root, inputs), [])
+        composition = self.composition_evidence()
+        self.assertEqual(validator.validate_composition(self.plan, self.root, composition), [])
         self.assertTrue(validator.validate_gate(self.plan, self.root, "final"))
-        (self.root / "final.mp4").write_bytes(b"offline final fixture")
         digest = hashlib.sha256((self.root / "final.mp4").read_bytes()).hexdigest()
         review = qa("final", [s["id"] for s in self.plan["shots"]])
         review["input_sha256"] = {"final.mp4": digest}
-        progress["compose"] = {"inputs": inputs}
+        progress["composition"] = composition
         progress["final"] = {"path": "final.mp4", "sha256": digest, "qa": review,
-                              "selection_sha256": validator.selection_hash(self.plan),
-                              "compose_sha256": validator.fingerprint(inputs)}
+                             "selection_sha256": validator.selection_hash(self.plan),
+                             "compose_sha256": validator.fingerprint(composition)}
         self.assertEqual(validator.validate_gate(self.plan, self.root, "final"), [])
-        inputs["edit_decisions"]["cuts"][0]["source"] = "s1"
+        composition["sources"][0]["job_id"] = "unselected-job"
         self.assertTrue(validator.validate_gate(self.plan, self.root, "final"))
+        composition["sources"][0]["job_id"] = progress["selected"]["s0"]
+        (self.root / "final.mp4").write_bytes(b"swapped after render")
+        self.assertTrue(validator.validate_gate(self.plan, self.root, "final"))
+
+    def test_composition_requires_narration_audio_clips(self):
+        composition = self.composition_evidence()
+        plan = copy.deepcopy(self.plan)
+        plan["shots"][0]["audio_mode"] = "narration"
+        composition["sources"][0]["audio_mode"] = "narration"
+        self.assertTrue(any("narration" in e for e in validator.validate_composition(plan, self.root, composition)))
+        composition["audio_clips"] = [{"shot_id": "s0", "job_id": "job-narration-s0"}]
+        self.assertEqual(validator.validate_composition(plan, self.root, composition), [])
 
     def test_guard_refuses_changed_request_with_same_key(self):
         request = self.plan["media_progress"]["drafts"]["lab"]["request"]
@@ -535,6 +585,98 @@ class ProductionGateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             guard.execute(self.plan, self.root, "http://invalid/mcp", "drafts", "lab", {**request, "prompt": "New design"}, caller)
         caller.assert_called_once()
+
+
+class ProjectManagementTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        write_package(self.root, production())
+        self.plan = package.load_production(self.root / "production.json")
+        self.original_call = guard.call
+        self.addCleanup(setattr, guard, "call", self.original_call)
+        self.calls = []
+
+    def fake(self, *responses):
+        def call(endpoint, name, arguments):
+            self.calls.append((name, arguments))
+            return responses[len(self.calls) - 1]
+        guard.call = call
+
+    def test_archive_projects_fixed_cast_and_final_documents(self):
+        characters = guard.archive_content(self.plan, self.root, "characters", None)
+        ids = [item["id"] for item in characters["items"]]
+        self.assertIn("host_robot", ids)
+        self.assertIn("host_young_man-voice", ids)
+        self.assertNotIn("lab", ids)
+        storyboard = guard.archive_content(self.plan, self.root, "storyboard", None)
+        self.assertEqual(storyboard["shots"][0]["speaker"], "host_robot")
+        self.assertEqual(storyboard["shots"][0]["status"], "planned")
+        self.assertNotIn("selected_job_id", storyboard["shots"][0])
+        self.plan["media_progress"] = {"selected": {"s0": "job-s0"}}
+        storyboard = guard.archive_content(self.plan, self.root, "storyboard", None)
+        self.assertEqual(storyboard["shots"][0]["selected_job_id"], "job-s0")
+        self.assertEqual(storyboard["shots"][0]["status"], "selected")
+        self.assertEqual(guard.archive_content(self.plan, self.root, "script", None),
+                         (self.root / "story_script.yaml").read_text(encoding="utf-8-sig"))
+        self.assertEqual([item["id"] for item in guard.archive_content(self.plan, self.root, "scenes", None)["items"]], ["lab"])
+        prompt_ids = [item["id"] for item in guard.archive_content(self.plan, self.root, "prompts", None)["items"]]
+        self.assertIn("img-lab", prompt_ids)
+        self.assertIn("s0", prompt_ids)
+        self.assertIn("Test", guard.archive_content(self.plan, self.root, "final-package", None)["summary"])
+        with self.assertRaises(ValueError):
+            guard.archive_content(self.plan, self.root, "continuity", None)
+        with self.assertRaises(ValueError):
+            guard.archive_content(self.plan, self.root, "unknown", None)
+
+    def test_progress_plan_is_idempotent_and_gates_drive_status(self):
+        self.fake({"result": {"stages": []}}, {"result": {"status": "ok"}},
+                  {"result": {"stages": [{"id": stage, "name": name} for stage, name in guard.PROGRESS_STAGES]}},
+                  {"result": {"status": "updated"}}, {"result": {"status": "updated"}})
+        guard.execute_project(self.plan, self.root, "http://invalid/mcp", "progress", "plan", None)
+        self.assertEqual(self.calls[0][1]["action_id"], "ai-project-progress.get")
+        self.assertEqual(self.calls[1][1]["action_id"], "ai-project-progress.plan")
+        self.assertEqual(len(self.calls[1][1]["inputs"]["stages"]), 9)
+        guard.execute_project(self.plan, self.root, "http://invalid/mcp", "progress", "plan", None)
+        self.assertEqual(len(self.calls), 3)
+        guard.execute_project(self.plan, self.root, "http://invalid/mcp", "progress", "drafts", None)
+        self.assertEqual(self.calls[-1][1]["action_id"], "ai-project-progress.update")
+        self.assertEqual(self.calls[-1][1]["inputs"]["status"], "blocked")
+        self.assertIn("drafts", self.calls[-1][1]["inputs"]["note"])
+        guard.execute_project(self.plan, self.root, "http://invalid/mcp", "progress", "drafts",
+                              {"stage_id": "drafts", "stage_name": "主体草稿", "status": "running", "note": "start"})
+        self.assertEqual(self.calls[-1][1]["inputs"]["status"], "running")
+        with self.assertRaises(ValueError):
+            guard.execute_project(self.plan, self.root, "http://invalid/mcp", "progress", "drafts",
+                                  {"stage_id": "drafts", "stage_name": "x", "status": "teleported"})
+        with self.assertRaises(ValueError):
+            guard.execute_project(self.plan, self.root, "http://invalid/mcp", "progress", "nope", None)
+        events = [json.loads(line) for line in (self.root / "jobs.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(events[0]["event"], "intent")
+        self.assertTrue(any(e["event"] == "submitted" and e["operation"] == "progress" for e in events))
+
+    def test_archive_saves_with_cas_revision_and_draft_continuity(self):
+        self.fake({"result": {"revision": 2}}, {"result": {"saved": True}},
+                  {"result": {}}, {"result": {"saved": True}})
+        guard.execute_project(self.plan, self.root, "http://invalid/mcp", "archive", "script", None)
+        self.assertEqual(self.calls[0][1]["action_id"], "project-archive.get_document")
+        save = self.calls[1][1]
+        self.assertEqual(save["action_id"], "project-archive.save_document")
+        self.assertEqual(save["inputs"]["expected_revision"], 2)
+        self.assertEqual(save["inputs"]["status"], "final")
+        self.assertIsInstance(save["inputs"]["content"], str)
+        guard.execute_project(self.plan, self.root, "http://invalid/mcp", "archive", "continuity",
+                              {"decisions": "d", "completed": "c", "blockers": "b", "next_action": "n"})
+        self.assertEqual(self.calls[-1][1]["inputs"]["status"], "draft")
+        self.assertEqual(self.calls[-1][1]["inputs"]["expected_revision"], 0)
+
+    def test_max_shot_duration_comes_from_capability_discovery(self):
+        plan = copy.deepcopy(self.plan)
+        plan["config"]["max_shot_duration"] = 10
+        self.assertTrue(any("max_shot_duration" in e for e in validator.validate_plan(plan)))
+        plan["config"]["max_shot_duration"] = 14
+        self.assertEqual(validator.validate_plan(plan), [])
 
 
 class OpenMontageTests(unittest.TestCase):
@@ -562,7 +704,7 @@ class OpenMontageTests(unittest.TestCase):
         return path
 
     def test_manifest_init_resume_and_predecessors(self):
-        self.assertIn("dialogue-video", self.call("preflight"))
+        self.assertIn("story-video", self.call("preflight"))
         self.call("init", "--title", "Portable test")
         self.assertIn("research", self.call("next"))
         path = str(self.manifest({}))
@@ -593,77 +735,16 @@ class OpenMontageTests(unittest.TestCase):
                            "--artifacts", artifacts, "--production", path, success=False)
         self.assertIn("Production gate failed", result)
 
-    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg required")
-    def test_native_audio_tool_and_no_overwrite(self):
-        self.call("init", "--title", "Native audio")
-        source = self.base / "voice.wav"
-        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i",
-                        "sine=frequency=220:sample_rate=48000", "-t", "0.5", str(source)], check=True)
-        output = self.base / "mixed.wav"
-        path = str(self.manifest({"operation": "mix", "tracks": [
-            {"path": str(source), "role": "speech", "volume": 1}],
-            "output_path": str(output), "normalize": False}, "mix-inputs.json"))
-        self.assertIn('"success": true', self.call("tool", "audio_mixer", "--inputs", path))
-        self.assertGreater(output.stat().st_size, 100)
-        self.call("tool", "audio_mixer", "--inputs", path, success=False)
-
-    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg required")
-    def test_native_video_render_and_runtime_guard(self):
-        self.call("init", "--title", "Native render")
-        fixture = ProductionGateTests()
-        fixture.setUp()
-        self.addCleanup(fixture.doCleanups)
-        source = self.base / "dialogue.mp4"
-        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i",
-                        "color=c=green:s=160x96:r=30", "-f", "lavfi", "-i",
-                        "sine=frequency=440:sample_rate=48000", "-t", "1",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(source)], check=True)
-        proposal = {"version": "1.0", "concept_options": [
-            {"id": f"c{i}", "title": "Test", "hook": "Test", "narrative_structure": "story",
-             "visual_approach": "Video", "target_duration_seconds": 1, "why_this_works": "Fixture"}
-            for i in range(3)], "selected_concept": {"concept_id": "c0", "rationale": "Test"},
-            "production_plan": {"pipeline": "dialogue-video", "stages": [], "render_runtime": "ffmpeg",
-                                "renderer_family": "presenter"},
-            "cost_estimate": {"total_estimated_usd": 0, "line_items": [], "budget_verdict": "within_budget"},
-            "approval": {"status": "approved"}}
-        inputs = {"operation": "render", "output_path": str(self.base / "final.mp4"),
-                  "proposal_packet": proposal,
-                  "asset_manifest": {"version": "1.0", "assets": [
-                      {"id": "shot", "type": "video", "path": str(source),
-                       "source_tool": "fixture", "scene_id": "s1"}]},
-                  "edit_decisions": {"version": "1.0", "render_runtime": "ffmpeg", "renderer_family": "presenter", "cuts": [
-                      {"id": "s1", "source": "shot", "in_seconds": 0, "out_seconds": 1}],
-                      "metadata": {"compose_target": {"width": 160, "height": 96, "fit": "pad"}}},
-                  "options": {"subtitle_burn": False}}
-        for shot_id, record in fixture.plan["media_progress"]["videos"].items():
-            target = fixture.root / record["path"]
-            shutil.copyfile(source, target)
-            record["sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
-            record["qa"]["input_sha256"] = {record["path"]: record["sha256"]}
-        inputs["asset_manifest"]["assets"] = [
-            {"id": key, "type": "video", "path": str(fixture.root / record["path"]),
-             "source_tool": "fixture", "scene_id": key}
-            for key, record in fixture.plan["media_progress"]["videos"].items()]
-        inputs["edit_decisions"]["cuts"] = [
-            {"id": f"s{i}", "source": f"s{i}", "in_seconds": 0, "out_seconds": 0.25}
-            for i in range(4)]
-        # The production contract's relative artifacts are rooted next to its file.
-        production_file = fixture.root / "production.json"
-        write_package(fixture.root, fixture.plan)
-        production_path = str(production_file)
-        inputs["proposal_packet"]["production_plan"]["render_runtime"] = "remotion"
-        path = str(self.manifest(inputs, "render-inputs.json"))
-        self.assertIn("runtime differs", self.call("tool", "video_compose", "--inputs", path, "--production", production_path, success=False))
-        inputs["proposal_packet"]["production_plan"]["render_runtime"] = "ffmpeg"
-        path = str(self.manifest(inputs, "render-inputs.json"))
-        self.call("tool", "video_compose", "--inputs", path, "--production", production_path)
-        result = subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-of", "json",
-                                 inputs["output_path"]], capture_output=True, text=True, check=True)
-        streams = json.loads(result.stdout)["streams"]
-        video = next(s for s in streams if s["codec_type"] == "video")
-        self.assertEqual((video["width"], video["height"]), (160, 96))
-        self.assertTrue(any(s["codec_type"] == "audio" for s in streams))
-        self.call("tool", "video_compose", "--inputs", path, success=False)
+    def test_bridge_exposes_no_media_tool_channel(self):
+        # Composition runs on the videofree gateway via film-studio actions; the bridge is state-only.
+        self.call("init", "--title", "No media tools")
+        result = subprocess.run([
+            os.environ.get("OPENMONTAGE_TEST_PYTHON", sys.executable), "-X", "utf8", "-B", str(bridge),
+            "--openmontage-root", str(OPENMONTAGE),
+            "--projects-root", str(self.base / "projects"),
+            "--project-id", "test", "tool", "video_compose"], capture_output=True, text=True, encoding="utf-8")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid choice: 'tool'", result.stderr)
 
 
 if __name__ == "__main__":

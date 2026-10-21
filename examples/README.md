@@ -13,7 +13,7 @@ the REST client's gateway URL as described by the selected skill.
 | Skill / 技能 | Purpose / 用途 |
 | --- | --- |
 | [videofree-creation](skills/videofree-creation/SKILL.md) | Direct API client and MCP guide / API 客户端与 MCP 指南 |
-| [dialogue-video-skill](skills/dialogue-video-skill/SKILL.md) | Dialogue video production example / 对话视频制作演示 |
+| [story-video-skill](skills/story-video-skill/SKILL.md) | General story-driven long-video production / 通用故事长视频制作 |
 | [openmontage](skills/openmontage/SKILL.md) | Independent editing toolkit; retain its AGPL-3.0 license and notices / 独立剪辑工具包，保留其 AGPL-3.0 许可证及声明 |
 
 The plugin development skill remains in
@@ -33,10 +33,9 @@ own tests and dependencies; see its documentation.
 
 框架测试仍在 `tests/`；工具包自有测试与依赖请参阅各自文档。
 
-The dialogue example's existing tests still target an earlier fixed cast and
-bridge CLI. They currently fail against the revised example and need updating
-before they can serve as an acceptance check. Relocating them does not fix those
-pre-existing mismatches.
+The story-video example has focused passing efficiency and OpenMontage bridge tests.
+Some legacy contract tests still need reconciliation with the current package and QA
+formats before the entire suite can serve as an acceptance check.
 
-对话演示的现有测试仍使用旧版固定角色和桥接命令，与当前演示不一致，尚不能作为
-验收通过依据；本次目录迁移保留这些既有测试，未修改演示业务实现。
+故事视频演示的效率与 OpenMontage 桥接专项测试已通过；部分旧合同测试仍需按当前
+定稿包和QA格式调整，全部测试通过前不能作为完整验收依据。

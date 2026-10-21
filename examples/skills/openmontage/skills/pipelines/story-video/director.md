@@ -1,9 +1,11 @@
-# Portable dialogue video director
+# Portable story video director
 
-Integration addition, not an upstream pipeline rewrite. This director applies only to
-`dialogue-video`; all other OpenMontage pipelines keep their original behavior.
+Integration addition, not an upstream pipeline rewrite. This pipeline supports general
+story-driven long videos. Genre, cast, scene structure, action, dialogue, narration and
+sound design are derived from the user's story; no dialogue/explainer format is assumed.
+Other OpenMontage pipelines are unchanged.
 
-Resolve the installed `dialogue-video-skill` directory from the caller or user configuration.
+Resolve the installed `story-video-skill` directory from the caller or user configuration.
 Read its SKILL.md, references/openmontage.md and the current stage's reference below.
 Missing caller or dependencies is BLOCKED, never a fallback to pk-dialogue-story.
 
@@ -35,15 +37,16 @@ videofree MCP tools. OpenMontage's vendor adapters are not a second generation r
 The caller discovers the gateway capabilities, including film-studio composition actions; the local
 registry only discovers analysis capabilities. Neither can substitute for the other.
 
-All cast identities and voice references are generated per project from the script; the
-pipeline ships no fixed hosts. The caller requires Qwen Image 2.1 for all
-new drafts, identity/scene references and four-panel storyboards, in that order with QA.
+All recurring subject identities are derived from the story; the pipeline ships no fixed cast.
+Voice references are created only for characters whose voices must remain consistent. The
+caller requires Qwen Image 2.1 for new drafts, identity/scene references and four-panel
+storyboards, in that order with QA.
 Split and review each panel before H3 compile; direct video submissions are forbidden.
 Read the caller's evidence gate contract and require --production for completed media
 checkpoints. Long shots may be refined according to real
 capabilities. Do not hardcode eight seconds, 736x1312 or obsolete
 zizai_video/zizai_video_post tools. After exhausted retries, an unqualified best attempt
-is still FAIL/BLOCKED. Do not silently regenerate voices or strip dialogue audio.
+is still FAIL/BLOCKED. Do not silently change approved audio or narrative content.
 
 Before entering a stage, persist in_progress. Before completing it, require current QA
 and canonical schema validation. Save checkpoints using the caller's bridge, which
@@ -62,8 +65,8 @@ Gateway confirmation defaults to explicit user approval. Only a user's recorded,
 shot-scoped delegation of H3 review AND confirmation permits the producer to confirm
 after reviewing the actual draft. General automatic-progression permission is not that delegation.
 All caller submissions and confirmations use guarded_mcp.py; reference input receipts
-include actual upload IDs and hashes, including every visible character sheet and the
-speaker's generated voice reference in grids and H3 compiles. The selected
+include actual upload IDs and hashes for every required visible subject and scene reference.
+Attach voice references only to dialogue shots that need them. The selected
 gate covers reviewed refinements; the final gate binds selected media, compose inputs
 and the reviewed rendered file. Unchanged artifact specifications may reuse their QA.
 
@@ -78,5 +81,6 @@ never faked. Board startup is optional and requires permission to start a servic
 never a prerequisite for production.
 
 Publish means local export unless the user explicitly authorizes external publishing.
-Check final file hashes, dialogue, native dimensions, audio and QA; deliver checkpoints,
+Check final file hashes, narrative, action continuity, native dimensions, and the
+audio/dialogue designed for the story; deliver checkpoints,
 canonical artifacts, ten final documents, execution index, source media, ledger and final report together.

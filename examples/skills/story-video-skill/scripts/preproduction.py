@@ -8,7 +8,7 @@ import re
 
 
 DOCUMENTS = (
-    "task_config.yaml", "research_notes.md", "dialogue_script.yaml",
+    "task_config.yaml", "research_notes.md", "story_script.yaml",
     "production_plan.md", "asset_manifest.yaml", "scene_plan.yaml",
     "storyboard_groups.yaml", "asset_prompts.md", "video_prompts.yaml",
     "preproduction_qa.md",
@@ -66,7 +66,7 @@ def assemble(root):
     hashes = {name: digest(root / name) for name in DOCUMENTS if name != "preproduction_qa.md"}
     if review.get("source_sha256") != hashes:
         raise ValueError("Preproduction QA must bind the actual nine source documents; review changed files before indexing")
-    turns = data["dialogue_script.yaml"]["turns"]
+    turns = data["story_script.yaml"].get("turns", [])
     turn_map = by_id(turns)
     assets = data["asset_manifest.yaml"]["episode_assets"]
     asset_map = by_id(assets)
@@ -102,7 +102,8 @@ def assemble(root):
         shot["prompt"] = {k: videos[shot["id"]][k] for k in ("reference_map", "execution")}
         shot["scene_design"] = scene_map[shot["scene_id"]]
     plan = {"schema_version": 1, "revision": task["revision"], "config": task["config"],
-            "research": data["research_notes.md"]["research"], "turns": turns,
+            "research": data["research_notes.md"]["research"],
+            "story_beats": data["story_script.yaml"].get("story_beats", []), "turns": turns,
             "episode_assets": assets, "shots": shots, "storyboard_groups": story["storyboard_groups"],
             "preproduction_qa": review["qa"]}
     from validate import validate_plan
@@ -176,27 +177,30 @@ def context_card(plan, stage, key=None):
     assets = {asset["id"]: asset for asset in plan["episode_assets"]}
     shots = {shot["id"]: shot for shot in plan["shots"]}
     if stage == "script":
-        return {**base, "research": plan["research"], "turns": plan["turns"]}
+        return {**base, "research": plan["research"], "story_beats": plan.get("story_beats", []),
+                "turns": plan["turns"]}
     if stage == "assets":
-        return {**base, "turns": [{"id": t["id"], "speaker": t["speaker"],
+        return {**base, "story_beats": plan.get("story_beats", []),
+                "turns": [{"id": t["id"], "speaker": t["speaker"],
                                    "listener": t["listener"], "line": t["normalized_line"]}
                                   for t in plan["turns"]],
                 "episode_assets": [_asset_card(asset) for asset in plan["episode_assets"]]}
     if stage == "storyboard":
-        return {**base,
+        return {**base, "story_beats": plan.get("story_beats", []),
                 "turns": [{"id": t["id"], "speaker": t["speaker"],
                            "listener": t["listener"], "line": t["normalized_line"]}
                           for t in plan["turns"]],
                 "episode_assets": [_asset_card(asset) for asset in plan["episode_assets"]],
                 "shots": [{field: shot[field] for field in (
-                    "id", "turn_id", "scene_id", "scene_function", "shot_pattern",
+                    "id", "story_beat_ids", "turn_id", "scene_id", "scene_function", "shot_pattern",
                     "required_assets", "action_start", "action_process", "action_end",
                     "camera", "continuity_in", "continuity_out", "storyboard_prompt")
                     if field in shot} for shot in plan["shots"]],
                 "storyboard_groups": plan["storyboard_groups"]}
     if stage == "preproduction_qa":
         return {**base, "source_documents": plan.get("source_documents", []),
-                "counts": {"turns": len(plan["turns"]), "assets": len(plan["episode_assets"]),
+                "counts": {"story_beats": len(plan.get("story_beats", [])),
+                           "dialogue_turns": len(plan["turns"]), "assets": len(plan["episode_assets"]),
                            "shots": len(plan["shots"]), "storyboard_groups": len(plan["storyboard_groups"])},
                 "qa": plan["preproduction_qa"]}
     if stage == "media":
@@ -222,7 +226,8 @@ def context_card(plan, stage, key=None):
                 "media_progress": {section: values.get(key) for section, values in plan.get("media_progress", {}).items()
                                     if isinstance(values, dict) and key in values}}
     if stage == "final":
-        return {**base, "turns": [{"id": t["id"], "line": t["normalized_line"]} for t in plan["turns"]],
+        return {**base, "story_beats": plan.get("story_beats", []),
+                "turns": [{"id": t["id"], "line": t["normalized_line"]} for t in plan["turns"]],
                 "shots": [{"id": s["id"], "duration": s["duration"], "turn_id": s.get("turn_id"),
                            "audio_mode": s["audio_mode"]} for s in plan["shots"]],
                 "selected": plan.get("media_progress", {}).get("selected", {}),

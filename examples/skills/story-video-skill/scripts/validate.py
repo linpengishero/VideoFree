@@ -9,11 +9,12 @@ import re
 
 
 CHECKS = {
-    "preproduction": {"facts", "speech", "assets", "storyboard"},
+    "preproduction": {"facts", "narrative", "assets", "storyboard"},
+    "draft": {"usability", "direction_match"},
     "image": {"identity", "composition", "continuity"},
     "voice": {"intelligibility", "identity", "quality"},
     "media": {"identity", "speaker", "dialogue", "voice", "action", "continuity"},
-    "final": {"dialogue", "audio_mix", "continuity", "technical"},
+    "final": {"narrative", "audio_mix", "continuity", "technical"},
 }
 
 
@@ -27,6 +28,20 @@ def positive(value):
 
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+
+
+def candidate_seed(plan, operation, key, candidate_index, attempt=1):
+    if operation not in ("drafts", "references", "grids") or type(candidate_index) is not int or not 1 <= candidate_index <= 4:
+        raise ValueError("Candidate index must be 1-4 for image generation")
+    if type(attempt) is not int or not 1 <= attempt <= plan["config"]["max_attempts_per_shot"]:
+        raise ValueError("Attempt exceeds the approved retry limit")
+    configured = plan["config"].get("generation_settings", {}).get(operation, {}).get("seed")
+    if configured is not None:
+        if type(configured) is not int or configured < 0:
+            raise ValueError("Configured seed must be a non-negative integer")
+        return (configured + (attempt - 1) * 4 + candidate_index - 1) % (2 ** 31)
+    base = int(fingerprint({"spec": specification(plan, operation, key)})[:8], 16) % (2 ** 31)
+    return (base + (attempt - 1) * 4 + candidate_index - 1) % (2 ** 31)
 
 
 def visible_characters(shot):
@@ -92,7 +107,7 @@ def request_contract(plan, operation, key):
     return capability, [("image", source) for source in sources] + [("audio", source) for source in audio]
 
 
-def check_request(plan, operation, key, request):
+def check_request(plan, operation, key, request, candidate_index=None, candidate_attempt=1):
     errors = []
     try:
         capability, sources = request_contract(plan, operation, key)
@@ -125,8 +140,11 @@ def check_request(plan, operation, key, request):
         derived = {"ratio"}
         if operation == "compilations":
             derived.add("duration")
-        if any(settings.get(k) != v for k, v in configured.items() if k not in derived):
+        if any(settings.get(k) != v for k, v in configured.items()
+               if k not in derived and not (candidate_index is not None and k == "seed")):
             errors.append("Generation settings must preserve the reviewed final configuration")
+        if candidate_index is not None and settings.get("seed") != candidate_seed(plan, operation, key, candidate_index, candidate_attempt):
+            errors.append("Candidate seed does not match its stable candidate index")
         ratio = "16:9" if capability == "image.qwen.character" else plan["config"]["aspect"]
         if operation != "panels" and settings.get("ratio") != ratio:
             errors.append(f"Requires settings.ratio={ratio}")
@@ -152,19 +170,19 @@ def check_request(plan, operation, key, request):
     return errors
 
 
-def validate_request(plan, root, operation, key, request):
+def validate_request(plan, root, operation, key, request, candidate_index=None, candidate_attempt=1):
     stages = {"drafts": None, "references": "drafts", "grids": "references", "panels": "grids", "compilations": "storyboard"}
     if operation not in stages:
         return ["Unknown operation"]
     stage = stages[operation]
     errors = validate_gate(plan, root, stage) if stage else validate_plan(plan)
-    return errors + check_request(plan, operation, key, request)
+    return errors + check_request(plan, operation, key, request, candidate_index, candidate_attempt)
 
 
-def validate_reviewed_file(value, root, stage, revision, shots, allow_self=False):
+def validate_reviewed_file(value, root, stage, revision, shots, allow_self=False, shot_audio_modes=None):
     if not isinstance(value, dict):
         return ["Reviewed file must be an object"]
-    errors = validate_qa(value.get("qa"), stage, revision, shots, allow_self)
+    errors = validate_qa(value.get("qa"), stage, revision, shots, allow_self, shot_audio_modes=shot_audio_modes)
     if type(revision) is not int or revision < 1:
         errors.append("Reviewed file requires positive revision")
     try:
@@ -271,7 +289,7 @@ def validate_confirmation(plan, root, key, arguments):
     return errors
 
 
-def validate_qa(report, stage, revision, shots, allow_self_review=False):
+def validate_qa(report, stage, revision, shots, allow_self_review=False, shot_audio_modes=None, allow_nonpass=False):
     errors = []
     if not isinstance(report, dict):
         return ["QA must be an object"]
@@ -294,7 +312,7 @@ def validate_qa(report, stage, revision, shots, allow_self_review=False):
     checks = report.get("checks")
     if not isinstance(checks, dict) or not CHECKS.get(stage, set()).issubset(checks):
         errors.append("QA required checks missing")
-    elif any(v not in ("PASS", "FAIL", "BLOCKED") for v in checks.values()):
+    elif any(v not in ("PASS", "FAIL", "BLOCKED", "N/A") for v in checks.values()):
         errors.append("QA checks contain an unknown status")
     issues = report.get("issues")
     limits = report.get("limitations")
@@ -304,13 +322,91 @@ def validate_qa(report, stage, revision, shots, allow_self_review=False):
         errors.append("QA limitations must be a string list")
     if mode == "self_review" and not limits:
         errors.append("Self review must disclose its limitation")
-    if report.get("status") != "PASS":
+    status = report.get("status")
+    accepted_statuses = ("PASS", "FAIL", "BLOCKED") if allow_nonpass else ("PASS",)
+    if status not in accepted_statuses:
         errors.append("QA gate not PASS")
-    if isinstance(checks, dict) and any(v != "PASS" for v in checks.values()):
-        errors.append("QA cannot pass with incomplete or failed checks")
-    if isinstance(issues, list) and any(isinstance(i, dict) and i.get("severity") == "blocking" for i in issues):
+    if isinstance(checks, dict):
+        required = CHECKS.get(stage, set())
+        modes = shot_audio_modes or {}
+        for name in required:
+            value = checks.get(name)
+            audio_modes = [modes.get(shot_id) for shot_id in actual] if isinstance(actual, list) else []
+            silent_na = (stage == "media" and bool(audio_modes) and None not in audio_modes
+                         and ((name in {"speaker", "dialogue"} and all(mode in {"silent", "narration", "h3_scene_audio"} for mode in audio_modes))
+                              or (name == "voice" and all(mode in {"silent", "h3_scene_audio"} for mode in audio_modes))))
+            if (value != "PASS" and not (value == "N/A" and silent_na)
+                    and not (allow_nonpass and status != "PASS" and value in ("FAIL", "BLOCKED"))):
+                errors.append(f"QA required check {name} must PASS" + (" or valid N/A" if silent_na else ""))
+        for name, value in checks.items():
+            if name in required or value == "PASS":
+                continue
+            linked = any(isinstance(issue, dict) and issue.get("check") == name
+                         and (issue.get("severity") != "blocking" or (allow_nonpass and status != "PASS"))
+                         for issue in (issues or []))
+            if not linked:
+                errors.append(f"Additional QA check {name} needs a non-blocking issue record")
+    if (isinstance(issues, list) and any(isinstance(i, dict) and i.get("severity") == "blocking" for i in issues)
+            and not (allow_nonpass and status != "PASS")):
         errors.append("QA contains blocking issues")
     return errors
+
+
+def materialize_candidate_qa(report, root, stage, revision, expected_candidates, allow_self_review=False,
+                             selections=None, selected_shot_ids=None):
+    """Validate one batch review and bind each candidate's result to its file hash."""
+    if stage not in ("draft", "image") or not isinstance(report, dict):
+        raise ValueError("Batch QA supports draft or image stages")
+    expected = dict(expected_candidates)
+    if len(expected) != len(expected_candidates):
+        raise ValueError("Expected candidate ids must be unique")
+    candidates = report.get("candidates")
+    if not expected or not isinstance(candidates, list) or len(candidates) != len(expected):
+        raise ValueError("Batch QA must cover every expected candidate exactly once")
+    root = Path(root).resolve()
+    result = {}
+    for item in candidates:
+        if not isinstance(item, dict) or item.get("id") not in expected or item["id"] in result:
+            raise ValueError("Batch QA contains an unexpected or duplicate candidate")
+        candidate_id = item["id"]
+        relative = expected[candidate_id]
+        if item.get("path") != relative:
+            raise ValueError(f"Batch QA path mismatch for {candidate_id}")
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root) or not path.is_file() or not path.stat().st_size:
+            raise ValueError(f"Candidate file is missing or invalid: {candidate_id}")
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if item.get("sha256") != digest:
+            raise ValueError(f"Candidate hash mismatch: {candidate_id}")
+        qa_report = {"schema_version": 1, "stage": stage, "revision": revision,
+                     "reviewer": report.get("reviewer"), "review_mode": report.get("review_mode"),
+                     "status": item.get("status"), "shot_ids": [candidate_id],
+                     "checks": item.get("checks"), "evidence": item.get("evidence"),
+                     "issues": item.get("issues"), "limitations": report.get("limitations", []),
+                     "input_sha256": {relative: digest}}
+        errors = validate_qa(qa_report, stage, revision, [candidate_id], allow_self_review, allow_nonpass=True)
+        if errors:
+            raise ValueError(f"Invalid QA for {candidate_id}: " + "; ".join(errors))
+        result[candidate_id] = qa_report
+    if set(result) != set(expected):
+        raise ValueError("Batch QA candidate coverage mismatch")
+    selected_qa = {}
+    selections = selections or []
+    if len(selections) > 1:
+        raise ValueError("Run batch-qa once per selected asset or storyboard group")
+    for candidate_id, artifact_key in selections:
+        if candidate_id not in result or not nonempty(artifact_key) or artifact_key in selected_qa:
+            raise ValueError("Selected candidate/production key is invalid or duplicated")
+        selected = dict(result[candidate_id])
+        if selected["status"] != "PASS":
+            raise ValueError("Only a PASS candidate can be selected")
+        coverage = selected_shot_ids or [artifact_key]
+        selected["shot_ids"] = coverage
+        errors = validate_qa(selected, stage, revision, coverage, allow_self_review)
+        if errors:
+            raise ValueError("Selected candidate QA cannot satisfy the production gate: " + "; ".join(errors))
+        selected_qa[artifact_key] = selected
+    return {"qa_by_candidate": result, "selected_qa_by_artifact": selected_qa}
 
 
 def validate_plan(plan):
@@ -363,9 +459,14 @@ def _validate_plan(plan):
             errors.append(f"{key}: asset kind and design description required")
     shots = indexed("shots")
     groups = indexed("storyboard_groups")
-    turns = {}
-    if plan.get("turns") != []:
+    raw_turns = plan.get("turns", [])
+    if not isinstance(raw_turns, list):
+        errors.append("turns must be a list when dialogue is used")
+        turns = {}
+    elif raw_turns:
         turns = indexed("turns")
+    else:
+        turns = {}
     research = plan.get("research")
     if not isinstance(research, dict) or research.get("kind") not in ("factual", "fictional"):
         errors.append("Research kind must be factual or fictional")
@@ -379,12 +480,28 @@ def _validate_plan(plan):
             errors.append("Factual research needs source URLs and supported claims")
         if research.get("uncertainties") != []:
             errors.append("Resolve factual uncertainties before generation")
+    story_beats = plan.get("story_beats", [])
+    if not isinstance(story_beats, list) or any(not isinstance(beat, dict) for beat in story_beats):
+        errors.append("Provide story_beats or a scripted dialogue turn list")
+        story_beats = []
+    if not story_beats and not turns:
+        errors.append("Provide story_beats or a scripted dialogue turn list")
+    story_beat_map = {}
+    for index, beat in enumerate(story_beats):
+        beat_id = beat.get("id")
+        if not nonempty(beat_id) or beat_id in story_beat_map:
+            errors.append(f"story_beats[{index}]: unique id required")
+        else:
+            story_beat_map[beat_id] = beat
+        if not nonempty(beat.get("purpose")):
+            errors.append(f"story_beats[{index}]: narrative purpose required")
     for key, turn in turns.items():
         speaker, listener = turn.get("speaker"), turn.get("listener")
-        if (speaker not in assets or listener not in assets or speaker == listener
-                or assets[speaker].get("kind") == "location" or assets[listener].get("kind") == "location"):
-            errors.append(f"{key}: speaker/listener must be two distinct non-location assets")
-        for field in ("line", "normalized_line", "function", "knowledge_delta"):
+        if (speaker not in assets or assets[speaker].get("kind") == "location"
+                or (listener is not None and (listener not in assets or listener == speaker
+                                               or assets[listener].get("kind") == "location"))):
+            errors.append(f"{key}: speaker and optional listener must reference distinct character assets")
+        for field in ("line", "normalized_line", "function"):
             if not nonempty(turn.get(field)):
                 errors.append(f"{key}: {field} required")
         if turn.get("typo_checked") is not True or turn.get("speech_checked") is not True:
@@ -398,7 +515,15 @@ def _validate_plan(plan):
         elif voice.get("source") == "provided" and not nonempty(voice.get("file")):
             errors.append(f"{key}: provided voice requires the source file")
     scenes, used_turns = set(), set()
+    used_story_beats = set()
     for key, shot in shots.items():
+        beat_ids = shot.get("story_beat_ids", [])
+        if story_beat_map:
+            if (not isinstance(beat_ids, list) or not beat_ids
+                    or any(not isinstance(b, str) or b not in story_beat_map for b in beat_ids)):
+                errors.append(f"{key}: story_beat_ids must reference the planned narrative beats")
+            else:
+                used_story_beats.update(beat_ids)
         scene = shot.get("scene_id")
         if not isinstance(scene, str) or scene not in assets or assets[scene].get("kind") != "location":
             errors.append(f"{key}: unknown location asset")
@@ -427,20 +552,25 @@ def _validate_plan(plan):
                 errors.append(f"{key}: unknown dialogue turn")
                 continue
             used_turns.add(turn_id)
-            for field in ("speaker", "listener", "normalized_line"):
+            for field in ("speaker", "normalized_line"):
                 if shot.get(field) != turn.get(field):
                     errors.append(f"{key}: {field} differs from turn")
+            if shot.get("listener") != turn.get("listener"):
+                errors.append(f"{key}: listener differs from turn")
             speaker = shot.get("speaker")
             if nonempty(shot.get("normalized_line")) and shot["normalized_line"] not in prompt.get("execution", ""):
                 errors.append(f"{key}: prompt missing exact dialogue")
             dominance = shot.get("visual_dominance", {})
-            if not isinstance(dominance, dict) or dominance.get("primary") != speaker or dominance.get("secondary") != shot.get("listener") or dominance.get("lighting_priority") != "primary":
+            if not isinstance(dominance, dict) or dominance.get("primary") != speaker or dominance.get("lighting_priority") != "primary":
                 errors.append(f"{key}: speaker must be visually primary")
-            if not nonempty(shot.get("listener_face_policy")) or shot.get("listener_mouth") != "closed":
+            if shot.get("listener") and (not isinstance(dominance, dict)
+                                          or dominance.get("secondary") != shot.get("listener")
+                                          or not nonempty(shot.get("listener_face_policy"))
+                                          or shot.get("listener_mouth") != "closed"):
                 errors.append(f"{key}: listener performance unspecified")
-        elif mode in ("silent", "pre_recorded_narration"):
+        elif mode in ("silent", "h3_scene_audio", "pre_recorded_narration"):
             if any(shot.get(f) for f in ("turn_id", "speaker", "listener", "normalized_line")):
-                errors.append(f"{key}: silent H3 inputs must not have speaker or dialogue")
+                errors.append(f"{key}: non-dialogue shots must not have speaker or dialogue fields")
             if mode == "pre_recorded_narration" and (
                 not nonempty(shot.get("narration_text")) or not nonempty(shot.get("narration_audio")) or
                 not positive(shot.get("narration_duration")) or shot["narration_duration"] > shot.get("duration", 0)
@@ -449,7 +579,9 @@ def _validate_plan(plan):
         else:
             errors.append(f"{key}: unknown audio_mode")
     if set(turns) != used_turns:
-        errors.append("Every turn must appear in a dialogue shot")
+        errors.append("Every scripted dialogue turn must appear in a dialogue shot")
+    if story_beat_map and set(story_beat_map) != used_story_beats:
+        errors.append("Every story beat must appear in at least one shot")
     if type(config.get("min_scenes")) is int and len(scenes) < config["min_scenes"] and not nonempty(config.get("single_scene_reason")):
         errors.append("Too few scenes without an explanation")
     covered = []
@@ -505,14 +637,19 @@ def validate_gate(plan, root, stage, shot_id=None):
         if parent is not None and value.get("parent_sha256") != parent:
             errors.append(f"{section}.{key}: wrong or stale source artifact")
         report = value.get("qa")
-        errors.extend(validate_qa(report, qa_stage, own_revision, ids or [key], allow_self))
-        if not isinstance(report, dict) or report.get("input_sha256", {}).get(value.get("path")) != value.get("sha256"):
-            errors.append(f"{section}.{key}: QA not bound to artifact hash")
+        if qa_stage:
+            audio_modes = ({key: next(s["audio_mode"] for s in plan["shots"] if s["id"] == key)}
+                           if qa_stage == "media" and key in {s["id"] for s in plan["shots"]} else None)
+            errors.extend(validate_qa(report, qa_stage, own_revision, ids or [key], allow_self,
+                                      shot_audio_modes=audio_modes))
+            if not isinstance(report, dict) or report.get("input_sha256", {}).get(value.get("path")) != value.get("sha256"):
+                errors.append(f"{section}.{key}: QA not bound to artifact hash")
         return value
 
     def submitted(section, key, value):
         request = value.get("request", {})
-        errors.extend(f"{section}.{key}: {e}" for e in check_request(plan, section, key, request))
+        errors.extend(f"{section}.{key}: {e}" for e in check_request(
+            plan, section, key, request, value.get("candidate_index"), value.get("candidate_attempt", 1)))
         capability, sources = request_contract(plan, section, key)
         receipt = value.get("gateway_inputs", {})
         expected = [(kind, s.get("upload_id"), s.get("sha256")) for kind, s in sources]
@@ -529,7 +666,7 @@ def validate_gate(plan, root, stage, shot_id=None):
         speaking = {s["speaker"] for s in plan["shots"] if s.get("audio_mode") == "h3_dialogue"}
         for asset in plan["episode_assets"]:
             key = asset["id"]
-            draft = record("drafts", key, "image.qwen.text_to_image")
+            draft = record("drafts", key, "image.qwen.text_to_image", qa_stage="draft")
             submitted("drafts", key, draft)
             if rank >= 1:
                 capability = "image.qwen.image_to_image" if asset["kind"] == "location" else "image.qwen.character"
@@ -558,7 +695,7 @@ def validate_gate(plan, root, stage, shot_id=None):
                 if grid.get("reference_sha256") != expected:
                     errors.append(f"{group['id']}: grid must use locked reference assets")
                 for index, key in enumerate(group["shot_ids"] if rank >= 3 else []):
-                    panel = record("panels", key, "image.split", grid.get("sha256", ""))
+                    panel = record("panels", key, "image.split", grid.get("sha256", ""), qa_stage=None)
                     submitted("panels", key, panel)
                     if panel.get("panel_index") != index or not nonempty(panel.get("upload_id")):
                         errors.append(f"{key}: ordered split panel and upload_id required")
@@ -581,7 +718,7 @@ def validate_gate(plan, root, stage, shot_id=None):
                     if not nonempty(expected_audio) or [i.get("upload_id") for i in inputs if i.get("type") == "audio"] != [expected_audio]:
                         errors.append(f"{key}: wrong or missing speaker voice reference")
                 elif any(i.get("type") == "audio" for i in inputs):
-                    errors.append(f"{key}: silent H3 shot must not receive audio reference")
+                    errors.append(f"{key}: non-dialogue H3 shot must not receive a voice reference")
                 asset_ids = list(dict.fromkeys([shot["scene_id"], *shot["required_assets"]]))
                 expected_images.extend(progress.get("references", {}).get(a, {}).get("upload_id") for a in asset_ids)
                 if (not all(nonempty(i) for i in expected_images)
@@ -631,7 +768,9 @@ def validate_gate(plan, root, stage, shot_id=None):
                     seen[entry.get("job_id")] = entry
                     # Same artifact/QA checks, without mutating the initial video ledger.
                     wrapped = {**plan, "media_progress": {**progress, "videos": {**progress["videos"], key: entry}}}
-                    errors.extend(validate_reviewed_file(entry, root, "media", entry.get("revision"), [key], allow_self))
+                    audio_modes = {key: next(s["audio_mode"] for s in plan["shots"] if s["id"] == key)}
+                    errors.extend(validate_reviewed_file(entry, root, "media", entry.get("revision"), [key], allow_self,
+                                                        shot_audio_modes=audio_modes))
                     if entry.get("spec_sha256") != specification(wrapped, "videos", key):
                         errors.append(f"{key}: stale refinement specification")
                     if not nonempty(entry.get("action_id")):
@@ -680,9 +819,37 @@ def main():
             p.add_argument("--revision", type=int, required=True)
             p.add_argument("--shots", nargs="+", required=True)
             p.add_argument("--allow-self-review", action="store_true")
+    p = sub.add_parser("batch-qa")
+    p.add_argument("path", type=Path, help="Single QA report covering multiple candidate files")
+    p.add_argument("--root", type=Path, required=True)
+    p.add_argument("--stage", choices=("draft", "image"), required=True)
+    p.add_argument("--revision", type=int, required=True)
+    p.add_argument("--candidate", action="append", required=True, help="Expected candidate as id=relative-path")
+    p.add_argument("--select", help="Winner to promote as candidate-id=production-key")
+    p.add_argument("--shot-ids", nargs="+", help="Exact QA coverage for the selected artifact; use all group shot ids for a grid")
+    p.add_argument("--allow-self-review", action="store_true")
     args = parser.parse_args()
     try:
-        if args.command == "qa":
+        if args.command == "batch-qa":
+            data = json.loads(args.path.read_text(encoding="utf-8"))
+            expected = []
+            for value in args.candidate:
+                candidate_id, separator, relative = value.partition("=")
+                if not separator or not candidate_id or not relative:
+                    raise ValueError("--candidate must use id=relative-path")
+                expected.append((candidate_id, relative))
+            selections = []
+            if args.select:
+                value = args.select
+                candidate_id, separator, artifact_key = value.partition("=")
+                if not separator or not candidate_id or not artifact_key:
+                    raise ValueError("--select must use candidate-id=production-key")
+                selections.append((candidate_id, artifact_key))
+            output = materialize_candidate_qa(data, args.root, args.stage, args.revision,
+                                              expected, args.allow_self_review, selections, args.shot_ids)
+            print(json.dumps({"status": "PASS", **output}, ensure_ascii=False))
+            return False
+        elif args.command == "qa":
             data = json.loads(args.path.read_text(encoding="utf-8"))
         else:
             from preproduction import load_production

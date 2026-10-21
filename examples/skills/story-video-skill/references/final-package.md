@@ -6,16 +6,16 @@
 | --- | --- | --- |
 | 内容 | task_config.yaml | 目标、预算、画幅、时长、模型与授权边界 |
 | 内容 | research_notes.md | 完整研究、来源和不确定性 |
-| 内容 | dialogue_script.yaml | 完整对话与逐字口播稿 |
+| 内容 | story_script.yaml | 完整故事文本/剧情节拍；仅按需包含角色对白与逐字口播稿 |
 | 制作 | production_plan.md | 制作顺序、配乐、二采、合成与交付策略 |
-| 制作 | asset_manifest.yaml | 跨镜主体身份、状态及说话角色声音设计 |
+| 制作 | asset_manifest.yaml | 跨镜主体身份、状态及按需使用的声音设计 |
 | 制作 | scene_plan.yaml | 场景布局、气氛、镜头与资产使用关系 |
 | 制作 | storyboard_groups.yaml | 逐镜视觉设计、四宫格顺序和每格图像描述 |
 | 制作 | asset_prompts.md | Qwen草稿与定版角色板/场景图描述 |
-| 制作 | video_prompts.yaml | 逐镜H3转换源稿、动作、运镜、对白和声音映射 |
+| 制作 | video_prompts.yaml | 逐镜H3转换源稿、动作、运镜、对白（如有）和声音映射 |
 | 审核 | preproduction_qa.md | 当前版本完整审核、问题关闭及来源文件哈希 |
 
-没有随包固定角色：所有本期角色与跨镜主体一律生成。先列清单、写完整草稿及定版描述；角色板固定16:9。说话角色条目必须带 `voice` 计划（generated或provided）。前期写的是完整设计，不是先列标题后到生成阶段临时补稿。
+没有随包固定角色：人物、动物、阵营、场景、道具及其状态全部由故事决定；跨镜或必须保持身份的主体才列入连续性资产，一次性背景元素不强制生成多视角板。先列清单、写完整草稿及定版描述；必要的主体参考板固定16:9。只有确实需要固定角色音色/对白时才添加 `voice` 计划（generated或provided）。前期写完整故事与镜头设计，不预设对谈结构。
 
 ## 数据格式与归属
 
@@ -67,22 +67,30 @@ research:
 
 虚构故事用kind=fictional，不能捏造事实来源。资料型作品必须有真实来源，未解决的关键不确定性不能进入生成。
 
-dialogue_script.yaml：
+story_script.yaml：
+
+```yaml
+story_beats:
+  - id: beat_001
+    purpose: 主角发现异常并决定追踪
+    change: 从日常状态进入冲突
+turns: [] # 可省略；只在故事包含逐字对白/口播时填写
+```
+
+有对白时，`turns` 使用以下结构；speaker/listener 可为空或省略 listener，不强制每段对白都是双人对话：
 
 ```yaml
 turns:
   - id: turn_001
-    speaker: student_young
-    listener: prof_mech
-    function: ask
-    line: 原意台词
+    speaker: protagonist
+    function: warning
+    line: 原始台词
     normalized_line: 最终逐字口播稿
-    knowledge_delta: 本句引入的问题
     typo_checked: true
     speech_checked: true
 ```
 
-全部turn必须对应镜头。说话人、听者、normalized_line以这里为准，由程序投影到内存镜头数据，分镜文件不重复维护这些字段。
+story_beats描述完整故事的起承转合、冲突、转折与结局；可以是纯动作故事，不要求对话。每个turn必须对应镜头；实际存在的对白须绑定正确说话人并逐字核对。分镜文件不重复维护脚本字段。
 
 ### 制作部分
 
@@ -92,36 +100,26 @@ asset_manifest.yaml：
 
 ```yaml
 episode_assets:
-  - id: prof_mech
+  - id: protagonist
     kind: character
-    description: 讲解角色跨镜身份及不变项
-    voice:
-      source: generated
-      description: 沉稳中低音男声，语速偏慢
-      sample_text: 示例台词一到两句
-  - id: student_young
-    kind: character
-    description: 提问角色跨镜身份及不变项
-    voice:
-      source: provided
-      file: voices/student.flac
-  - id: scene_lab
+    description: 主角的外形、服装、伤势/装备等需要跨镜保持或演化的状态
+  - id: scene_alley
     kind: location
     description: 该环境的身份及不变项
-  - id: prop_meter
-    kind: object
-    description: 跨镜仪器的身份及结构不变项
+  - id: pursuer
+    kind: character
+    description: 追踪者外观与行动特征
 ```
 
-人物、动物、物品、建筑、车辆等只要跨镜需识别为同一个就必须列入；所有角色一律列入episode_assets本期生成，没有随包角色。只有会在对白turn里说话的角色必须带 `voice` 计划：generated写音色描述与示例文本，provided写run_root内用户音频路径。环境身份在这里定义，具体布局在scene_plan中，完整生成描述在asset_prompts中。
+人物、动物、阵营标识、物品、建筑、车辆等只要跨镜需识别为同一个就列入；资产集合由故事决定，不必为一次性群众或背景元素逐一造资产。角色只有在需要台词/固定音色时才填写 `voice` 计划。环境身份在这里定义，具体布局在scene_plan中，完整生成描述在asset_prompts中。
 
 scene_plan.yaml：
 
 ```yaml
 scenes:
-  - id: scene_lab
+  - id: scene_alley
     description: 场景设计及叙事功能
-    layout: 人物、仪器与背景的空间关系
+    layout: 主角、追踪者与出口的空间关系
     lighting: 灯光及时间
     shot_ids: [shot_001, shot_002, shot_003, shot_004]
 ```
@@ -133,19 +131,14 @@ storyboard_groups.yaml包含shots及storyboard_groups：
 ```yaml
 shots:
   - id: shot_001
-    turn_id: turn_001
-    audio_mode: h3_dialogue
+    story_beat_ids: [beat_001]
+    audio_mode: h3_scene_audio
     duration: 6
-    scene_id: scene_lab
-    scene_function: character_dialogue
-    shot_pattern: over_shoulder
-    required_assets: [prop_meter]
-    listener_face_policy: rear_three_quarter
-    listener_mouth: closed
-    visual_dominance:
-      primary: student_young
-      secondary: prof_mech
-      lighting_priority: primary
+    scene_id: scene_alley
+    scene_function: pursuit
+    shot_pattern: tracking_wide
+    required_assets: []
+    visible_characters: [protagonist, pursuer]
     action_start: 动作起点
     action_process: 动作过程
     action_end: 动作终点
@@ -155,23 +148,23 @@ shots:
     storyboard_prompt: 该格静态画面描述，包含构图、姿态、视线及参考身份
 storyboard_groups:
   - id: grid_001
-    scene_id: scene_lab
+    scene_id: scene_alley
     panels: 4
     shot_ids: [shot_001, shot_002, shot_003, shot_004]
 ```
 
 所有镜头在分组中恰好出现一次，每组四镜同一场景。storyboard_prompt是Qwen静态分镜图描述，不是H3视频动作源稿；生成时程序按shot_ids顺序把这四条描述嵌入单一四宫格prompt（Panel 1至4对应左上、右上、左下、右下）。实际图片输入根据scene_id、出镜角色和required_assets绑定，不能只把描述词传过去。
 
-静音镜不填turn_id，若有角色出镜显式visible_characters列出资产ID；旁白镜用pre_recorded_narration及narration_text/narration_audio/narration_duration，按前期合同处理。
+`audio_mode`按镜头声音设计取值：`h3_dialogue`（角色对白，绑定turn与说话人声音参考）、`h3_scene_audio`（H3生成环境/动作声音，不附加角色参考音频）、`pre_recorded_narration`（使用预录旁白替换）、`silent`（明确静音）。无对白镜头不填turn/speaker/listener；有多个出镜主体时用`visible_characters`列出需要身份保持的角色。打斗/追逐镜头需写清空间方位、动作起因与结果、受力、道具状态、镜头轴线和前后镜承接。
 
 asset_prompts.md每项写完整设计说明，唯一数据块：
 
 ```yaml
 prompts:
-  - asset_id: prop_meter
-    draft: 完整Qwen主体草稿描述
-    reference: 完整Qwen定版多视角描述，锚定草稿参考图
-  - asset_id: scene_lab
+  - asset_id: pursuer
+    draft: 追踪者主体草稿描述
+    reference: 追踪者定版身份参考描述，锚定草稿参考图
+  - asset_id: scene_alley
     draft: 完整Qwen场景草稿描述
     reference: 完整Qwen定版场景描述，锚定草稿参考图
 ```
@@ -183,11 +176,11 @@ video_prompts.yaml：
 ```yaml
 shots:
   - shot_id: shot_001
-    reference_map: 图片1=分镜单格，图片2=说话人，图片3=听者，图片4=场景，图片5=仪器；音频1=说话人音色
-    execution: 完整H3转换源稿，包含身份引用、动作时序、运镜、逐字台词和声音设计
+    reference_map: 图片1=分镜单格，图片2=主角参考，图片3=场景，图片4=关键道具
+    execution: 完整H3转换源稿，包含身份引用、动作因果、空间关系、时序、运镜及按故事需要的对白/声音设计
 ```
 
-镜头覆盖必须与shots完全一致。execution必须含该turn的normalized_line逐字台词；这次必要的重复是对模型的执行指令，不是第二份可独立修改的剧本。台词改变时需同步受影响视频源稿，由校验阻止不一致。
+镜头覆盖必须与shots完全一致。含对白的execution必须包含对应turn的normalized_line逐字台词；无对白镜头不应凭空添加对白。动作场面须保持故事事件和因果，不为适配模型而压缩或改写剧情。脚本会阻止实际对白与转换源稿不一致。
 
 这里是H3转换**源稿**，不是伪造网关的转换结果。生成时仍必须compile；实际转换英文稿保存到执行记录。参考编号提前按固定顺序确定，生成后绑定upload_id，不让模型猜哪张图是谁。
 
@@ -205,7 +198,7 @@ python <skill_root>/scripts/preproduction.py hashes <run_root>
 source_sha256:
   task_config.yaml: 实际SHA256
   research_notes.md: 实际SHA256
-  dialogue_script.yaml: 实际SHA256
+  story_script.yaml: 实际SHA256
   production_plan.md: 实际SHA256
   asset_manifest.yaml: 实际SHA256
   scene_plan.yaml: 实际SHA256
@@ -220,7 +213,7 @@ qa:
   review_mode: independent
   status: PASS
   shot_ids: [shot_001, shot_002, shot_003, shot_004]
-  checks: {facts: PASS, speech: PASS, assets: PASS, storyboard: PASS}
+  checks: {facts: PASS, narrative: PASS, assets: PASS, storyboard: PASS}
   evidence: [实际审核依据与已修正问题]
   issues: []
   limitations: []

@@ -21,19 +21,19 @@
 
 保存完整转换请求、就绪回执、用户批准或有范围的委托证据及确认回执。修改镜头后旧委托失效，须重新授权；禁止direct避开转换。
 
-H3执行稿使用subject_definitions、summary、retention_analysis、detailed_description、overall_soundscape、non_diegetic_music结构：身份锚定实际参考编号，保留动作时序、镜头、对白和声音映射。只删重复身份外观描写，不压缩剧情。当前speaker的参考音频必须正确；对白逐字来自normalized_line。图片顺序：分镜单格、speaker角色板、listener角色板、场景及其他主体；超过能力数量时调整构图/拆镜，不静默丢参考。
+H3执行稿使用subject_definitions、summary、retention_analysis、detailed_description、overall_soundscape、non_diegetic_music结构：身份锚定实际参考编号，保留故事事件、动作因果、时序、空间关系、运镜及按需的对白/声音设计。不压缩或改写剧情。只有对白镜才绑定speaker声音参考及normalized_line；无对白镜不得凭空添加台词。图片顺序为分镜单格、需要保持身份的出镜主体、场景及关键道具；超过能力数量时调整构图/拆镜，不静默丢参考。
 
 ## 资产、图格与声音
 
-先逐项完成本期主体设计。出现两镜以上或必须识别为同一个的角色、动物、物品、交通工具、建筑和环境均建资产并全部列入episode_assets；前期QA检查是否遗漏。没有随包角色，所有角色与声音参考本期生成并锁定。
+先逐项完成本期主体设计。没有随包角色，角色与声音参考按本期故事生成。跨镜出现、必须识别为同一主体或会影响后续镜头连续性的角色、场景、动物和关键道具必须建资产并锁定；一次性背景元素和不需要身份连续性的普通道具不强制制作多视角资产板。前期QA仍检查连续性资产是否遗漏。
 
 所有新图都用Qwen Image 2.1，严格顺序：
-1. `image.qwen.text_to_image`生成每个主体/场景草稿，图像QA通过后运行drafts闸门。
-2. 将草稿作为真实输入，人物、动物、物品用`image.qwen.character`生成角色板/多视角；环境用`image.qwen.image_to_image`以草稿为真实参考生成场景参考（网关已移除`image.qwen.scene`，不得提交）。QA通过后定版，运行references闸门。物品不能因不是人物而省略多视角。
+1. `image.qwen.text_to_image`为一个主体/场景一次提交2–4个独立候选；用`--candidates 2|3|4`，然后对整批做一次轻量QA（方向匹配、主体可用性），用`validate.py batch-qa`按文件SHA256生成各候选的标准QA记录。只将选中的PASS候选登记为`media_progress.drafts`并运行drafts闸门。不要先逐张审核再重新派发同一资产。
+2. 将定版草稿作为真实输入；重要角色/动物/关键道具用`image.qwen.character`生成角色板/多视角，环境用`image.qwen.image_to_image`生成场景参考（网关已移除`image.qwen.scene`，不得提交）。可对一组资产各提交2–4个候选后集中做一轮完整图像QA；只登记胜出的、通过QA的单个参考并运行references闸门。无需跨镜保持身份的一次性物件不做多视角板。
    角色板/主体多视角一律显式传 `settings.ratio="16:9"`，不随项目9:16等画幅改变；这是身份参考的排版比例，不是视频比例。记录实际提交settings供闸门检查。场景、分镜和视频沿用项目画幅。
    声音参考与定版图同在references闸门前定版：每个说话角色按asset_manifest的voice计划处理——`generated` 用 run_plugin_action 的 speech_describe/speech_preset（先查ready）生成示例文本音频，`provided` 复制用户文件到run_root；下载后听检（intelligibility/identity/quality）通过才上传，收录 `media_progress.voices`。同一角色全片只用同一声音参考，不得混用他人音色或中途换预设。
-3. 主制片读取已审storyboard_groups.yaml里的构图、动作、视线、机位及连续性，绑定定版图实际上传ID；不重新派分镜子智能体策划。四宫格实际输入顺序为场景、按镜头顺序收集的全部可见角色角色板和required_assets，重复去除。`image.qwen.storyboard_4`不消费`settings.shots`，四条有序storyboard_prompt必须由guarded_mcp按shot_ids顺序嵌入单一prompt（Panel 1至4对应左上、右上、左下、右下），不使用video_prompts里的视频执行稿；超过8张参考须前期重排分组，禁止少传。生成并审核后运行grids闸门，再切格。
-4. `image.split`切割四个单格，按左上、右上、左下、右下映射shot_id；独立图像QA检查所有单格，上传实际单格，运行storyboard闸门。未经此闸门，不提交任何H3任务。
+3. 主制片读取已审storyboard_groups.yaml里的构图、动作、视线、机位及连续性，绑定定版图实际上传ID；不重新派分镜子智能体策划。四宫格实际输入顺序为场景、按镜头顺序收集的全部可见角色角色板和required_assets，重复去除。`image.qwen.storyboard_4`不消费`settings.shots`，四条有序storyboard_prompt必须由guarded_mcp按shot_ids顺序嵌入单一prompt（Panel 1至4对应左上、右上、左下、右下），不使用video_prompts里的视频执行稿；超过8张参考须前期重排分组，禁止少传。可一次提交2–4张四宫格候选，集中做一轮完整图像QA，选中一张后运行grids闸门，再切格。
+4. `image.split`每个网格只切割一次，按左上、右上、左下、右下映射shot_id。切割是确定性操作，不对同一网格的四个子图重复做完整图像QA；校验四文件非空及哈希、父网格哈希、索引顺序、上传ID与实际输入回执，然后运行storyboard闸门。未经此闸门，不提交任何H3任务。
 5. 每镜提交compile，解决needs_input；保存就绪回执，运行compiled闸门后才按授权确认。返回job_id后保存输入回执、下载、视频QA；通过media后可二采，选定版本并通过selected才进入剪辑。
 
 闸门的证据字段与命令见[生产合同](preproduction.md)。任一步失败，只回退受影响产物，并使受影响下游证据失效。草稿、定版图、四宫格、单格都必须下载保存；不得用资产ID、文字计划或捏造PASS替代文件。
@@ -48,7 +48,7 @@ H3执行稿使用subject_definitions、summary、retention_analysis、detailed_d
 
 常规草稿优先发现可用480P预览模式，通过QA后按config.refine决定是否二采。**长镜允许二采，不设8秒禁令，不硬编码15秒上限。** 需要源latent的H3操作以list_plugin_actions带source_job_id的实际可用性为准；缺latent报告具体原因，不能改用其他放大器冒充H3二采。
 
-同一镜头可继续二采，记录完整父子任务链；不要无限循环，遵守用户授权的二采次数和预算。LTX2.5仅在能力可用且制作计划批准时使用；先确认声音保留策略。所有二采产物重新检查台词、音色、动作和音轨，丢对白不能放行。
+同一镜头可继续二采，记录完整父子任务链；不要无限循环，遵守用户授权的二采次数和预算。LTX2.5仅在能力可用且制作计划批准时使用；先确认声音保留策略。所有二采产物重新检查故事信息、动作连续性及适用的对白/声音，关键情节丢失不能放行。
 
 成功二采记录进refinements，保留get_job的completed父子回执及文件哈希和复审；失败尝试只留台账。不覆盖videos初稿。selected明确记录每镜最终选用的job_id；即使不二采也必须选中审核过的初稿。
 
@@ -56,9 +56,18 @@ H3执行稿使用subject_definitions、summary、retention_analysis、detailed_d
 
 ```text
 python <skill_root>/scripts/guarded_mcp.py --production <run_root>/production.json --endpoint <gateway_origin>/mcp --operation grids --key <group_id>
+python <skill_root>/scripts/guarded_mcp.py --production <run_root>/production.json --endpoint <gateway_origin>/mcp --operation drafts --key <asset_id> --candidates 3
 ```
 
-operation支持drafts、references、grids、panels、compilations、continue、confirm；key是资产、图格或镜头ID。普通生成无需inputs文件：脚本从定稿和真实上传记录组装prompt、四格描述、参考顺序、画幅/时长、项目和稳定幂等键。config.generation_settings按operation保存前期批准的分辨率、variant、seed等参数；不在生成阶段自行换模型参数。重抽用--attempt递增，断线恢复保持原attempt，不能超出授权上限。
+operation支持drafts、references、grids、panels、compilations、continue、confirm；key是资产、图格或镜头ID。普通生成无需inputs文件：脚本从定稿和真实上传记录组装prompt、四格描述、参考顺序、画幅/时长、项目和稳定幂等键。草稿、定版参考和四宫格可用`--candidates 2|3|4`一次提交多个候选；仅图像这三个operation支持。候选使用稳定且互异的seed及幂等键；同参数同批次重跑复用已提交回执，单个失败可重跑而不重复成功项。`--attempt`仍是批准范围内的失败重试次数，不是候选编号；不同attempt会换seed。网关仍决定本地任务排队与执行，并不保证GPU并行或更短的总推理时间；收益是把提交与QA往返合并。
+
+批次QA由一份独立报告逐候选给出id、相对路径、SHA256、status、required checks、evidence与issues，再运行：
+
+```text
+python <skill_root>/scripts/validate.py batch-qa <batch-report.json> --root <run_root> --stage draft --revision <revision> --candidate <asset>-1=<relative-file-1> --candidate <asset>-2=<relative-file-2> --select <asset>-2=<asset>
+```
+
+输出的`qa_by_candidate`保留每个候选的审查结果，`selected_qa_by_artifact`可直接回填`media_progress`中正式资产/图格记录的胜出稿报告；同时记录该记录的`candidate_index`与`candidate_attempt`，使提交合同可复核。每份批审报告只对应一个资产或网格候选组；网格胜出报告通过`--shot-ids <shot1> <shot2> <shot3> <shot4>`绑定组内镜头。候选文件、路径、哈希必须完全匹配。只允许选中status=PASS且必需检查全通过的候选。draft只检查方向匹配与可用性；reference/grid仍用完整图像检查。视频每镜的叙事信息、身份、动作与连续性必须逐镜审核；对白/声音检查依据该镜实际设计执行，不能用代表镜头代替整片审核。
 
 continue/confirm必须带--inputs，保存实际会话问题答复或确认参数。也可为普通生成传真实request.json，但仍校验定稿描述和参考绑定。脚本检查前置文件/QA后提交，并追加jobs.jsonl的intent和回执，主制片从台账收录request，不重新抄描述词。同键同请求恢复原回执，同键不同请求拒绝；缺回执时复用原幂等键查询/重试，不能新建重复转换。编译幂等在网关持久化且按项目隔离。panels操作按网格只提交一次切割，四个shot记录同一请求、同一job回执及各自panel_index；不要四次重复切割。
 
@@ -70,13 +79,13 @@ run_plugin_action 的 inputs 遵循动作 input_schema；H3二采按返回声明
 
 - `--operation progress --key plan`：build 后执行一次。先get，九阶段（preproduction/drafts/references/grids/storyboard/compiled/media/selected/final）已存在则跳过，不重复覆盖状态。
 - `--operation progress --key <stage>`：闸门判定后立即执行。脚本先跑该stage的 `validate_gate`（preproduction 由 load_production 已全量校验），PASS→completed，FAIL→blocked且note带前部错误。阶段开工用 `--inputs {"stage_id":…,"stage_name":…,"status":"running","note":…}` 显式推送。
-- `--operation archive --key script|storyboard|prompts|characters|scenes|final-package`：build 后推送定稿投影——script为dialogue_script.yaml原文；storyboard含逐镜描述、动作与selected状态；prompts含每资产draft/reference与每镜视频源稿；characters含角色/道具及 `-voice` 声音计划条目；scenes含场景布局灯光；final-package含概要、十文档哈希与QA结论。status final，先get_document读revision再CAS保存；revision冲突须重读后重推，不硬改expected_revision。定稿revision变化后重推受影响文档。
+- `--operation archive --key script|storyboard|prompts|characters|scenes|final-package`：build 后推送定稿投影——script为story_script.yaml原文；storyboard含逐镜描述、动作与selected状态；prompts含每资产draft/reference与每镜视频源稿；characters含主体/道具及按需存在的 `-voice` 声音计划条目；scenes含场景布局灯光；final-package含概要、十文档哈希与QA结论。status final，先get_document读revision再CAS保存；revision冲突须重读后重推，不硬改expected_revision。定稿revision变化后重推受影响文档。
 - `--operation archive --key continuity`：media/selected/final 里程碑用 `--inputs` 提供真实 decisions/completed/blockers/next_action 四段文本，记录已完成范围、阻断与下一步；这是给后续会话和用户的交接稿，不代替本地台账。
 - 档案内容里的 job 引用必须是本项目真实任务，网关会拒绝悬空 job_id；进度不代替闸门——UI显示completed前该stage的本地gate必须真实通过。
 
 ## 台账与恢复
 
-主制片在run_root维护 `jobs.jsonl`（逐事件追加），每项记录：event_id、时间、revision、shot_id/asset_id、operation、project_id、workspace_id、idempotency_key、输入upload_id与角色映射、实际settings、job_id/session_id、parent_job_id、attempt、status、产物URL/路径/SHA256、QA文件。交给AI时只传对应阶段卡和当前事件摘要；完整回执留在台账，不回灌主会话。
+主制片在run_root维护 `jobs.jsonl`（逐事件追加），每项记录：event_id、时间、revision、shot_id/asset_id、operation、project_id、workspace_id、idempotency_key、候选candidate_index、输入upload_id与角色映射、实际settings/seed、job_id/session_id、parent_job_id、attempt、status、产物URL/路径/SHA256、QA文件。交给AI时只传对应阶段卡和当前事件摘要；完整回执留在台账，不回灌主会话。
 
 提交前先写intent与幂等键；得到ID立刻写submitted，不等整片结束才记录。每个镜头的生成、二采、下载、QA分开记事件。无需把原始Base64或巨大工具返回存进模型上下文。
 
@@ -88,7 +97,7 @@ run_plugin_action 的 inputs 遵循动作 input_schema；H3二采按返回声明
 - confirm返回“插件已更新，请新建会话并重新确认”类409时，旧转换会话作废：该镜头以新attempt、新幂等键重新compile，重新走审核与确认，不盲目重试旧collaboration_id。confirm对已提交会话返回reused:true和原job_id时，收录该回执进台账，不重复提交。
 - 429节流后重试同一逻辑请求，不立即轰炸队列；默认最多同时有2个在途本地任务，按实际队列收敛。
 - failed保留error_info并诊断；缺模型/节点、OOM不机械重复三次。
-- 每镜草稿最多config.max_attempts_per_shot次，合格镜头不因其他镜头失败而重做。
+- 每个生成key最多config.max_attempts_per_shot个attempt；每个attempt最多4个图像候选。attempt与candidate分别记账，合格候选不因其他资产/镜头失败而重做。
 
 下载相对URL以网关origin拼接，不用客户端localhost。临时文件下载完原子改名，校验非空、SHA256和ffprobe；同一路径已有不同内容时保留版本，不覆盖。产物已完成但下载失败时重试下载，不重新生成。不能把网关服务器路径传给远程QA当本地路径。
 

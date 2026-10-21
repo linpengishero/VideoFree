@@ -18,7 +18,7 @@
 1. `film.save`（project_id、name）创建方案，保存返回 film_id。
 2. 按计划镜头顺序逐个 `film.add-clip`（job_id=该镜 selected 任务），自动入选并追加主轨。
 3. `film.get` 读取当前 revision，再 `film.save`（film_id、expected_revision、完整计划）：
-   - `clips` 按 shot 顺序，`in/out` 入出点；对白镜 `volume=100` 保留原始对白音轨，旁白/静音镜 `volume=0`；转场与 `fade_in/out` 按定稿制作计划。
+   - `clips` 按 shot 顺序，`in/out` 入出点；对白与 `h3_scene_audio` 镜头 `volume=100` 保留H3原始声音，旁白/静音镜 `volume=0`；转场与 `fade_in/out` 按定稿制作计划。
    - `audio_clips`：每个旁白镜挂已审核 TTS job_id 与绝对 `start`，先校验实际音频时长，长于镜头就调整经批准的剪辑，不截断台词。
    - `bgm_job_id` + BGM `volume`（默认18）；需要包络时拆 `audio_clips`。
    - `width/height/fps/fit` 按批准输出规格；默认不烧字幕：`captions`、`texts` 留空，`film.transcribe` 不使用，除非用户明确要字幕。
@@ -26,9 +26,9 @@
 
 ## 预览、渲染与下载
 
-1. `film.preview` 提交低画质预览，`film.get` 轮询 preview.status/progress；完成后下载 preview.url 到 run_root 加哈希。主制片与独立QA审预览：镜头顺序、对白完整、旁白替换、BGM响度、无字幕、尺寸时长。
+1. `film.preview` 提交低画质预览，`film.get` 轮询 preview.status/progress；完成后下载 preview.url 到 run_root 加哈希。主制片与独立QA审预览：故事顺序、动作连续、对白/旁白（如有）、环境声与BGM响度、字幕策略、尺寸时长。
 2. 预览通过后才 `film.render`（除非用户已明确委托预览级审核，成片审核仍不可省）。`film.get` 轮询 render.status/progress；completed 后 `render.url` 指向库内 `films/final.mp4`，立即下载原子改名、实测非空、SHA256 和 ffprobe。渲染失败残留不算成片。
-3. 实测响度、峰值和终片同步靠听检与抽帧，不能仅凭参数声称听感通过。H3对白镜必须确认音轨存在且台词完整，缺失 BLOCKED。
+3. 实测响度、峰值和终片同步靠听检与抽帧，不能仅凭参数声称听感通过。对白镜须确认台词完整；动作/环境声按设计核对；无声镜确认未意外带入声音。
 
 ## 证据与闸门
 

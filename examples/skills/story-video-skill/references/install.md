@@ -2,9 +2,9 @@
 
 ## 安装
 
-把整个 `dialogue-video-skill` 目录安装到目标智能体支持的技能目录，入口为 `SKILL.md`。必须一起携带 `references/`、`scripts/`，不是只粘贴入口文本。技能不随包任何角色资产，角色全部按剧本生成。不同平台的技能目录和子智能体接口以该平台说明为准。
+把整个 `story-video-skill` 目录安装到目标智能体支持的技能目录，入口为 `SKILL.md`。必须一起携带 `references/`、`scripts/`，不是只粘贴入口文本。技能不随包任何角色资产；角色、阵营、动作、场景和声音都按故事规划。不同平台的技能目录和子智能体接口以该平台说明为准。
 
-本包不依赖旧 `dialogue-man`、Hermes、看板服务或 `/shared` 挂载。必须同时独立安装完整 `openmontage` 包（含 `dialogue-video` 管线），保留其 AGPL-3.0 许可证、版权和来源声明；不是只复制 SKILL.md。使用其管线状态、检查点与规范产物；剪辑、混音、渲染由网关 film-studio 插件完成，不另写合成器，也不使用 OpenMontage 的 video_compose/audio_mixer。Python依赖按 OpenMontage requirements 安装，ffprobe需在PATH用于下载校验；Remotion/HyperFrames不再用于本技能合成。旧包保留供原环境使用。本包不安装模型，不另启媒体服务。具体命令见 [OpenMontage接入](openmontage.md)。
+本包不依赖旧 `dialogue-man`、Hermes、看板服务或 `/shared` 挂载。必须同时独立安装完整 `openmontage` 包，保留其 AGPL-3.0 许可证、版权和来源声明；不是只复制 SKILL.md。安装本技能提供的 `story-video` 管线集成，用于阶段状态、检查点与规范产物承载；内容结构与表达形式由故事决定。剪辑、混音、渲染由网关 film-studio 插件完成，不另写合成器，也不使用 OpenMontage 的 video_compose/audio_mixer。Python依赖按 OpenMontage requirements 安装，ffprobe需在PATH用于下载校验；Remotion/HyperFrames不再用于本技能合成。旧包保留供原环境使用。本包不安装模型，不另启媒体服务。具体命令见 [OpenMontage接入](openmontage.md)。
 
 主制片连接现有videofree MCP：`http://192.168.50.8:8765/mcp`。当前不用token。支持远程HTTP MCP的客户端填写服务名 `videofree` 与URL；部分客户端支持：
 
@@ -40,6 +40,6 @@
 - `deliver_root`：交付目录，可为run_root下的 `deliver/`。
 - 子智能体只得到必要文件的可访问副本或附件，不得到服务器磁盘路径。
 
-整个技能目录可直接复制到另一台机器。首次使用刷新技能发现，调用 `dialogue-video-skill`；示例需求：“围绕这个知识点设计两个角色对话讲解，角色形象和声音都由你按剧本生成，制作60秒竖屏视频，先完成并审核十文档定稿包，再按授权预算执行，保留对白、不要字幕；委托你审核并确认这份定稿各镜头的H3转换结果，遇到实质歧义再问我。”不确定预算、角色数量或画风时先补充要求。
+整个技能目录可直接复制到另一台机器。首次使用刷新技能发现，调用 `story-video-skill`；示例需求：“把我给的故事制作成一支3分钟长视频，题材和表现方式以故事为准，需要有追逐和打斗，也保留原故事中关键对白；先完成并审核十文档定稿包，再按已批准预算执行。委托你审核并确认每镜的H3转换结果，遇到实质歧义再问我。”也可明确要求纯动作、旁白、群戏、动画、悬疑等风格与形式；未指定的部分由技能根据故事规划，不默认生成讲解式对话。
 
 定稿格式和build命令见[定稿包](final-package.md)。production.json由脚本生成，不要求用户或智能体手写大快照。所有脚本使用与OpenMontage相同的Python环境（含其既有PyYAML依赖）。

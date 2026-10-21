@@ -37,8 +37,8 @@ def main():
         raise ValueError("Use a single portable project ID, not a path")
     if root == projects or root in projects.parents:
         raise ValueError("Projects must be outside the installed OpenMontage directory")
-    if not (root / "pipeline_defs/dialogue-video.yaml").is_file():
-        raise ValueError("Install the OpenMontage package with dialogue-video integration")
+    if not (root / "pipeline_defs/story-video.yaml").is_file():
+        raise ValueError("Install the OpenMontage package with story-video integration")
     os.environ["OPENMONTAGE_PROJECTS_DIR"] = str(projects)
     # Embedded Python may omit the script directory from sys.path.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -46,23 +46,23 @@ def main():
     from lib.checkpoint import init_project, write_checkpoint, get_next_stage
     from lib.pipeline_loader import load_pipeline
 
-    manifest = load_pipeline("dialogue-video")
+    manifest = load_pipeline("story-video")
     project = projects / args.project_id
     if project.resolve().parent != projects:
         raise ValueError("Project path escapes the selected projects root")
     marker = project / "project.json"
-    if marker.exists() and read_json(marker).get("pipeline_type") != "dialogue-video":
+    if marker.exists() and read_json(marker).get("pipeline_type") != "story-video":
         raise ValueError("Existing project belongs to a different pipeline")
     if args.command == "preflight":
         result = {"pipeline": manifest["name"], "openmontage_root": str(root)}
     elif args.command == "init":
         result = str(init_project(args.project_id, title=args.title,
-                                 pipeline_type="dialogue-video", pipeline_dir=projects))
+                                 pipeline_type="story-video", pipeline_dir=projects))
     else:
         if not marker.is_file():
             raise ValueError("Initialize this project before resuming or checkpointing")
         if args.command == "next":
-            result = get_next_stage(projects, args.project_id, pipeline_type="dialogue-video")
+            result = get_next_stage(projects, args.project_id, pipeline_type="story-video")
         elif args.command == "checkpoint":
             if args.status == "completed" and args.stage in ("assets", "edit", "compose", "publish"):
                 if args.production is None:
@@ -91,7 +91,7 @@ def main():
                             raise ValueError("Export path must be the reviewed final file")
             result = str(write_checkpoint(
                 projects, args.project_id, args.stage, args.status, read_json(args.artifacts),
-                pipeline_type="dialogue-video", human_approval_required=args.require_approval,
+                pipeline_type="story-video", human_approval_required=args.require_approval,
                 human_approved=args.approved))
     print(json.dumps(result, ensure_ascii=False, default=str))
     return 0

@@ -1,6 +1,6 @@
 # OpenMontage 接入与恢复
 
-独立安装 `openmontage` 和 `dialogue-video-skill`，无须旧 dialogue-man。完整源码、LICENSE、版权/来源文件必须随 OpenMontage 分发；本项目集成增量记录于其 `docs/dialogue-video-integration.md`，不宣称上游官方版本。先读其 AGENT_GUIDE.md 和 PROJECT_CONTEXT.md。
+独立安装 `openmontage` 和 `story-video-skill`，无须旧 dialogue-man。完整源码、LICENSE、版权/来源文件必须随 OpenMontage 分发；本项目集成增量记录于其 `docs/story-video-integration.md`，不宣称上游官方版本。这里借用其已有阶段状态和检查点能力，故事内容与表现形式由本技能定稿包决定。先读其 AGENT_GUIDE.md 和 PROJECT_CONTEXT.md。
 
 解析 `openmontage_root` 为实际安装目录，不硬编码本机路径。`projects_root` 是技能目录外的本次工作目录；网关 project_id 与本地生产ID分别记录，不假设二者自动互通。所有生成任务仍明确传网关 project_id；workspace_id 只是本地运行标识，不随网关请求发送。
 
@@ -16,7 +16,7 @@ python <bridge> --openmontage-root <openmontage_root> --projects-root <run_root>
 
 桥直接调用 `lib.pipeline_loader` 和 `lib.checkpoint`，不提供第二套状态系统。缺失依赖时报错，不自动安装或启动看板。项目ID仅字母、数字、下划线和短横线。一个ID不能切换管线。
 
-阶段顺序严格为 research → proposal → script → scene_plan → assets → edit → compose → publish。逐阶段读 `skills/pipelines/dialogue-video/director.md`，按 `schemas/artifacts/<name>.schema.json` 准备产物：research_brief、proposal_packet/decision_log、script、scene_plan、asset_manifest、edit_decisions、render_report、publish_log。文件内容不能杜撰来源或研究证据，虚构内容明确标注；schema要求不能诚实满足时暂停，不用假事实填空。
+阶段顺序严格为 research → proposal → script → scene_plan → assets → edit → compose → publish。使用本技能安装的 `story-video` 管线和导演规则，按 `schemas/artifacts/<name>.schema.json` 准备 research_brief、proposal_packet/decision_log、script、scene_plan、asset_manifest、edit_decisions、render_report、publish_log，内容以本技能的故事定稿包为准。题材、人物/主体数量、场景结构与叙事手法均由故事决定；可以使用动作、打斗、对白、旁白、环境声或它们的组合，不预设讲解者或对话结构。文件内容不能杜撰来源或研究证据，虚构内容明确标注；schema要求不能诚实满足时暂停，不用假事实填空。
 
 前期从内容定稿到制作定稿再到完整审核，十文档全部通过前不得进入assets媒体生成。原生script/scene_plan等规范产物是定稿文件的格式投影，不是独立维护的另一套剧本。production.json仅是自动索引和执行记录，桥在媒体操作前读取真实定稿并核验哈希。
 
