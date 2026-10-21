@@ -293,10 +293,10 @@
 
 .topbar-actions { display:inline-flex; align-items:center; gap:8px; margin-left:auto; padding:4px; border:1px solid #ffffff12; border-radius:9px; background:#121516cc; }
 .topbar .health-status { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 30px; margin: 0; color: #aeb5ac; font-size: 0; }
-.topbar .health-status > i { width: 8px; height: 8px; margin: 0; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px currentColor; opacity: .25; }
-.topbar .health-status.is-online { color: #9ad84a; }
-.topbar .health-status.is-warning { color: #e5b85b; }
-.topbar .health-status.is-offline { color: #ef7d7d; }
+.topbar .health-status > i { width: 9px; height: 9px; margin: 0; border-radius: 50%; color: inherit; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb,currentColor 22%,transparent); }
+.topbar .health-status.is-checking { color: #aeb5ac; }
+.topbar .health-status.is-online { color: #22c55e; }
+.topbar .health-status.is-offline { color: #ef4444; }
 .topbar .topbar-site { display: inline-flex; align-items: center; gap: 5px; height:30px; padding:0 8px; border-radius:6px; color: #9da39b; font-size: 12px; text-decoration: none; transition: color .16s ease,background .16s ease; }
 .topbar .topbar-site:hover { color: #b7f34a; }
 .topbar .topbar-site:hover { background:#b7f34a12; }

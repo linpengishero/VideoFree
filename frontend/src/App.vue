@@ -86,6 +86,7 @@ const jobs = ref([]),
   settings = ref(false),
   settingsNotice = ref(""),
   voices = ref([]);
+const comfyuiConnected = ref(null);
 const projects = ref([]);
 const currentProject = ref(null);
 const categories = ref([]);
@@ -254,13 +255,10 @@ async function restoreProjectView() {
 function handleSettingsSaved() {
   settingsNotice.value = "";
 }
-const healthClass = computed(() =>
-  health.value.includes("在线")
-    ? "is-online"
-    : health.value.includes("异常")
-      ? "is-warning"
-      : "is-offline",
-);
+const healthClass = computed(() => {
+  if (comfyuiConnected.value === null) return 'is-checking';
+  return comfyuiConnected.value ? 'is-online' : 'is-offline';
+});
 const resourcePicker = ref(null);
 const resourcePickerTypes = ref([]);
 watch(drawer, value => {
@@ -542,14 +540,21 @@ async function loadVoices() {
     voices.value = (await gateway.voices()).voices || [];
   } catch {}
 }
+let healthCheckInFlight = false;
 async function checkHealth() {
+  if (healthCheckInFlight) return;
+  healthCheckInFlight = true;
   try {
     const result = await gateway.health();
-    if (result.comfyui_status !== "ok") health.value = 'ComfyUI 离线';
+    comfyuiConnected.value = result.comfyui_status === "ok";
+    if (!comfyuiConnected.value) health.value = 'ComfyUI 离线';
     else if (Number(result.local_workers_alive) < 1) health.value = '生成服务异常';
     else health.value = 'GPU 网关在线';
   } catch {
+    comfyuiConnected.value = false;
     health.value = '网关离线';
+  } finally {
+    healthCheckInFlight = false;
   }
 }
 let timer;
