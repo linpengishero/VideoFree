@@ -14,7 +14,7 @@ async function check(base, viewport) {
     page.on('pageerror', e=>errors.push(e.message));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
     await page.addInitScript(()=>{
-      localStorage.setItem('zizai-open-project-id','project-ui');
+      localStorage.setItem('videofree-open-project-id','project-ui');
       localStorage.setItem('film-local-assets:project-ui',JSON.stringify([{
         path:'project-ui/.plugins/film-studio/imports/still.png',name:'still.png',type:'image',managed:true,
         url:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="18"%3E%3Crect width="32" height="18" fill="red"/%3E%3C/svg%3E',

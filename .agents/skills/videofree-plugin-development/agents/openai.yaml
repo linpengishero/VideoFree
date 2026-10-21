@@ -1,4 +1,4 @@
 interface:
-  display_name: "VideoFree Plugin Development"
-  short_description: "Build and validate self-contained VideoFree plugins"
-  default_prompt: "Use $videofree-plugin-development to locate or obtain VideoFree, then build a self-contained plugin from my ComfyUI workflow(s) or product idea with a complete dependency installation guide."
+  display_name: "VideoFree Studio Plugin Development"
+  short_description: "Build and validate self-contained VideoFree Studio plugins"
+  default_prompt: "Use $videofree-plugin-development to locate or obtain VideoFree Studio, then build a self-contained plugin from my ComfyUI workflow(s) or product idea with a complete dependency installation guide."

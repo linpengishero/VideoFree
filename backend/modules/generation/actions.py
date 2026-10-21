@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -250,6 +250,7 @@ def _prepare_generation_action(source: dict[str, Any], action: dict[str, Any],
     upload_id = uuid.uuid4().hex
     context.paths.uploads.mkdir(parents=True, exist_ok=True)
     shutil.copy2(path, context.paths.uploads / f"{upload_id}{path.suffix.lower()}")
+    context.db.register_upload(upload_id)
     value = f"upload:{upload_id}"
     params = {
         "capability_id": action["capability_id"], "plugin_parameters": options["parameters"],

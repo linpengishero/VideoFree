@@ -1,14 +1,14 @@
-# VideoFree Source Provenance and Release Evidence
+# VideoFree Studio Source Provenance and Release Evidence
 
 **English** · [中文](#中文说明)
 
 ## Scope and Source
 
-VideoFree is an independently maintained personal project. Its public source and
+VideoFree Studio is an independently maintained personal project. Its public source and
 history are available at:
 
-- https://github.com/linpengishero/VideoFree
-- https://gitee.com/heroofgod_admin/videofree
+- https://github.com/linpengishero/VideoFreeStudio
+- https://gitee.com/heroofgod_admin/videofreestudio
 
 See [LICENSE](../LICENSE), [NOTICE](../NOTICE), the
 [commercial licensing notice](../COMMERCIAL_LICENSE.md), and
@@ -25,7 +25,7 @@ remote-disable mechanism added by this documentation change.
 
 - Preserve applicable copyright and license notices when copying or modifying
   covered files, as required by their licenses. Do not replace another author's
-  attribution with VideoFree attribution.
+  attribution with VideoFree Studio attribution.
 - For future file-header work, check each file's authorship, imported portions,
   and existing license first. Use the actual rights holder and an SPDX identifier
   matching the license grant; do not guess between `AGPL-3.0-only` and
@@ -109,10 +109,10 @@ has cleared third-party rights. Obtain qualified legal review for binding contra
 
 ## 范围与来源
 
-VideoFree 是个人维护的独立项目，公开源码和历史位于：
+VideoFree Studio 是个人维护的独立项目，公开源码和历史位于：
 
-- https://github.com/linpengishero/VideoFree
-- https://gitee.com/heroofgod_admin/videofree
+- https://github.com/linpengishero/VideoFreeStudio
+- https://gitee.com/heroofgod_admin/videofreestudio
 
 适用文件为 [LICENSE](../LICENSE)、[NOTICE](../NOTICE)、
 [商业授权说明](../COMMERCIAL_LICENSE_ZH.md)及[第三方声明](../THIRD_PARTY_NOTICES_ZH.md)。
@@ -124,7 +124,7 @@ AGPL 接收者附加限制。
 
 ## 版权标识规范
 
-- 复制、修改相关文件时，按适用许可证保留必要的版权和许可声明，不把第三方署名替换成 VideoFree。
+- 复制、修改相关文件时，按适用许可证保留必要的版权和许可声明，不把第三方署名替换成 VideoFree Studio。
 - 后续补源码版权头前，逐文件核查作者、引用代码和既有许可。使用真实权利人和与许可授权一致的
   SPDX 标识，不擅自选择 `AGPL-3.0-only` 或 `AGPL-3.0-or-later`。
   根目录的许可证文本不能替代逐文件权属审计。

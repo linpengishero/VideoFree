@@ -1,0 +1,190 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { t, path } from '../lib/i18n';
+import { icons } from '../lib/icons';
+
+const { lang } = Astro.props;
+const zh = lang !== 'en';
+
+const c = zh
+  ? {
+      title: '无限画布 · VideoFree Studio',
+      desc: 'VideoFree Studio 无限画布：把生图、视频、语音、智能体与资源处理连成一条自动执行的制作流水线。画布是插件应用，节点也是插件，现有生成能力直接接入。',
+      eyebrow: 'INFINITE CANVAS · 开发中',
+      h1: '无限画布',
+      badge: '开发中 · 与官网同步发布',
+      lead: '在无限画布上，把生图、视频、语音、智能体和资源处理连成一条自动执行的制作流水线：拖入节点、连接端口、配置参数、一键运行。画布本身是一个插件应用，节点也是插件，现有生成能力直接接入——插件平台再向外长一层，框架依然保持轻薄。',
+      archEyebrow: '三层设计',
+      archTitle: '画布是应用，节点是插件，能力直接接入',
+      archDesc: '画布编辑、节点业务都不进入框架。框架只增加通用的节点发现、节点调用和安全资源导入协议。',
+      arch: [
+        { icon: 'window', title: '画布本身是插件应用', desc: '无限画布以应用插件形态注册，负责画布编辑、工作流保存、导入导出和调度执行。它不是框架内置功能，卸载画布不影响任何生成能力。' },
+        { icon: 'network', title: '节点也是插件', desc: '新增 canvas_node 插件类型，提供智能体、资源处理和控制逻辑节点。画布节点只出现在画布的节点面板，不进入能力选择器、生成操作栏或 MCP 工具列表。' },
+        { icon: 'plug', title: '现有生成能力直接接入', desc: '已注册的图片、视频、音频能力由画布自动包装成通用生成节点，执行时走框架的 Schema 校验、队列与项目归档，不必为每个模型重复写节点。' },
+      ],
+      nodeEyebrow: '节点生态',
+      nodeTitle: '四类节点，覆盖一条完整流水线',
+      nodeDesc: '端口类型稳定且可版本化（文本、JSON、图像、视频、音频、任务等），连线时校验类型兼容，不静默转换。',
+      nodes: [
+        { icon: 'sliders', title: '基础控制', desc: '文本、数字、布尔输入，文本模板与拼接拆分，JSON 解析与结构校验，条件分支、汇合与并行分支。' },
+        { icon: 'image', title: '资源导入', desc: '浏览并选取项目素材库中的图片、视频、音频；从本地电脑上传；导入外部公开资源；把结果写回项目素材库。' },
+        { icon: 'sparkle', title: '智能体节点', desc: '结构化剧本与文案生成、分镜规划、提示词整理与审核、受约束的 AI 决策。输出必须通过 JSON Schema 校验，可调用的能力按白名单声明。' },
+        { icon: 'package', title: '生成能力节点', desc: '选择 capability_id，接入提示词端口与能力声明的素材输入，配置参数和默认值——复用现有生成插件，不复制任何生成代码。' },
+      ],
+      shareEyebrow: '工作流分享',
+      shareTitle: '工作流是 JSON，可以带走',
+      shareDesc: '工作流的规范载体是 JSON 文档：画布把它保存为项目内文档，也支持独立导入导出。',
+      shareList: [
+        '单独分享用 *.vfworkflow.json，包含图结构和资源引用，不含实际媒体；连小型固定素材一起分享时用 .vfworkflow 素材包。',
+        '分享文件不包含 API Key、系统令牌、绝对路径或临时上传凭证；素材只保存逻辑引用、类型、名称和 SHA256。',
+        '导入时校验格式版本、节点与端口存在性、依赖插件与版本兼容、连线类型、必填输入和环路；缺失素材由用户重新绑定。',
+        '缺少插件时提示安装依赖，绝不自动下载或执行插件代码。',
+      ],
+      runEyebrow: '执行与恢复',
+      runTitle: '失败不用从头再来',
+      runDesc: '工作流定义和每次运行分开保存，运行是可恢复的一等公民。',
+      runList: [
+        '调度器按拓扑顺序执行，互不依赖的分支并行运行，并设并发上限。',
+        '节点失败时默认停止其下游，已成功节点的输出全部保留；重试只重跑失败节点及其下游。',
+        '只有声明幂等的节点才允许自动重试；生成任务可真正取消。',
+        '运行记录保存插件版本、节点版本和工作流快照，插件更新不会悄悄改变旧流程的行为。',
+      ],
+      safeNote: '安全边界：第一版不做任意代码节点、不支持无限循环、不自动安装依赖；外部 URL 导入严格防 SSRF（拒绝内网与云元数据地址、校验 DNS 与重定向、限制协议大小与时长）；AI 不会在无确认的情况下批量启动高成本任务。',
+      ctaTitle: '先看看现在的插件平台',
+      ctaDesc: '画布随新版本发布。现在就可以把能力做成插件，画布上线后直接成为节点。',
+    }
+  : {
+      title: 'Infinite Canvas · VideoFree Studio',
+      desc: 'VideoFree Studio Infinite Canvas: wire image, video, speech, agent, and resource nodes into one auto-executing production pipeline. The canvas is a plugin app, nodes are plugins too, and existing generation capabilities plug in directly.',
+      eyebrow: 'INFINITE CANVAS · IN DEVELOPMENT',
+      h1: 'Infinite Canvas',
+      badge: 'In development · ships with the site launch',
+      lead: 'On an infinite canvas, connect image, video, speech, agent, and resource processing into one auto-executing production pipeline: drop nodes, wire ports, set parameters, run. The canvas itself is a plugin app, nodes are plugins too, and existing generation capabilities plug in directly — the plugin platform grows one layer further while the framework stays thin.',
+      archEyebrow: 'THREE-LAYER DESIGN',
+      archTitle: 'The canvas is an app, nodes are plugins, capabilities plug in',
+      archDesc: 'Neither canvas editing nor node business logic enters the framework. The framework only adds generic node discovery, node invocation, and safe asset import protocols.',
+      arch: [
+        { icon: 'window', title: 'The canvas is a plugin app', desc: 'Infinite Canvas registers as an application plugin, owning canvas editing, workflow storage, import/export, and execution scheduling. It is not built into the framework — removing it never affects generation.' },
+        { icon: 'network', title: 'Nodes are plugins too', desc: 'A new canvas_node plugin type ships agent, resource, and control-logic nodes. Canvas nodes appear only in the canvas node panel — never in capability pickers, job toolbars, or the MCP tool list.' },
+        { icon: 'plug', title: 'Existing capabilities plug in', desc: 'Registered image, video, and audio capabilities are wrapped automatically as generic generation nodes, running through the framework\'s schema validation, queues, and project archiving — no per-model node code.' },
+      ],
+      nodeEyebrow: 'NODE ECOSYSTEM',
+      nodeTitle: 'Four node families cover a full pipeline',
+      nodeDesc: 'Port types are stable and versioned (text, JSON, image, video, audio, job, and more); connections are type-checked, never silently converted.',
+      nodes: [
+        { icon: 'sliders', title: 'Core control', desc: 'Text, number, and boolean inputs; text templates, joins, and splits; JSON parsing and structure validation; conditional branches, merges, and parallel branches.' },
+        { icon: 'image', title: 'Resource import', desc: 'Browse and pick images, video, and audio from the project library; upload from your computer; import public external resources; write results back into the project library.' },
+        { icon: 'sparkle', title: 'Agent nodes', desc: 'Structured script and copy writing, storyboard planning, prompt review, and constrained AI decisions. Outputs must pass JSON Schema validation, and callable capabilities are declared by allowlist.' },
+        { icon: 'package', title: 'Generation nodes', desc: 'Pick a capability_id, wire the prompt port and declared media inputs, set parameters and defaults — reusing existing plugins without copying any generation code.' },
+      ],
+      shareEyebrow: 'WORKFLOW SHARING',
+      shareTitle: 'Workflows are JSON — take them anywhere',
+      shareDesc: 'The canonical carrier of a workflow is a JSON document: the canvas saves it as a project document and supports standalone import and export.',
+      shareList: [
+        'Share graphs alone as *.vfworkflow.json — graph structure and asset references, no actual media; optionally bundle small fixed assets in a .vfworkflow package.',
+        'Shared files never contain API keys, system tokens, absolute paths, or temporary upload credentials; assets keep only logical references, type, name, and SHA256.',
+        'Import validates format version, node and port existence, required plugins and version compatibility, connection types, required inputs, and cycles; missing assets are rebound by the user.',
+        'A missing plugin triggers an install hint — never an automatic download or code execution.',
+      ],
+      runEyebrow: 'EXECUTION & RECOVERY',
+      runTitle: 'Failures never start you over',
+      runDesc: 'Workflow definitions and individual runs are stored separately — a run is a first-class, recoverable object.',
+      runList: [
+        'The scheduler runs in topological order; independent branches execute in parallel under a concurrency cap.',
+        'A failed node stops its downstream by default while successful outputs are kept; retry reruns only the failed node and its downstream.',
+        'Only nodes declared idempotent may auto-retry; generation jobs can be genuinely cancelled.',
+        'Run records snapshot plugin versions, node versions, and the workflow itself, so plugin updates never silently change old pipelines.',
+      ],
+      safeNote: 'Safety boundaries: no arbitrary-code nodes and no unbounded loops in the first version; external URL import is strictly SSRF-guarded (internal and cloud-metadata addresses rejected, DNS and redirects validated, protocol, size, and time limited); AI never batch-launches expensive jobs without confirmation.',
+      ctaTitle: 'Explore the plugin platform today',
+      ctaDesc: 'The canvas ships with the next release. Build your capabilities as plugins now, and they become nodes the day it lands.',
+    };
+---
+
+<BaseLayout {lang} title={c.title} description={c.desc} current="canvas">
+  <div class="page-canvas">
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">{c.eyebrow}</span>
+        <h2 style="margin-top:14px;">{c.h1} <span class="badge-soon">{c.badge}</span></h2>
+        <p>{c.lead}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">{c.archEyebrow}</span>
+        <h2>{c.archTitle}</h2>
+        <p>{c.archDesc}</p>
+      </div>
+      <div class="card-grid cols-3">
+        {c.arch.map((f) => (
+          <article class="card">
+            <span class="mark" set:html={icons[f.icon]} />
+            <h3>{f.title}</h3>
+            <p>{f.desc}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">{c.nodeEyebrow}</span>
+        <h2>{c.nodeTitle}</h2>
+        <p>{c.nodeDesc}</p>
+      </div>
+      <div class="card-grid">
+        {c.nodes.map((f) => (
+          <article class="card">
+            <span class="mark" set:html={icons[f.icon]} />
+            <h3>{f.title}</h3>
+            <p>{f.desc}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">{c.shareEyebrow}</span>
+        <h2>{c.shareTitle}</h2>
+        <p>{c.shareDesc}</p>
+      </div>
+      <ul class="prose" style="margin:0; padding-left:22px; color:#b6beb8; font-size:14.5px; line-height:2;">
+        {c.shareList.map((li) => <li>{li}</li>)}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">{c.runEyebrow}</span>
+        <h2>{c.runTitle}</h2>
+        <p>{c.runDesc}</p>
+      </div>
+      <ul class="prose" style="margin:0; padding-left:22px; color:#b6beb8; font-size:14.5px; line-height:2;">
+        {c.runList.map((li) => <li>{li}</li>)}
+      </ul>
+      <div class="note prose" style="margin-top:26px;">{c.safeNote}</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap" style="text-align:center;">
+      <h2 style="margin:0 0 10px; font-size:28px;">{c.ctaTitle}</h2>
+      <p style="color:var(--muted); margin:0 0 26px;">{c.ctaDesc}</p>
+      <a class="solid-button" href={path(lang, 'download')}>{zh ? '下载 VideoFree Studio' : 'Download VideoFree Studio'} →</a>
+      <a class="outline-button" href={path(lang, 'guide', 'plugin-dev')} style="margin-left:12px;">{zh ? '插件教程' : 'Plugin guide'}</a>
+    </div>
+  </section>
+  </div>
+</BaseLayout>

@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -374,6 +374,8 @@ def run_tts(job_id: str, request: TTSRequest) -> list[Path]:
         prune_workflow(workflow, config.get("output_nodes", []))
     pid = context.jobs[job_id].get("comfy_prompt_id")
     if not pid:
+        snapshot = task_directory(job_id) / "config" / "workflow_snapshot.json"
+        snapshot.write_text(json.dumps({"registry": config, "workflow": workflow}, ensure_ascii=False, indent=2), encoding="utf-8")
         result = comfy("/prompt", "POST", json.dumps({"prompt": workflow, "client_id": job_id}).encode())
         pid = result.get("prompt_id")
         if not pid:

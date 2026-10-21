@@ -1,16 +1,18 @@
-# VideoFree
+# VideoFree Studio
 
 [English](README.md) · **中文**
 
 当前版本：`2.0.0`
 
+官方网站：[videofreestudio.com](https://videofreestudio.com)
+
 **把零散、复杂的本地 AI 工作流，变成普通用户能使用、开发者能分发、Agent 能稳定调用的完整创作能力。**
 
-VideoFree 是一个面向本地 AI 视频创作的工作台、能力网关和插件平台。它以 ComfyUI 作为底层生成引擎，但不要求用户直接面对复杂的节点连线、模型路径和零散工作流。VideoFree 将模型、工作流、参数界面、提示词技能和配套资源封装成可安装插件，再用统一的项目、分类、素材和任务系统组织整个创作过程。
+VideoFree Studio 是一个面向本地 AI 视频创作的工作台、能力网关和插件平台。它以 ComfyUI 作为底层生成引擎，但不要求用户直接面对复杂的节点连线、模型路径和零散工作流。VideoFree Studio 将模型、工作流、参数界面、提示词技能和配套资源封装成可安装插件，再用统一的项目、分类、素材和任务系统组织整个创作过程。
 
 普通用户可以在工作台中完成创作，外部 Agent 可以通过 MCP 或 HTTP API 使用同一套插件能力、项目数据和本地素材。
 
-## 为什么需要 VideoFree
+## 为什么需要 VideoFree Studio
 
 ### 从云端转向本地，首先面对的是混乱
 
@@ -18,25 +20,25 @@ VideoFree 是一个面向本地 AI 视频创作的工作台、能力网关和插
 
 即使下载了工作流，也经常遇到缺少节点、模型路径不一致、参数含义不清楚和版本不兼容。用户需要先成为“工作流维护者”，才能开始真正的内容创作。
 
-VideoFree 不替代 ComfyUI，而是在它之上建立一层稳定的产品能力。开发者可以将已经调试好的工作流制作成插件，把工作流、输入规则、模型参数、专用编译逻辑和依赖说明放在一起。用户安装插件后，可以像使用普通创作软件一样选择能力，而不必理解内部节点。
+VideoFree Studio 不替代 ComfyUI，而是在它之上建立一层稳定的产品能力。开发者可以将已经调试好的工作流制作成插件，把工作流、输入规则、模型参数、专用编译逻辑和依赖说明放在一起。用户安装插件后，可以像使用普通创作软件一样选择能力，而不必理解内部节点。
 
 ### 降低不同模型的提示词学习成本
 
 图片、视频、语音和音乐模型拥有不同的提示词格式、参考素材要求和参数限制。同一句自然语言需求，交给不同模型往往需要完全不同的写法。
 
-每个 VideoFree 插件可以携带自己的模型知识和协作技能。用户只需要用大白话描述想要的画面、动作、对白或音乐，智能协作就能根据当前模型和生成模式进行追问、检查素材关系，并整理为模型真正需要的执行稿。增加新模型时，它的特殊规则仍留在插件中，不会继续堆进主程序。
+每个 VideoFree Studio 插件可以携带自己的模型知识和协作技能。用户只需要用大白话描述想要的画面、动作、对白或音乐，智能协作就能根据当前模型和生成模式进行追问、检查素材关系，并整理为模型真正需要的执行稿。增加新模型时，它的特殊规则仍留在插件中，不会继续堆进主程序。
 
 ### 解决本地创作的文件和素材混乱
 
 ComfyUI 擅长执行工作流，但不是完整的视频项目管理工具。生成的图片、视频、声音和中间文件容易混在输出目录中，剧本、文案、提示词和参考素材又散落在文档、聊天记录与文件夹里。
 
-VideoFree 使用“项目—分类—素材”组织创作：项目可以对应一部影片或一个系列，分类可以对应某一集、章节或镜头组；最终素材自动归档，任务记录保留输入来源、生成参数、能力和重新生成关系，人物、场景与声音等项目资产可以反复使用。剧本、分镜、制作进度等业务数据还可以由项目插件管理，并始终跟随当前项目或分类上下文。
+VideoFree Studio 使用“项目—分类—素材”组织创作：项目可以对应一部影片或一个系列，分类可以对应某一集、章节或镜头组；最终素材自动归档，任务记录保留输入来源、生成参数、能力和重新生成关系，人物、场景与声音等项目资产可以反复使用。剧本、分镜、制作进度等业务数据还可以由项目插件管理，并始终跟随当前项目或分类上下文。
 
 ### 让 Agent 稳定使用 ComfyUI 工作流
 
 直接让 Agent 操作原始 ComfyUI 工作流并不稳定。Agent 必须理解节点编号、输入连接、模型文件和工作流版本，任何细节变化都可能导致调用失败。
 
-VideoFree 把工作流转换为带固定能力 ID、输入 Schema 和执行契约的接口。Agent 只需要发现能力、上传素材、提交参数并查询任务；平台负责工作流选择、参数校验、素材绑定、排队、恢复、错误报告和结果归档。工作台、MCP 与 HTTP API 共用同一个能力目录和任务服务，不是三套生成实现。
+VideoFree Studio 把工作流转换为带固定能力 ID、输入 Schema 和执行契约的接口。Agent 只需要发现能力、上传素材、提交参数并查询任务；平台负责工作流选择、参数校验、素材绑定、排队、恢复、错误报告和结果归档。工作台、MCP 与 HTTP API 共用同一个能力目录和任务服务，不是三套生成实现。
 
 ### 让工作流成为可以安装和复用的产品
 
@@ -46,28 +48,28 @@ VideoFree 把工作流转换为带固定能力 ID、输入 Schema 和执行契�
 
 - [插件开发指南](plugins/PLUGIN_DEVELOPMENT.md)
 - [插件协议](docs/plugin-protocol.md)
-- [VideoFree 插件开发 Skill](.agents/skills/videofree-plugin-development/SKILL.md)
+- [VideoFree Studio 插件开发 Skill](.agents/skills/videofree-plugin-development/SKILL.md)
 
-纯声明式生成插件安装时只需复制完整插件目录并重启网关。带独立 UI 的应用插件应在插件目录内构建和分发自己的 `ui/dist/`，无需修改 VideoFree 主前端。
+纯声明式生成插件安装时只需复制完整插件目录并重启网关。带独立 UI 的应用插件应在插件目录内构建和分发自己的 `ui/dist/`，无需修改 VideoFree Studio 主前端。
 
 ## 许可证与第三方边界
 
 项目来源标识、发布留证、商业交付记录与贡献者授权流程见[来源与留证规范](docs/source-provenance.md#中文说明)，版权和仓库来源见 [NOTICE](NOTICE)。
 
-VideoFree 自有源代码按 [GNU AGPL-3.0](LICENSE) 发布，可先阅读[中文许可证说明](LICENSE_ZH.md)。需要闭源集成、企业部署、白标、技术支持或定制开发时，可查看[商业授权说明](COMMERCIAL_LICENSE_ZH.md)。
+VideoFree Studio 自有源代码按 [GNU AGPL-3.0](LICENSE) 发布，可先阅读[中文许可证说明](LICENSE_ZH.md)。需要闭源集成、企业部署、白标、技术支持或定制开发时，可查看[商业授权说明](COMMERCIAL_LICENSE_ZH.md)。
 
-ComfyUI、社区节点、模型、LoRA、字体、FFmpeg 及其他资源不属于 VideoFree 的统一授权范围，请遵守各自许可证。剪辑功能属于 `plugins/film-studio/` 应用插件，要求用户自行安装 FFmpeg/ffprobe 并加入系统 `PATH`，仓库不分发其二进制文件；详见[剪辑插件安装说明](plugins/film-studio/INSTALL.md)。`.agents/skills/openmontage/` 是独立的自动化视频制作技能，不是剪辑插件的运行依赖。详见[第三方组件说明](THIRD_PARTY_NOTICES_ZH.md)。
+ComfyUI、社区节点、模型、LoRA、字体、FFmpeg 及其他资源不属于 VideoFree Studio 的统一授权范围，请遵守各自许可证。剪辑功能属于 `plugins/film-studio/` 应用插件，要求用户自行安装 FFmpeg/ffprobe 并加入系统 `PATH`，仓库不分发其二进制文件；详见[剪辑插件安装说明](plugins/film-studio/INSTALL.md)。`examples/skills/openmontage/` 是独立的自动化视频制作技能，不是剪辑插件的运行依赖。详见[第三方组件说明](THIRD_PARTY_NOTICES_ZH.md)。
 
 ## AI军火库与知识星球
 
 - **AI军火库 · 前沿 AI 技术网站**：[laobanclaw.top](https://laobanclaw.top/)，关注前沿 AI 技术与实际应用。
 - **知识星球**：分享各类 AI 视频自动化流水线，以及 AI、智能体与大模型专业知识。点击二维码可放大查看。
-- **VideoFree 微信交流群**：交流本地模型、插件开发、工作流封装和 AI 视频创作。二维码失效时可前往 [laobanclaw.top](https://laobanclaw.top/) 获取最新入口。
+- **VideoFree Studio 微信交流群**：交流本地模型、插件开发、工作流封装和 AI 视频创作。二维码失效时可前往 [laobanclaw.top](https://laobanclaw.top/) 获取最新入口。
 
 <table>
   <tr>
     <td align="center"><strong>知识星球</strong><br /><a href="frontend/public/contact/zsxq-qr.png"><img src="frontend/public/contact/zsxq-qr.png" alt="知识星球二维码" width="220" /></a></td>
-    <td align="center"><strong>VideoFree 微信交流群</strong><br /><a href="https://laobanclaw.top/videofree/qrcode.jpg"><img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree 微信交流群二维码" width="220" /></a></td>
+    <td align="center"><strong>VideoFree Studio 微信交流群</strong><br /><a href="https://laobanclaw.top/videofree/qrcode.jpg"><img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree Studio 微信交流群二维码" width="220" /></a></td>
   </tr>
 </table>
 
@@ -90,7 +92,7 @@ ComfyUI、社区节点、模型、LoRA、字体、FFmpeg 及其他资源不属�
 
 Windows 解压完整发布包后，直接双击 `videofree.bat`。程序使用随包附带的 Python，启动成功后会自动打开创作页面，不要求用户安装 Python 或 Node.js。Linux 源码部署先安装 `requirements.txt`，执行 `chmod +x videofree.sh`，再运行 `./videofree.sh`。
 
-剪辑插件要求系统 `PATH` 中可以执行 `ffmpeg` 和 `ffprobe`，仓库不提交或自动下载这两个程序。请从 [FFmpeg 官方下载页](https://ffmpeg.org/download.html)安装，并在启动 VideoFree 的同一环境执行 `ffmpeg -version`、`ffprobe -version` 验证；各平台步骤见[剪辑插件安装说明](plugins/film-studio/INSTALL.md)。
+剪辑插件要求系统 `PATH` 中可以执行 `ffmpeg` 和 `ffprobe`，仓库不提交或自动下载这两个程序。请从 [FFmpeg 官方下载页](https://ffmpeg.org/download.html)安装，并在启动 VideoFree Studio 的同一环境执行 `ffmpeg -version`、`ffprobe -version` 验证；各平台步骤见[剪辑插件安装说明](plugins/film-studio/INSTALL.md)。
 
 首次使用请在网页设置中填写 ComfyUI 网关地址。项目资源默认保存在 `data/projects/`，也可在“设置 → 基础设置”指定其他本地目录；修改后只读写新目录，不迁移或继续读取旧目录。需要通过环境变量覆盖配置时，可将 `.env.example` 复制为 `.env`。
 
@@ -98,7 +100,7 @@ Windows 解压完整发布包后，直接双击 `videofree.bat`。程序使用�
 
 ## 基本配置教程
 
-网页图文教程：启动 VideoFree 后，可在首页进入安装部署、MCP、全自动技能包和插件开发四个教程。对应地址为 `?guide=install`、`?guide=mcp`、`?guide=skills` 和 `?guide=plugin`；局域网使用时将 `127.0.0.1` 替换为网关电脑的实际 IP。教程包含工作台示例、可交给智能体的安装指令和插件开发 Skill。
+网页图文教程：启动 VideoFree Studio 后，可在首页进入安装部署、MCP、全自动技能包和插件开发四个教程。对应地址为 `?guide=install`、`?guide=mcp`、`?guide=skills` 和 `?guide=plugin`；局域网使用时将 `127.0.0.1` 替换为网关电脑的实际 IP。教程包含工作台示例、可交给智能体的安装指令和插件开发 Skill。
 
 ### 1. 准备并启动 ComfyUI
 
@@ -140,7 +142,7 @@ MEDIA_GATEWAY_TOKEN=
 - **显存不足**：先降低分辨率或时长；不同模型和后处理阶段的显存需求不同，配套整合包不保证所有尺寸都能在任意显卡运行。
 - **网关在线但无法生成**：网关与 ComfyUI 是两个进程，分别检查连接地址、ComfyUI 状态及任务报错。
 
-如需让外部 AI 调用，使用 `.agents/skills/zizai-creation` 中的技能与客户端，并将网关地址配置为调用设备可访问的地址。接口及可用能力以 `/api/v2/capabilities` 返回为准。
+如需让外部 AI 调用，使用 `examples/skills/videofree-creation` 中的技能与客户端，并将网关地址配置为调用设备可访问的地址。接口及可用能力以 `/api/v2/capabilities` 返回为准。
 
 ## API
 
@@ -160,13 +162,13 @@ H3 生成与二采的最终保存链路在提交前统一编译为 VideoHelperSu
 
 面向 AI 的稳定接口位于 `/api/v2`。先调用 `/api/v2/capabilities` 发现当前可用能力，再通过 `/api/v2/uploads` 上传素材，最后向 `/api/v2/generations` 提交能力 ID、素材角色、比例和命名分辨率。该接口不会暴露 ComfyUI 节点、工作流文件或模型路径。
 
-声音、音乐和图片预设分别通过 `/api/v2/voices`、`/api/v2/music/*` 和 `/api/v2/image/styles` 查询。AI 调用 Skill 位于 `.agents/skills/zizai-creation`，其中包含无第三方依赖的命令行客户端。
+声音、音乐和图片预设分别通过 `/api/v2/voices`、`/api/v2/music/*` 和 `/api/v2/image/styles` 查询。AI 调用 Skill 位于 `examples/skills/videofree-creation`，其中包含无第三方依赖的命令行客户端。
 
-支持 MCP 的其他 AI 可使用 [MCP 安装与使用指南](.agents/skills/zizai-creation/references/mcp-install.md)，该文件可单独转发。局域网入口为 `http://127.0.0.1:8765/mcp`，随网关启动，不需要额外服务；原有 REST 技能保留。
+支持 MCP 的其他 AI 可使用 [MCP 安装与使用指南](examples/skills/videofree-creation/references/mcp-install.md)，该文件可单独转发。局域网入口为 `http://127.0.0.1:8765/mcp`，随网关启动，不需要额外服务；原有 REST 技能保留。
 
 ### 双主持人视频技能
 
-[dialogue-video-skill](.agents/skills/dialogue-video-skill/SKILL.md) 与独立的 [OpenMontage](.agents/skills/openmontage/SKILL.md) 整包安装：主制片使用媒体 MCP，宿主原生子智能体负责剧本、分镜和独立 QA；OpenMontage 原生工具负责剪辑、混音、渲染和阶段检查点，不另写合成器。包含固定角色及声音参考、合同校验和原生接入桥；不依赖 Hermes，原 `dialogue-man` 保留。OpenMontage 完整源码、AGPL-3.0许可证及版权声明保持随包分发，集成增量见其文档。安装和权限配置见 [安装说明](.agents/skills/dialogue-video-skill/references/install.md)。长镜允许按实际可用能力二采，不再使用八秒禁用规则。
+[dialogue-video-skill](examples/skills/dialogue-video-skill/SKILL.md) 与独立的 [OpenMontage](examples/skills/openmontage/SKILL.md) 整包安装：主制片使用媒体 MCP，宿主原生子智能体负责剧本、分镜和独立 QA；OpenMontage 原生工具负责剪辑、混音、渲染和阶段检查点，不另写合成器。包含固定角色及声音参考、合同校验和原生接入桥；不依赖 Hermes，原 `dialogue-man` 保留。OpenMontage 完整源码、AGPL-3.0许可证及版权声明保持随包分发，集成增量见其文档。安装和权限配置见 [安装说明](examples/skills/dialogue-video-skill/references/install.md)。长镜允许按实际可用能力二采，不再使用八秒禁用规则。
 
 ### 安装示例技能
 
@@ -174,14 +176,14 @@ H3 生成与二采的最终保存链路在提交前统一编译为 VideoHelperSu
 
 | 技能 | 仓库位置 | 职责 |
 | --- | --- | --- |
-| dialogue-video-skill | `.agents/skills/dialogue-video-skill/` | 主制片、固定主持人与音色、分镜、独立QA及交付 |
-| openmontage | `.agents/skills/openmontage/` | 原生剪辑、混音、渲染与阶段检查点 |
+| dialogue-video-skill | `examples/skills/dialogue-video-skill/` | 主制片、固定主持人与音色、分镜、独立QA及交付 |
+| openmontage | `examples/skills/openmontage/` | 原生剪辑、混音、渲染与阶段检查点 |
 
-1. 两个技能目录建议同级放置。保留资产、脚本、参考文档，以及 OpenMontage 完整源码、AGPL-3.0许可证和版权声明。旧 `dialogue-man` 是原环境版本，不是新技能的依赖。`zizai-creation` 是作者自用的直接接口调用技能，不是本示例的依赖，公开使用者无需安装。
+1. 两个技能目录建议同级放置。保留资产、脚本、参考文档，以及 OpenMontage 完整源码、AGPL-3.0许可证和版权声明。旧 `dialogue-man` 是原环境版本，不是新技能的依赖。`videofree-creation` 是作者自用的直接接口调用技能，不是本示例的依赖，公开使用者无需安装。
 2. 安装 Python 3.10+ 和 FFmpeg，确保 `python`、`ffmpeg`、`ffprobe` 可执行。在智能体使用的 Python 环境运行 `python -m pip install -r <技能目录>/openmontage/requirements.txt`。只有选择 Remotion/HyperFrames 渲染时，才按 OpenMontage 原文档配置对应 Node 依赖。
-3. 启动 videofree 网关，给主制片配置 MCP 地址 `http://<网关电脑IP>:8765/mcp`，例如 `http://192.168.50.8:8765/mcp`。同机可用 `127.0.0.1`，其他设备不能用它。客户端配置格式见 [技能安装说明](.agents/skills/dialogue-video-skill/references/install.md)及当前智能体的 HTTP MCP 配置文档。媒体生成由主制片直接调用 MCP，不经过其他技能。
+3. 启动 videofree 网关，给主制片配置 MCP 地址 `http://<网关电脑IP>:8765/mcp`，例如 `http://192.168.50.8:8765/mcp`。同机可用 `127.0.0.1`，其他设备不能用它。客户端配置格式见 [技能安装说明](examples/skills/dialogue-video-skill/references/install.md)及当前智能体的 HTTP MCP 配置文档。媒体生成由主制片直接调用 MCP，不经过其他技能。
 4. 刷新智能体的技能发现，让它读取 dialogue-video-skill 的安装指南。支持子智能体的宿主应只给主制片媒体工具，QA只读必要材料；缺乏独立审核能力时需明确说明，不冒充独立QA通过。
-5. 验证固定资产：`python <技能目录>/dialogue-video-skill/scripts/validate.py assets <技能目录>/dialogue-video-skill`。生产输出放到技能目录外的独立工作目录；首次运行按 [OpenMontage接入说明](.agents/skills/dialogue-video-skill/references/openmontage.md) 执行 preflight 和 init。
+5. 验证固定资产：`python <技能目录>/dialogue-video-skill/scripts/validate.py assets <技能目录>/dialogue-video-skill`。生产输出放到技能目录外的独立工作目录；首次运行按 [OpenMontage接入说明](examples/skills/dialogue-video-skill/references/openmontage.md) 执行 preflight 和 init。
 
 示例请求：
 

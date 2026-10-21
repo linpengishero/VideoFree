@@ -1,6 +1,6 @@
 # FFmpeg 外部依赖与许可说明
 
-剪辑插件使用用户自行安装的 `ffmpeg` 与 `ffprobe`，通过系统 `PATH` 启动。VideoFree
+剪辑插件使用用户自行安装的 `ffmpeg` 与 `ffprobe`，通过系统 `PATH` 启动。VideoFree Studio
 仓库、源码包和插件目录不提交、下载或再分发 FFmpeg 二进制文件。
 
 ## 来源
@@ -17,5 +17,5 @@ FFmpeg 构建版本，但所用构建必须提供 `ffmpeg`、`ffprobe`、H.264/A
 ## 许可边界
 
 FFmpeg 的实际许可证取决于用户选择的构建及其编译选项，可能为 LGPL 或 GPL。用户应
-阅读所安装构建附带的许可证，并自行确认分发和商业使用条件。VideoFree 仅以独立进程
-方式调用这两个命令；VideoFree 自身许可证不覆盖或替代 FFmpeg 的许可证。
+阅读所安装构建附带的许可证，并自行确认分发和商业使用条件。VideoFree Studio 仅以独立进程
+方式调用这两个命令；VideoFree Studio 自身许可证不覆盖或替代 FFmpeg 的许可证。

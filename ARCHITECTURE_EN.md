@@ -1,8 +1,34 @@
 # Architecture
 
+## Single-installation extension groundwork
+
+ComfyUI has one typed provider in `backend/integrations/system_services/comfyui/`,
+declared by `provider.json` and injected as `ApplicationContext.comfyui_provider`.
+The old client module is an import alias, not another implementation. There is still
+one `default` execution node; no multi-node scheduling, membership, or tenant authentication.
+
+Projects reserve `tenant_id` and `created_by`; jobs reserve `created_by` and
+`execution_node_id`; uploads have attribution metadata. Local ownership defaults to
+`local`, while historical execution nodes remain unknown (empty). Public callers cannot
+set these fields. They are attribution groundwork, not security or tenant isolation.
+
+`PluginRuntime.save_job_file`, `job_file`, `materialize_job_file`, `link_job_file`, and
+`restore_job_file` retain opaque dependencies under project `.internal/files/`, through
+StorageProvider, indexed in SQLite `plugin_job_files`. Files are SHA256-verified,
+scoped by project/plugin/job, excluded from the media library, and removed after the
+last job reference is deleted. Project deletion removes all project objects.
+Existing input copies, configurations, and workflow snapshots remain in task packages.
+The framework does not interpret model formats. H3 owns local checkpoint discovery,
+metadata, and restore before refinement; startup backfill is local and offline.
+Cross-machine checkpoint discovery and execution are not implemented.
+
 **English** · [中文](ARCHITECTURE.md)
 
 The project is a modular monolith. All capabilities run in one FastAPI process, while code is separated by ownership to prevent cross-domain access through global utility functions.
+
+Repository development skills live in `.agents/skills/`. Optional installable
+example skills and independent toolkits live in `examples/skills/`; they are not
+framework runtime dependencies. Run their tests separately from `examples/tests/`.
 
 ## Dependency Direction
 
@@ -78,6 +104,8 @@ Plugin manifests are registered once at startup into an `ApplicationContext` sna
 Auxiliary-file lifecycle belongs to plugin `resource_lifecycle` hooks (`completed`, `recover`, and `delete`). H3 checkpoint persistence, deletion, and startup recovery belong to `minimax-h3`. Startup recovery checks local directories only and does not depend on ComfyUI being online.
 
 Application plugins should ship their own `ui/dist/` bundle so installation does not require rebuilding the main frontend. A repository plugin that still uses a source Vue entry only requires the main frontend to be rebuilt when that entry changes. Declarative generation plugins do not need a dedicated Vue component.
+
+Infinite-canvas nodes are a separate extension type under `plugins/canvas-nodes/<package-id>/`, discovered and executed by `CanvasNodeCatalog` and `/api/v2/canvas-nodes`. Regular plugin discovery, the workbench plugin bar, and the MCP catalog do not load them. The framework provides manifest validation, project-library read/upload import, and bridges to existing capabilities; the future canvas application owns UI, connections, DAG scheduling, and workflow JSON persistence/sharing.
 
 ## Verification
 

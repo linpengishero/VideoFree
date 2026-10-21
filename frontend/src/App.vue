@@ -1,6 +1,6 @@
 <!--
-Copyright (c) 2026 VideoFree individual project author and contributors.
-Part of VideoFree: https://github.com/linpengishero/VideoFree
+Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 -->
@@ -22,7 +22,6 @@ import SettingsModal from "./components/SettingsModal.vue";
 import PostProcessModal from "./components/PostProcessModal.vue";
 import TaskDetailModal from "./components/TaskDetailModal.vue";
 import LandingPage from "./components/LandingPage.vue";
-import GuidePage from "./components/GuidePage.vue";
 import ProjectHome from "./components/ProjectHome.vue";
 import ProjectCategories from "./components/ProjectCategories.vue";
 import PublicAssets from "./components/PublicAssets.vue";
@@ -65,17 +64,11 @@ async function authenticate() {
   } catch (error) { authError.value = error.message; }
   finally { authenticating.value = false; }
 }
-const guideSection = ref(new URLSearchParams(window.location.search).get("guide"));
 function syncRoute() {
   studioVisible.value = window.location.pathname === "/studio";
-  guideSection.value = new URLSearchParams(window.location.search).get("guide");
-  document.title = studioVisible.value ? t('videofree · 工作台') : guideSection.value ? t('videofree · 使用教程') : "videofree";
+  document.title = studioVisible.value ? t('VideoFree Studio · 工作台') : "VideoFree Studio";
 }
 watch(locale, syncRoute);
-function openGuide(section) {
-  window.history.pushState({}, "", `/?guide=${section}`);
-  syncRoute();
-}
 async function enterStudio() {
   window.history.pushState({}, "", "/studio");
   syncRoute();
@@ -152,7 +145,13 @@ async function deleteCategory(category, done) {
   try { await gateway.deleteCategory(projectId, category.id); selectCategory(null); await loadCategories(); await restore(); done(); }
   catch (error) { notify(error.message); }
 }
-const OPEN_PROJECT_KEY = "zizai-open-project-id";
+const OPEN_PROJECT_KEY = "videofree-open-project-id";
+// Migrate the previous brand's saved project selection once.
+const legacyProjectId = localStorage.getItem("zizai-open-project-id");
+if (legacyProjectId) {
+  if (!localStorage.getItem(OPEN_PROJECT_KEY)) localStorage.setItem(OPEN_PROJECT_KEY, legacyProjectId);
+  localStorage.removeItem("zizai-open-project-id");
+}
 const projectHomeVisible = ref(true);
 const projectView = ref("assets");
 const activeApplication = computed(() => applications.value.find(app => app.id === projectView.value));
@@ -591,8 +590,7 @@ onUnmounted(() => {
       <button type="submit" :disabled="authenticating">{{ authenticating ? t('验证中') : t('连接网关') }}</button>
     </form>
   </div>
-  <GuidePage v-if="!studioVisible && guideSection" :section="guideSection" @home="leaveStudio" @enter="enterStudio" @section="openGuide" />
-  <LandingPage v-else-if="!studioVisible" @enter="enterStudio" @guide="openGuide" />
+  <LandingPage v-if="!studioVisible" @enter="enterStudio" />
   <main
     v-else
     class="app"

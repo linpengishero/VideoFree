@@ -1,0 +1,90 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { t } from '../lib/i18n';
+
+const { lang } = Astro.props;
+const zh = lang !== 'en';
+
+const c = zh
+  ? {
+      title: '许可 · VideoFree Studio',
+      desc: 'VideoFree Studio 自有源代码基于 GNU AGPL-3.0 发布；闭源集成、企业部署与白标可通过商业授权获得。',
+      eyebrow: 'LICENSE',
+      h1: '许可证',
+      lead: 'VideoFree Studio 自有源代码基于 GNU Affero General Public License v3.0 发布。第三方组件保留各自的许可证。',
+      agpl: 'AGPL-3.0（开源）',
+      agplDesc: '你可以自由运行、研究、修改和分发 VideoFree Studio 的源代码；如果你分发了修改版，或让网络用户通过修改版服务访问它，必须以 AGPL-3.0 公开对应源代码。',
+      commercial: '商业授权（闭源）',
+      commercialDesc: '需要闭源集成、企业部署、白标使用、技术支持或定制开发时，可获取独立于 AGPL 的商业授权。',
+      contact: '咨询：<a href="mailto:459082139@qq.com">459082139@qq.com</a>，或微信联系作者（微信号 laba6682）。',
+      third: '第三方边界',
+      thirdDesc: 'ComfyUI、社区节点、模型、LoRA、字体、FFmpeg 及其他资源不属于 VideoFree Studio 的统一授权范围，请遵守各自许可证。模型和示例文件的再分发权利需要独立于 VideoFree Studio 源代码许可证单独确认。',
+      provenance: '项目来源标识、发布留证与贡献者授权流程见仓库中的 docs/source-provenance.md 与 NOTICE。',
+      warn: '只安装来自可信来源的插件。插件是可信本地代码，不是安全沙箱。',
+    }
+  : {
+      title: 'License · VideoFree Studio',
+      desc: 'VideoFree Studio-owned source code is released under GNU AGPL-3.0; closed-source integration, enterprise deployment, and white-label use are available under commercial licensing.',
+      eyebrow: 'LICENSE',
+      h1: 'License',
+      lead: 'VideoFree Studio-owned source code is released under the GNU Affero General Public License v3.0. Third-party components keep their own licenses.',
+      agpl: 'AGPL-3.0 (open source)',
+      agplDesc: 'You are free to run, study, modify, and distribute the source. If you distribute modified versions — or let network users interact with a modified version as a service — you must release the corresponding source under AGPL-3.0.',
+      commercial: 'Commercial license (closed source)',
+      commercialDesc: 'For closed-source integration, enterprise deployment, white-label use, support, or custom development, a separate commercial license is available outside AGPL.',
+      contact: 'Inquiries: <a href="mailto:459082139@qq.com">459082139@qq.com</a>.',
+      third: 'Third-party boundaries',
+      thirdDesc: 'ComfyUI, community nodes, models, LoRAs, fonts, FFmpeg, and other resources are outside VideoFree Studio’s unified license — follow their own terms. Redistribution rights for models and sample files must be verified separately from VideoFree Studio’s source license.',
+      provenance: 'Project attribution, release evidence, and contributor authorization are documented in docs/source-provenance.md and NOTICE in the repository.',
+      warn: 'Only install plugins from sources you trust. Plugins are trusted local code, not a security sandbox.',
+    };
+---
+
+<BaseLayout {lang} title={c.title} description={c.desc} current="license">
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">{c.eyebrow}</span>
+        <h2 style="margin-top:16px;">{c.h1}</h2>
+        <p>{c.lead}</p>
+      </div>
+      <div style="display:grid; gap:18px;">
+        <div class="info-card">
+          <h3>{c.agpl}</h3>
+          <p class="desc">{c.agplDesc}</p>
+          <p class="meta">
+            <a href={zh ? 'https://gitee.com/heroofgod_admin/videofreestudio/blob/master/LICENSE' : 'https://github.com/linpengishero/VideoFreeStudio/blob/main/LICENSE'} target="_blank" rel="noopener noreferrer">{zh ? '查看 LICENSE' : 'View LICENSE'}</a>
+            {' · '}
+            <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">AGPL-3.0 原文</a>
+          </p>
+        </div>
+        <div id="commercial" class="info-card primary">
+          <h3>{c.commercial}</h3>
+          <p class="desc">{c.commercialDesc}</p>
+          <p class="meta">
+            <a href={zh ? 'https://gitee.com/heroofgod_admin/videofreestudio/blob/master/COMMERCIAL_LICENSE.md' : 'https://github.com/linpengishero/VideoFreeStudio/blob/main/COMMERCIAL_LICENSE.md'} target="_blank" rel="noopener noreferrer">{zh ? '商业授权说明' : 'Commercial licensing notice'}</a>
+            {' · '}<span set:html={c.contact} />
+          </p>
+        </div>
+        <div class="info-card">
+          <h3>{c.third}</h3>
+          <p class="desc">{c.thirdDesc}</p>
+          <p class="meta">{c.provenance}</p>
+        </div>
+      </div>
+      <p class="note" style="margin-top:28px;">{c.warn}</p>
+      {zh && (
+        <div class="qr-row" style="margin-top:34px;">
+          <div class="qr-item">
+            <div style="width:150px; height:150px; background:var(--surface); border:1px solid var(--line); display:grid; place-content:center; gap:8px; text-align:center; padding:14px;">
+              <span style="font-size:12px; color:var(--muted);">微信号</span>
+              <span style="font-size:18px; font-weight:600; color:var(--green); letter-spacing:0.03em;">laba6682</span>
+              <span style="font-size:11px; color:var(--faint);">添加请备注来意</span>
+            </div>
+            <span>微信咨询</span>
+          </div>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>

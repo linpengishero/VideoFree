@@ -54,6 +54,32 @@ Do not put system services in `plugins/`, `backend/modules/`, `backend/core/`, o
 
 系统服务不得放进 `plugins/`、`backend/modules/`、`backend/core/` 或项目数据目录。运行配置和密钥继续由框架保存到设置数据库，不得与服务商代码放在一起。未来若通用跨服务运行时采用 service-first 目录布局，必须同步更新本协议和测试。
 
+## Current ComfyUI contract / 当前 ComfyUI 契约
+
+`backend/integrations/system_services/comfyui/provider.json` declares
+`schema_version: 1`, `service_id: "comfyui"`, `contract_version: 1`,
+`provider_id: "default"`, and `entry: "provider.py:Provider"`. Startup validates
+versions, entry confinement and required methods, and injects one provider into
+`ApplicationContext.comfyui_provider`. Settings retain the existing URL and local
+output-directory controls; there is no node-management or provider-selection UI.
+
+ComfyUI 清单声明以上版本、服务、默认 Provider 和入口，启动时校验并注入唯一实例。
+设置继续使用现有地址与本地输出目录，没有新增节点管理或 Provider 切换界面。
+
+The typed `ComfyUIProvider` methods are `configure(base_url)`,
+`request(path, method="GET", body=None)`, `is_available()`,
+`node_definitions(kinds, aliases)`, `upload_input(body, media_type, filename)`,
+`open_output(descriptor)`, `download_output(descriptor)`,
+`upload_file(source, relative, destination="output")`, and `free_memory()`.
+`open_output` is a streaming context manager. `upload_file` streams opaque files
+to safe relative input/output paths, without interpreting model formats.
+Plugins use PluginRuntime rather than importing provider implementations.
+
+类型化契约的方法如上。`open_output` 是流式上下文管理器；`upload_file` 流式恢复任意
+字节文件到安全的相对 input/output 路径，不解析模型格式。插件通过 PluginRuntime
+访问服务和任务依赖文件，不导入 Provider 实现。这是单 Provider 接入，没有实现
+下文的通用 invoke 注册表或多节点调度。
+
 ## Future generic service contract / 未来通用服务契约
 
 Every system service uses the same outer contract. Service-specific Python types may refine the payloads, but must not bypass the registry, settings boundary, or error contract.
@@ -165,9 +191,13 @@ The current provider interface has three methods: `build_chat_request(settings, 
 
 ## Current implementation status / 当前实现状态
 
-The current code implements manifest discovery for LLM providers and keeps the collaboration call site provider-neutral. It also implements and uses the typed local `StorageProvider` for project-library bytes. It does not yet implement the generic `SystemServiceProvider.invoke` registry, schema-driven settings for arbitrary service types, remote storage backends, or `PluginRuntime.call_system_service`. Therefore v1 currently guarantees framework-free addition of LLM providers only; storage backends require framework selection/configuration work. Do not claim arbitrary future service types are plug-and-play until those generic runtime pieces are implemented. This status is intentional and must be updated as the contract is implemented.
+The current code implements LLM manifest discovery, the local StorageProvider, and a manifest-validated typed single-node ComfyUIProvider. The generic invoke registry, schema-driven settings for arbitrary services, remote storage, multi-node execution and PluginRuntime.call_system_service remain unimplemented. Framework-free catalog additions currently apply to LLM providers; storage selection and additional ComfyUI nodes still require future configuration/runtime work. Do not claim arbitrary service types are plug-and-play.
 
-当前代码已实现 LLM Provider 清单发现，协作调用点不再按服务商分支；同时已实现并接入项目素材字节操作的类型化本地 `StorageProvider`。通用 `SystemServiceProvider.invoke` 注册表、任意服务类型的 Schema 驱动设置、远程存储后端及 `PluginRuntime.call_system_service` 尚未实现。因此当前 v1 只保证增加 LLM Provider 无需修改框架；新增存储后端仍需框架提供选择/配置。在通用运行时能力实现前，不得宣称任意未来服务类型可直接插拔。协议实现后需同步更新本节状态。
+当前已实现 LLM 清单发现、本地 StorageProvider，以及清单校验的单节点 ComfyUIProvider。
+通用 invoke 注册表、任意服务类型的 Schema 驱动设置、远程存储、多节点执行及
+PluginRuntime.call_system_service 尚未实现。当前无需修改框架即可增加目录项的保证
+仅适用于 LLM Provider；存储选择及额外 ComfyUI 节点仍需要后续配置和运行时开发，
+不得宣称任意服务类型已经可以直接插拔。
 
 ## Related docs / 相关文档
 

@@ -2,7 +2,7 @@
 
 ## 模型与 ComfyUI 节点
 
-无。此插件使用 VideoFree 的项目工具、插件文档存储和通用动作接口，不调用 ComfyUI。
+无。此插件使用 VideoFree Studio 的项目工具、插件文档存储和通用动作接口，不调用 ComfyUI。
 
 ## 其他依赖与验证
 

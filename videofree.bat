@@ -24,7 +24,7 @@ if exist ".env" (
 if "%COMFYUI_URL%"=="" set "COMFYUI_URL=http://127.0.0.1:8189"
 if "%MEDIA_GATEWAY_HOST%"=="" set "MEDIA_GATEWAY_HOST=0.0.0.0"
 if "%MEDIA_GATEWAY_PORT%"=="" set "MEDIA_GATEWAY_PORT=8765"
-echo VideoFree is starting...
+echo VideoFree Studio is starting...
 echo ComfyUI: %COMFYUI_URL%
 echo Web UI:   http://127.0.0.1:%MEDIA_GATEWAY_PORT%
 if not "%MEDIA_GATEWAY_HOST%"=="127.0.0.1" echo LAN API:  http://%COMPUTERNAME%:%MEDIA_GATEWAY_PORT%
@@ -35,7 +35,7 @@ echo.
 
 if errorlevel 1 (
     echo.
-    echo [ERROR] VideoFree stopped unexpectedly.
+    echo [ERROR] VideoFree Studio stopped unexpectedly.
     pause
 )
 

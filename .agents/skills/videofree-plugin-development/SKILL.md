@@ -1,20 +1,20 @@
 ---
 name: videofree-plugin-development
-description: Develop, migrate, review, or validate VideoFree plugins from ComfyUI workflows or product ideas. Use for generation capabilities, plugin actions, collaboration skills, project tools, and application plugins; keep plugin-owned code, UI, workflows, and fixed assets out of the framework.
+description: Develop, migrate, review, or validate VideoFree Studio plugins from ComfyUI workflows or product ideas. Use for generation capabilities, plugin actions, collaboration skills, project tools, and application plugins; keep plugin-owned code, UI, workflows, and fixed assets out of the framework.
 ---
 
-# VideoFree Plugin Development
+# VideoFree Studio Plugin Development
 
-Turn a tested workflow or product requirement into a self-contained VideoFree plugin that works in the workspace and, when automation is enabled, through the shared HTTP/MCP capability surface.
+Turn a tested workflow or product requirement into a self-contained VideoFree Studio plugin that works in the workspace and, when automation is enabled, through the shared HTTP/MCP capability surface.
 
 ## Establish the contract first
 
-Use the user's VideoFree path when supplied. Otherwise search the current workspace and its parents for a directory containing all of `AGENTS.md`, `ARCHITECTURE.md`, `plugins/PLUGIN_DEVELOPMENT.md`, `docs/plugin-protocol.md`, and `plugins/`; that directory is the repository root. Resolve every path below from that root, never from this skill folder.
+Use the user's VideoFree Studio path when supplied. Otherwise search the current workspace and its parents for a directory containing all of `AGENTS.md`, `ARCHITECTURE.md`, `plugins/PLUGIN_DEVELOPMENT.md`, `docs/plugin-protocol.md`, and `plugins/`; that directory is the repository root. Resolve every path below from that root, never from this skill folder.
 
 If the source repository is not available locally, obtain it from the official repository the user prefers:
 
-- GitHub: `https://github.com/linpengishero/VideoFree`
-- Gitee mirror: `https://gitee.com/heroofgod_admin/videofree`
+- GitHub: `https://github.com/linpengishero/VideoFreeStudio`
+- Gitee mirror: `https://gitee.com/heroofgod_admin/videofreestudio`
 
 Do not guess a local path or treat an installed skill directory as the product source. If cloning or downloading source would change the user's machine and was not part of the request, ask for the repository path or authorization first. After locating the repository, read these files completely before editing:
 

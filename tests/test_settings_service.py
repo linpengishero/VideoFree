@@ -14,7 +14,7 @@ class SettingsOutputDirectoryTests(unittest.TestCase):
         self.context.db = Mock()
         self.context.db.settings.side_effect = lambda: dict(stored)
         self.context.db.save_settings.side_effect = lambda values: stored.update(values)
-        self.assertEqual(self.service.read()["locale"], "zh-CN")
+        self.assertEqual(self.service.read()["locale"], "en-US")
         self.assertEqual(self.service.apply({"locale": "en-US"})["locale"], "en-US")
         self.assertEqual(SettingsService(self.context, self.comfyui).read()["locale"], "en-US")
         self.assertEqual(stored, {"ai_model": "keep-model", "locale": "en-US"})

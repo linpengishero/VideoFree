@@ -58,9 +58,13 @@ def prepare(action_request, runtime):
     if not params.get("latent_checkpoint_ready"):
         raise PluginError(409, "该任务没有可用的 H3 原生 latent")
     checkpoint_name = str(params.get("latent_checkpoint", ""))
-    checkpoint = checkpoint_path(runtime, checkpoint_name)
+    archive_job = str(params.get("latent_archive_job") or job_id)
+    archived = runtime.job_file(archive_job, "native-latent")
+    checkpoint = archived or checkpoint_path(runtime, checkpoint_name)
     if not checkpoint:
         raise PluginError(409, "H3 原生 latent 已不存在，请重新生成初稿")
+    if archived:
+        params["latent_archive_job"] = archive_job
     validate_refine_dimensions(params, refine)
     checkpoint_kind = str(params.get("h3_checkpoint_kind") or "completed_draft_latent")
     # The public H3 action selects the workflow from the native checkpoint format.

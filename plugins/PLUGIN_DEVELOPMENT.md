@@ -1,13 +1,19 @@
-# VideoFree 插件开发指南
+# VideoFree Studio 插件开发指南
+
+任务依赖文件（latent、特征或模型缓存）使用框架通用的 `save_job_file`、`job_file`、
+`materialize_job_file`、`link_job_file`、`restore_job_file`，不要仅保存在 ComfyUI 目录，
+不要在框架中加入模型格式逻辑。完整示例、引用删除语义及参数见
+[插件协议：模型依赖文件归档](../docs/plugin-protocol.md#模型依赖文件归档)。
+这是单机持久化预留，不包含多节点调度或租户权限系统。
 
 [English version](PLUGIN_DEVELOPMENT_EN.md) · **中文**
 
-VideoFree 插件的目标，是把零散的模型、ComfyUI 工作流、提示词规则和配套资源封装成普通用户能直接使用、Agent 能稳定调用的产品能力。用户不应为了使用插件而理解节点连线；Agent 也不应接触节点 ID、模型路径或工作流内部结构。
+VideoFree Studio 插件的目标，是把零散的模型、ComfyUI 工作流、提示词规则和配套资源封装成普通用户能直接使用、Agent 能稳定调用的产品能力。用户不应为了使用插件而理解节点连线；Agent 也不应接触节点 ID、模型路径或工作流内部结构。
 
 插件是本地可信代码包，必须位于 `plugins/<plugin-id>/`，由同目录的
 `plugin.json` 注册。框架负责发现、校验、项目归属、任务状态、持久化边界和 HTTP/MCP 通用入口；插件负责业务、工作流、页面和专用资源。
 
-使用开发智能体时，可以安装仓库内的 `.agents/skills/videofree-plugin-development/`，让它先按本指南与当前协议判断插件形态，再实现和验证。技能不必与源码位于同一台电脑：它会先寻找仓库标记文件；本地没有源码时可从 [GitHub](https://github.com/linpengishero/VideoFree) 或 [Gitee 镜像](https://gitee.com/heroofgod_admin/videofree) 获取。仓库内文档始终是协议唯一事实来源。
+使用开发智能体时，可以安装仓库内的 `.agents/skills/videofree-plugin-development/`，让它先按本指南与当前协议判断插件形态，再实现和验证。技能不必与源码位于同一台电脑：它会先寻找仓库标记文件；本地没有源码时可从 [GitHub](https://github.com/linpengishero/VideoFreeStudio) 或 [Gitee 镜像](https://gitee.com/heroofgod_admin/videofreestudio) 获取。仓库内文档始终是协议唯一事实来源。
 
 ## 目录结构
 
@@ -38,7 +44,7 @@ plugins/my-plugin/
 
 每个插件必须提供 `plugins/<plugin-id>/INSTALL.md`，即使插件没有 ComfyUI 依赖也要明确写“无”。安装说明至少包含：
 
-1. 支持的 ComfyUI/VideoFree 或外部服务版本；
+1. 支持的 ComfyUI/VideoFree Studio 或外部服务版本；
 2. 每个必需/可选模型的准确文件名或仓库 ID、官方或作者下载地址、相对 ComfyUI 根目录的安装路径；
 3. 每个自定义节点包的仓库名、ComfyUI Manager ID（若有）、下载地址、`custom_nodes/<目录>` 安装位置，以及工作流实际使用的节点类名；
 4. Python 包、系统程序、云端 Key 等其他依赖；
@@ -383,6 +389,33 @@ cmd /c "videofree.bat --check"
 发布前确认：`INSTALL.md` 与当前工作流一致且没有本机绝对路径；每个模型和自定义节点都有来源与安装位置；固定资源都在插件目录；没有框架专用分支；没有直接 SQLite/ComfyUI 文件访问；独立 UI bundle 位于 `ui/dist`；动作已通过通用能力发现和 MCP 入口暴露；项目和分类删除不会留下插件数据。
 
 完整字段约束见 [`docs/plugin-protocol.md`](../docs/plugin-protocol.md)。
+
+## 无限画布节点插件
+
+画布节点与普通插件隔离，放在 `plugins/canvas-nodes/<package-id>/`，使用独立 `plugin.json`：
+
+```json
+{
+  "schema_version": 1,
+  "plugin_type": "canvas_node",
+  "id": "my-nodes",
+  "version": "1.0.0",
+  "name": "My canvas nodes",
+  "nodes": [{
+    "id": "read-library",
+    "name": "Read project library",
+    "category": "resources",
+    "handler": "handlers/library.py:read",
+    "inputs": [{"id": "kind", "name": "Media type", "type": "text"}],
+    "outputs": [{"id": "assets", "name": "Assets", "type": "json"}],
+    "config_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+  }]
+}
+```
+
+每个包必须有 `INSTALL.md`。节点处理器采用 `execute(inputs, config, runtime)`，可用 async；读素材用 `runtime.application.library()`，上传导入用 `runtime.application.import_upload()`，生成/插件动作/LLM 调用使用 `runtime.invoke_capability()`、`runtime.execute_action()`、`runtime.call_model()`。不要让节点代码访问 SQLite、ComfyUI 客户端、框架启动模块或其他插件源码。输入、输出由 JSON Schema 和端口类型校验；素材句柄必须是当前项目内资源，临时上传 ID 必须由网关登记且未过期。
+
+该类型只提供发现和单节点执行。无限画布插件仍需自己实现画布 UI、节点连接、DAG 执行、工作流 JSON 导入导出、保存与分享；框架不为每个节点创建 MCP 工具。完整字段、API、资源隔离和示例见 [`无限画布节点插件协议`](../docs/plugin-protocol.md#无限画布节点插件)。
 ## UI 中英双语约定
 
 界面语言默认 `zh-CN`，用户在设置中选择 `en-US` 后持久化到框架 SQLite settings；不随项目切换，不依赖浏览器系统语言。HTTP/MCP 的 ID、参数、枚举值、提示词和用户内容保持原样。

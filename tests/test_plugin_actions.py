@@ -262,6 +262,8 @@ class ResourceLifecycleTests(unittest.TestCase):
         self.runtime = SimpleNamespace(
             comfyui_output_files=Mock(return_value=[self.checkpoint]),
             comfyui_output_file=Mock(return_value=self.checkpoint),
+            save_job_file=Mock(return_value={'sha256': 'a' * 64, 'size': len(b'checkpoint')}),
+            job_file=Mock(return_value=None),
             update_job_parameters=Mock(side_effect=update), free_comfyui_memory=Mock(),
             jobs=Mock(return_value=[self.job]), job_request=lambda job:job['request'])
 
@@ -309,6 +311,46 @@ class ResourceLifecycleTests(unittest.TestCase):
         self.assertTrue(self.checkpoint.exists())
         self.hook('delete', job=self.job)
         self.assertFalse(self.checkpoint.exists())
+
+    def test_missing_comfyui_cache_still_protects_queued_refinement(self):
+        params = self.job['request']['params']
+        params.update(latent_checkpoint=self.checkpoint.name, latent_checkpoint_owner=self.job['id'])
+        self.runtime.comfyui_output_file.return_value = None
+        self.runtime.jobs.return_value.append({'id': 'child', 'status': 'queued',
+                                              'request': {'params': dict(params)}})
+        with self.assertRaises(RuntimeError):
+            self.hook('delete', job=self.job)
+
+    def test_refinement_links_and_restores_archived_dependency(self):
+        compiler = self.catalog._load_handler(self.config, 'compiler.py:prepare')
+        self.request.params.update(refine_mode='h3_refine', latent_archive_job='video-source',
+                                   latent_checkpoint=self.checkpoint.name)
+        self.runtime.link_job_file = Mock(return_value={'sha256': 'a' * 64, 'size': len(b'checkpoint')})
+        self.runtime.restore_job_file = Mock()
+        compiler({}, {}, self.request, {'image': [], 'video': [], 'audio': []},
+                 self.job['id'], 'test', self.runtime)
+        self.runtime.link_job_file.assert_called_once_with('video-source', 'native-latent', self.job['id'])
+        self.runtime.restore_job_file.assert_called_once_with(self.job['id'], 'native-latent',
+            'MiniMaxH3/latent_checkpoints/' + self.checkpoint.name)
+        self.assertEqual(self.request.params['latent_archive_job'], self.job['id'])
+
+    def test_refinement_reuses_only_verified_local_checkpoint(self):
+        import hashlib
+        compiler = self.catalog._load_handler(self.config, 'compiler.py:prepare')
+        checksum = hashlib.sha256(self.checkpoint.read_bytes()).hexdigest()
+        self.runtime.link_job_file = Mock(return_value={'sha256': checksum, 'size': self.checkpoint.stat().st_size})
+        self.runtime.restore_job_file = Mock()
+        for state in ('matching', 'wrong-size', 'wrong-hash', 'missing'):
+            with self.subTest(state=state):
+                self.request.params.update(refine_mode='h3_refine', latent_archive_job='video-source',
+                                           latent_checkpoint=self.checkpoint.name)
+                self.checkpoint.write_bytes(b'checkpoint' if state == 'matching' else
+                                            b'bad' if state == 'wrong-size' else b'XXXXXXXXXX')
+                self.runtime.comfyui_output_file.return_value = None if state == 'missing' else self.checkpoint
+                self.runtime.restore_job_file.reset_mock()
+                compiler({}, {}, self.request, {'image': [], 'video': [], 'audio': []},
+                         self.job['id'], 'test', self.runtime)
+                self.assertEqual(self.runtime.restore_job_file.call_count, int(state != 'matching'))
 
     def test_h3_discovery_uses_metadata_and_submission_checks_files(self):
         self.job['request']['params'].update(latent_checkpoint_ready=True,latent_checkpoint=self.checkpoint.name)

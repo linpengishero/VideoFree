@@ -29,7 +29,10 @@
 | 插件工作流、专用编译和协作技能 | `plugins/<plugin-id>/` |
 | 应用插件页面、业务逻辑与动作 | `plugins/<plugin-id>/ui/` 及同插件目录，由 `plugin.json.application/actions` 注册 |
 | 插件能力、主分类、处理模式注册 | `plugins/<plugin-id>/plugin.json`，唯一注册来源 |
-| 导演与能力技能 | `.agents/skills/` 或对应插件的 `collaboration/skills/`；沿用邻近文件的组织方式 |
+| 仓库开发技能 | `.agents/skills/`，仅用于开发和维护本仓库 |
+| 可安装的演示技能及独立工具包 | `examples/skills/`，不是框架运行依赖；保留第三方许可证 |
+| 插件专用协作技能 | 对应插件的 `collaboration/skills/` |
+| 演示技能测试 | `examples/tests/`，独立运行，不混入框架发布测试 |
 | 自动化测试与固定测试素材 | `tests/` |
 | 运行数据、缓存、任务和生成资源 | `data/`，不得作为源码提交或手工编辑 |
 | 前端构建结果 | `static/dist/`，仅由前端构建生成 |

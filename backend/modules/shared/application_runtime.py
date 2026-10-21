@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -40,6 +40,8 @@ class ApplicationRuntime:
         project_id = project_id or self.project_id
         if not project_id:
             raise ValueError('当前调用没有项目上下文')
+        if self.project_id is not None and project_id != self.project_id:
+            raise ValueError('项目不属于当前调用')
         from ..projects import ProjectService
         return ProjectService(self._context).categories(project_id)
 
@@ -83,6 +85,45 @@ class ApplicationRuntime:
         if not matches:
             raise ValueError('上传文件不存在或已过期')
         return matches[0]
+
+    def library(self, project_id=None, *, kind="all", offset=0, limit=None,
+                sort="new", category_id=None):
+        """List the project library through the framework-owned storage boundary."""
+        project_id = project_id or self.project_id
+        if not project_id:
+            raise ValueError("当前调用没有项目上下文")
+        if self.project_id is not None and project_id != self.project_id:
+            raise ValueError("项目不属于当前调用")
+        result = ProjectService(self._context).library(
+            project_id, kind=kind, offset=offset, limit=limit, sort=sort,
+            category_id=self.category_id if category_id is None else category_id,
+        )
+        result.pop("output_dir", None)
+        return result
+
+    def upload_exists(self, upload_id):
+        """Check that an upload is a live gateway-issued reference without exposing its path."""
+        if not isinstance(upload_id, str) or not re.fullmatch(r"[a-fA-F0-9]{32}", upload_id):
+            return False
+        if not self._context.db.upload_exists(upload_id):
+            return False
+        upload_root = self._context.paths.uploads.resolve()
+        matches = [path for path in upload_root.glob(f"{upload_id}.*")
+                   if path.is_file() and not path.is_symlink() and path.resolve().parent == upload_root]
+        return len(matches) == 1
+
+    def import_upload(self, upload_id, *, project_id=None, name="", kind=None,
+                      category_id=None):
+        """Persist a browser upload as a project-library asset and return its handle."""
+        project_id = project_id or self.project_id
+        if not project_id:
+            raise ValueError("当前调用没有项目上下文")
+        if self.project_id is not None and project_id != self.project_id:
+            raise ValueError("项目不属于当前调用")
+        return ProjectService(self._context).import_upload(
+            project_id, upload_id, name=name, kind=kind,
+            category_id=self.category_id if category_id is None else category_id,
+        )
 
     def category_directory(self, project_id=None, category_id=None):
         project_id = project_id or self.project_id

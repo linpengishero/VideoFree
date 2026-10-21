@@ -17,4 +17,4 @@
 
 ## 其他依赖与验证
 
-无额外系统程序或云端 Key。重启 ComfyUI 后确认上述节点存在、四个模型能被加载，再重启 VideoFree 网关。
+无额外系统程序或云端 Key。重启 ComfyUI 后确认上述节点存在、四个模型能被加载，再重启 VideoFree Studio 网关。

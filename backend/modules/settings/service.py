@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -10,7 +10,7 @@ from typing import Any
 import urllib.parse
 
 from ...core.context import ApplicationContext
-from ...integrations.comfyui import ComfyUIClient
+from ...integrations.system_services.comfyui import ComfyUIProvider
 
 
 class SettingsService:
@@ -18,14 +18,14 @@ class SettingsService:
     def access_token(context: ApplicationContext) -> str:
         return context.db.settings().get("gateway_token", context.config.api_token)
 
-    def __init__(self, context: ApplicationContext, comfyui: ComfyUIClient):
+    def __init__(self, context: ApplicationContext, comfyui: ComfyUIProvider):
         self.context = context
         self.comfyui = comfyui
         self.legacy_settings_path = context.paths.legacy_settings
 
     def read(self) -> dict[str, Any]:
         defaults = {
-            "locale": "zh-CN",
+            "locale": "en-US",
             "gateway_token": self.access_token(self.context),
             "comfyui_url": self.context.comfyui_url,
             "comfyui_output_dir": str(self.context.comfyui_output_dir),
@@ -50,7 +50,7 @@ class SettingsService:
                 pass
         defaults.update({key: stored[key] for key in defaults.keys() & stored.keys()})
         if defaults["locale"] not in {"zh-CN", "en-US"}:
-            defaults["locale"] = "zh-CN"
+            defaults["locale"] = "en-US"
         defaults["ai_multimodal_video"] = str(defaults.get("ai_multimodal_video", "true")).lower() in {
             "1", "true", "yes", "on",
         }

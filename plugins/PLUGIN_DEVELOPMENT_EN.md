@@ -1,12 +1,19 @@
-# VideoFree Plugin Development Guide
+# VideoFree Studio Plugin Development Guide
+
+Retain task dependencies (latent states, features, model caches) with the generic
+`save_job_file`, `job_file`, `materialize_job_file`, `link_job_file`, and
+`restore_job_file` APIs. Do not rely solely on ComfyUI directories or add model
+formats to the framework. See [dependency archiving](../docs/plugin-protocol.en.md#archiving-model-dependencies)
+for examples, parameters, and reference cleanup. This is single-installation persistence
+groundwork, without multi-node scheduling or tenant permissions.
 
 [中文](PLUGIN_DEVELOPMENT.md) · **English**
 
-VideoFree plugins package scattered models, ComfyUI workflows, prompt rules, and related resources as product capabilities that people can use and agents can call reliably. Users should not need to understand node wiring; agents should not need node IDs, model paths, or workflow internals.
+VideoFree Studio plugins package scattered models, ComfyUI workflows, prompt rules, and related resources as product capabilities that people can use and agents can call reliably. Users should not need to understand node wiring; agents should not need node IDs, model paths, or workflow internals.
 
 A plugin is trusted local code under `plugins/<plugin-id>/`, registered by its local `plugin.json`. The framework owns discovery, validation, project ownership, job lifecycle, persistence boundaries, and shared HTTP/MCP entry points. Plugins own their product behavior, workflows, pages, and dedicated resources.
 
-For another AI coding agent, install/read `.agents/skills/videofree-plugin-development/` first. The skill locates the source repository and follows this guide plus the [plugin protocol](../docs/plugin-protocol.en.md); repository documentation is the authoritative contract. The skill can be used on another machine and can obtain the repository from [GitHub](https://github.com/linpengishero/VideoFree) or the [Gitee mirror](https://gitee.com/heroofgod_admin/videofree).
+For another AI coding agent, install/read `.agents/skills/videofree-plugin-development/` first. The skill locates the source repository and follows this guide plus the [plugin protocol](../docs/plugin-protocol.en.md); repository documentation is the authoritative contract. The skill can be used on another machine and can obtain the repository from [GitHub](https://github.com/linpengishero/VideoFreeStudio) or the [Gitee mirror](https://gitee.com/heroofgod_admin/videofreestudio).
 
 ## Directory layout
 
@@ -37,7 +44,7 @@ Workflow UI JSON metadata such as `properties.cnr_id` can help identify ComfyUI 
 
 Every plugin must include `plugins/<plugin-id>/INSTALL.md`, including plugins with no ComfyUI dependencies (state “none”). At minimum include:
 
-1. Supported ComfyUI, VideoFree, and external-service versions.
+1. Supported ComfyUI, VideoFree Studio, and external-service versions.
 2. Every required/optional model's exact filename or repository ID, official/author download page, and path relative to the ComfyUI root.
 3. Every custom-node package's repository name, ComfyUI Manager ID when available, URL, `custom_nodes/<directory>` target, and workflow node class names actually used.
 4. Python packages, system programs, cloud keys, and other dependencies.
@@ -232,6 +239,33 @@ cmd /c "videofree.bat --check"
 ```
 
 Run plugin-local tests separately when present. Do not manually edit `static/dist`, runtime data, caches, or generated bundles. After changing plugin Python, manifests, workflows, or fixed assets, drain jobs and restart the gateway. Keep model/node requirements and `INSTALL.md` in the plugin. State plugin type, changed files, capability/action IDs, dependencies, validation, and anything requiring a real ComfyUI environment when handing off.
+
+## Infinite-canvas node plugins
+
+Canvas nodes are isolated from regular plugins and live in `plugins/canvas-nodes/<package-id>/` with their own `plugin.json`:
+
+```json
+{
+  "schema_version": 1,
+  "plugin_type": "canvas_node",
+  "id": "my-nodes",
+  "version": "1.0.0",
+  "name": "My canvas nodes",
+  "nodes": [{
+    "id": "read-library",
+    "name": "Read project library",
+    "category": "resources",
+    "handler": "handlers/library.py:read",
+    "inputs": [{"id": "kind", "name": "Media type", "type": "text"}],
+    "outputs": [{"id": "assets", "name": "Assets", "type": "json"}],
+    "config_schema": {"type": "object", "properties": {}, "additionalProperties": false}
+  }]
+}
+```
+
+Each package requires `INSTALL.md`. Handlers use `execute(inputs, config, runtime)` and may be async. Read assets with `runtime.application.library()`, import an upload with `runtime.application.import_upload()`, and call generation/actions/LLM through `runtime.invoke_capability()`, `runtime.execute_action()`, and `runtime.call_model()`. Do not access SQLite, the ComfyUI client, framework bootstrap modules, or another plugin's source. Inputs and outputs are validated against their port declarations and JSON Schema. Asset handles must belong to the current project; temporary upload IDs must be registered by the gateway and unexpired.
+
+This extension provides discovery and single-node execution only. The infinite-canvas application still owns its UI, connections, DAG scheduling, workflow JSON import/export, persistence, and sharing. The framework does not create an MCP tool for every node. See the [infinite-canvas node protocol](../docs/plugin-protocol.en.md#infinite-canvas-node-plugins) for fields, endpoints, isolation, and examples.
 ## UI localization contract
 
 The UI defaults to `zh-CN`. Choosing `en-US` in Settings persists to the framework SQLite settings across restarts and projects. HTTP/MCP IDs, parameter and enum values, prompts and user content remain unchanged.

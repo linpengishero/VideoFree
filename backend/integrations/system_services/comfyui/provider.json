@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "service_id": "comfyui",
+  "contract_version": 1,
+  "provider_id": "default",
+  "entry": "provider.py:Provider"
+}

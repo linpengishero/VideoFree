@@ -15,7 +15,7 @@ async function check(viewport) {
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
     await page.route('**/api/v2/**', route => route.fulfill({json:{items:[],categories:[],errors:[]}}));
     await page.addInitScript(() => {
-      localStorage.setItem('zizai-open-project-id', 'project-ui');
+      localStorage.setItem('videofree-open-project-id', 'project-ui');
       localStorage.setItem('videofree-category-project-ui', JSON.stringify('@public'));
     });
     const project = { id: 'project-ui', name: 'UI test', status: 'active' };

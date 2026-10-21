@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -24,6 +24,8 @@ from ...modules.presets.voices import VoicePresets
 from ...modules.projects import ProjectService
 from ...modules.generation.actions import discover_actions, execute_action, public_action, public_actions, uploaded_source
 from ...modules.generation.plugins import PluginCatalog
+from ...modules.generation.canvas_nodes import CanvasNodeCatalog
+from ...modules.shared.plugin_runtime import PluginRuntime
 from ...modules.generation.service import submit_idempotent
 from ...modules.collaboration.modes import confirmation_overrides
 from ...core.errors import GatewayError
@@ -50,6 +52,7 @@ from .v2_schemas import (
     ProjectSelectRequest,
     PluginActionExecuteRequest,
     PluginActionResponse,
+    CanvasNodeExecuteRequest,
     RegenerateRequest,
 )
 
@@ -427,6 +430,34 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
                                   if not item.get("requires_project_flags")
                                   or project and all(bool(project.get(flag)) for flag in item["requires_project_flags"])]
         return result
+
+    @router.get("/canvas-nodes")
+    async def canvas_nodes():
+        """Return nodes reserved for the infinite-canvas host, not regular plugin UI."""
+        return CanvasNodeCatalog(workflows_path, context).public()
+
+    @router.post("/canvas-nodes/{node_type}/execute")
+    async def execute_canvas_node(node_type: str, body: CanvasNodeExecuteRequest):
+        try:
+            project = ProjectService(context).current() if body.project_id is None else authorized_project(body.project_id)
+            category_id = body.category_id
+            if category_id is not None:
+                ProjectService(context).validate_category(project["id"], category_id)
+            from ...modules.collaboration.service import call_agent_model
+            runtime = PluginRuntime(
+                "infinite-canvas", {}, context, project_id=project["id"], category_id=category_id,
+                _call_model=call_agent_model, _submit=submit,
+                _invoke_capability=invoke_plugin_capability,
+            )
+            return await runtime.execute_canvas_node(
+                node_type, body.inputs, body.config, project_id=project["id"], category_id=category_id,
+            )
+        except GatewayError:
+            raise
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
 
     @router.get("/capabilities/{capability_id}")
     async def capability(capability_id: str):
@@ -964,6 +995,7 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
                     source_path = manifest_path.parent / source["path"]
                     upload_id = uuid.uuid4().hex
                     shutil.copy2(source_path, upload_cache / f"{upload_id}{source_path.suffix}")
+                    db.register_upload(upload_id)
                     inputs.append(AssetInput(type=source["type"], upload_id=upload_id, role=source.get("role", "reference")))
         params = original.get("params", {})
         if request.settings is not None:

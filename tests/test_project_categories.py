@@ -18,7 +18,7 @@ class ProjectCategoryTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.db = Database(self.root / "test.sqlite")
         self.db.initialize({})
-        self.context = SimpleNamespace(db=self.db, jobs={}, executing_jobs=set(), library_cache={}, paths=SimpleNamespace(projects=self.root / "projects", uploads=self.root / "uploads", tasks=self.root / "tasks", artifacts=self.root / "artifacts"))
+        self.context = SimpleNamespace(db=self.db, state_lock=threading.RLock(), jobs={}, executing_jobs=set(), library_cache={}, paths=SimpleNamespace(projects=self.root / "projects", uploads=self.root / "uploads", tasks=self.root / "tasks", artifacts=self.root / "artifacts"))
         self.context.paths.uploads.mkdir()
         self.context.paths.artifacts.mkdir()
         self.service = ProjectService(self.context)
@@ -55,7 +55,7 @@ class ProjectCategoryTests(unittest.TestCase):
         self.context.library_lock = threading.Lock()
         self.context.library_cache = {'directory': '', 'created_at': 0, 'items': []}
         self.context.paths.plugins = self.root / 'plugins'
-        with patch.object(v1_assets, 'context', self.context), patch.object(v1_assets, 'PluginCatalog') as catalog:
+        with patch.object(v1_assets, 'context', self.context), patch('backend.modules.generation.plugins.PluginCatalog') as catalog:
             catalog.return_value.applications.return_value = []
             result = asyncio.run(v1_assets.library(project_id=self.project))
             self.assertEqual(result['total'], 0)

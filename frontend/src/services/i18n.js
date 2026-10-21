@@ -2,7 +2,7 @@ import { computed, inject, provide, ref } from 'vue';
 import zh from '../locales/zh-CN.json';
 import en from '../locales/en-US.json';
 
-export const locale = ref('zh-CN');
+export const locale = ref('en-US');
 const plugins = ref({});
 export const UI_CONTEXT = 'videofree:ui-context';
 const supported = value => value === 'en-US' ? value : 'zh-CN';

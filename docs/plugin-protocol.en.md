@@ -1,10 +1,49 @@
-# VideoFree Plugin Protocol v1
+# VideoFree Studio Plugin Protocol v1
 
 [中文](plugin-protocol.md) · **English**
 
 This protocol packages local AI models and standalone workflows as stable product capabilities. Workbench users select features instead of editing nodes; agents call capability schemas instead of guessing workflow structure. Plugins own model-specific workflows, prompt rules, UI, and fixed assets. The framework provides shared project, job, media, collaboration, and transport services.
 
 ## Installation and boundaries
+
+### Archiving model dependencies
+
+Plugins retain opaque latent states, features, caches, or other binary dependencies
+through PluginRuntime, without introducing model-specific framework logic:
+
+```python
+record = runtime.save_job_file(job, "model-state", source=local_path,
+    metadata={"format": "my-model-state", "version": 1})
+# Alternatively use output={"filename": "state.bin", "subfolder": "model", "type": "output"}.
+# Supply exactly one source or output; optional sha256 and size verify expected contents.
+record = runtime.job_file(job, "model-state")  # None when absent
+with runtime.materialize_job_file(job, "model-state") as path:
+    consume(path)  # Read only, within this context.
+runtime.link_job_file(source_job, "model-state", target_job)
+runtime.restore_job_file(target_job, "model-state", "model/state.bin")
+```
+
+Names contain 1–128 letters, digits, underscores, dots or hyphens, starting with a
+letter or digit. Contents are immutable per job/name; use another name for a new state.
+Jobs must already be persisted and belong to the current plugin/project. Cross-project
+and cross-plugin links are rejected. Plugins own format/version metadata and restore
+paths. Restore defaults to ComfyUI output; `destination="input"` is also supported.
+
+Records contain plugin_id, project_id, job_id, name, object_key, sha256, size and
+metadata. StorageProvider owns project bytes; SQLite owns indexes. Internal files
+are excluded from the media library and media URLs. Streaming disk staging and
+SHA256 verification avoid trusting worker caches. Task/category deletion releases
+references; the last reference deletes the object. Project deletion removes all objects.
+Restore during execution of the consuming job so its lifecycle prevents deletion.
+Link before consuming dependencies; if linkage is deferred until execution, the plugin
+delete hook must protect queued consumers. Input copies, settings and workflow snapshots
+already live in task packages and should not be archived twice. This API does not
+implement multi-node execution or tenant authentication.
+
+Archive saves, links and deletion share a dedicated file lock; large copies do not
+hold the global state lock. Plugins may reuse local worker files only after checking
+their size and SHA256 against the archive. HTTP 413 during restore requires increasing
+ComfyUI's `--max-upload-size` and restarting it; check reverse-proxy limits as well.
 
 A plugin is a complete directory under `plugins/<plugin-id>/`. Its `plugin.json`, `INSTALL.md`, workflows, Python compilers, collaboration handlers, skills, UI, and fixed assets ship together. Do not copy plugin-owned files into framework directories.
 
@@ -170,7 +209,7 @@ Use `source_kind=image|video|audio` only to preview available actions for an ext
 
 MCP exposes the same three fixed tools: `list_plugin_actions`, `get_plugin_action`, and `run_plugin_action`. Clients discover actions and follow the returned `input_schema`; they must not guess action IDs. HTTP `automation` only filters listing, whereas MCP discovery and execution both enforce the flag.
 
-Without `project_id`, execution inherits the source job's project, or otherwise the current project. Explicit projects must exist and be active. An action cannot move a source into another project. VideoFree is single-user/single-installation: there is no workspace, multi-tenant, or `workspace_id` parameter, and HTTP, MCP, and the workbench share the same projects.
+Without `project_id`, execution inherits the source job's project, or otherwise the current project. Explicit projects must exist and be active. An action cannot move a source into another project. VideoFree Studio is single-user/single-installation: there is no workspace, multi-tenant, or `workspace_id` parameter, and HTTP, MCP, and the workbench share the same projects.
 
 Task-producing actions return `action_id`, `status`, `job_id`, `job_url`, and `wait_url`; use normal job query/wait APIs. Immediate actions return `action_id`, `status: completed`, and `result`, without `job_id`. Do not treat immediate output as a job or automatically confirm a collaboration session.
 
@@ -380,6 +419,67 @@ Resource editing uses the same UI declaration and parameter bindings. Regenerati
 The workbench uses `GET /api/v2/collaborations?project_id=<ID>` for active sessions and `POST /api/v2/collaborations/<ID>/cancel` to cancel. The framework owns recovery, polling, and API calls. Questions, progress, confirmation, and error UI belong to the capability plugin's `collaboration_ui`, not a framework panel selected by model name.
 
 The capability registry's sole source is `plugins/*/plugin.json`; there is no `workflows/registry.json` fallback. Processing modes come from plugin declarations, not model-name inference. Python handlers load in per-plugin versioned packages and support relative imports.
+
+## Infinite-canvas node plugins
+
+Canvas nodes are a separate extension type discovered only by an infinite-canvas host. Do not place them in a regular application/generation plugin manifest. They do not appear in the workbench plugin bar, regular plugin catalog, or MCP plugin list. Packages live at `plugins/canvas-nodes/<package-id>/` and must contain `plugin.json`, `INSTALL.md`, and all referenced local handlers/assets. These are trusted local Python packages, not a security sandbox.
+
+Minimal manifest:
+
+```json
+{
+  "schema_version": 1,
+  "plugin_type": "canvas_node",
+  "id": "project-tools",
+  "version": "1.0.0",
+  "name": "Project resource nodes",
+  "assets": [],
+  "nodes": [{
+    "id": "import-upload",
+    "name": "Import uploaded media",
+    "description": "Persist a temporary upload in the current project library",
+    "category": "resources",
+    "icon": "solar:import-linear",
+    "handler": "handlers/resources.py:import_upload",
+    "inputs": [{"id": "upload", "name": "Upload", "type": "upload", "required": true}],
+    "outputs": [{"id": "asset", "name": "Project asset", "type": "asset"}],
+    "config_schema": {
+      "type": "object",
+      "properties": {"name": {"type": "string"}, "kind": {"type": "string", "enum": ["image", "video", "audio", "music"]}},
+      "additionalProperties": false
+    }
+  }]
+}
+```
+
+Node IDs are unique within a package; the stable public type is `<package-id>.<node-id>`. Port IDs are unique within their input/output list. Supported port types are `text`, `number`, `integer`, `boolean`, `json`, `upload`, `asset`, `image`, `video`, `audio`, `music`, `media`, `project`, and `category`. Ports may declare `description`, `required`, and `multiple`; `multiple` is input-only and means an array. Project asset handles require at least `{ "project_id": "...", "path": "project-relative path", "type": "image|video|audio|music" }` and may include `name`, `category_id`, `media_type`, `size`, `modified`, and `url` returned by the library; `asset`/`media` accept any supported media kind. `image`, `video`, `audio`, and `music` ports enforce media type. `upload` is a temporary `{ "upload_id": "32 hex characters", "name": "optional filename", "kind": "optional media kind" }` input only. Execution checks that it is still a registered, existing gateway upload. The default category ID is an empty string.
+
+`config_schema` must be a JSON Schema Draft 2020-12 object schema. Inputs and outputs are validated against declared ports; undeclared ports and non-JSON values are rejected. A project port must reference the current project, a category must belong to that project, and media handles are checked for ownership, existence, and file suffix. Workflow data cannot be used to read another project's media.
+
+Handler signature:
+
+```python
+def execute(inputs: dict, config: dict, runtime):
+    return {"asset": runtime.application.import_upload(
+        inputs["upload"]["upload_id"],
+        name=config.get("name", inputs["upload"].get("name", "")),
+        kind=config.get("kind"),
+    )}
+```
+
+`async def` is also supported. A handler must return a JSON object containing only declared output ports. Read the project library with `runtime.application.library(kind=..., category_id=...)`; persist an upload with `runtime.application.import_upload(...)`; invoke generation capabilities/actions through `runtime.invoke_capability(...)` / `runtime.execute_action(...)`; agent nodes may call `runtime.call_model(...)`. Never access SQLite, absolute project paths, the ComfyUI HTTP client, or another plugin's source code. `ApplicationRuntime.library()` returns project-relative handles, not absolute filesystem paths.
+
+Discovery and single-node execution use authenticated HTTP endpoints:
+
+```text
+GET  /api/v2/canvas-nodes
+POST /api/v2/canvas-nodes/{package-id}.{node-id}/execute
+```
+
+The request body is `{"project_id":"optional; defaults to current project","category_id":"optional","inputs":{},"config":{}}`; the response is the handler's output JSON. Discovery includes presentation declarations and `config_schema`, but omits Python handlers, package directories, and revisions. Package scan errors are summarized for clients and detailed in gateway logs. Changed package files return 409 with `X-Plugin-Restart-Required: true`; drain node work and restart the gateway. Execution errors are normalized instead of returning Python tracebacks or absolute paths.
+
+This contract provides package discovery, single-node execution, project-resource read/import, and bridges to existing generation/LLM services. It does not implement canvas UI, connections, DAG validation/scheduling, workflow JSON persistence/sharing, or run-history UI; those belong to the infinite-canvas application plugin. No node packages are bundled by the framework yet. Project-library, upload, generation, and agent nodes are developed and installed independently under this protocol. The HTTP execution endpoint does not create one MCP tool per node; MCP exposure should be designed as workflow-level actions by the canvas application.
+
 ## UI localization contract
 
 The UI defaults to `zh-CN`. Choosing `en-US` in Settings persists to the framework SQLite settings across restarts and projects. HTTP/MCP IDs, parameter and enum values, prompts and user content remain unchanged.

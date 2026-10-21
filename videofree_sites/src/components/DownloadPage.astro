@@ -1,0 +1,123 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { t, path } from '../lib/i18n';
+
+const { lang } = Astro.props;
+const s = t(lang);
+const zh = lang !== 'en';
+
+const c = zh
+  ? {
+      title: '下载 · VideoFree Studio',
+      desc: '下载 VideoFree Studio 发布包、源码和配套 ComfyUI 整合包；也可以把一段提示词交给 AI 智能体，全程自动安装。Windows 解压即用，不要求安装 Python 或 Node.js。',
+      eyebrow: 'DOWNLOAD',
+      h1: '下载',
+      lead: '当前版本 2.0.0。AI 时代最快的安装方式：把一段提示词交给能操作你电脑的智能体，剩下的它来做。',
+      agent: '让 AI 智能体来装',
+      agentDesc: '复制下面这段话，发给豆包、Claude Code、Codex 等能操作你电脑的智能体：它会下载、启动 VideoFree Studio，并带你完成配置。',
+      agentPrompt: '帮我在这台电脑上安装 VideoFree Studio：从 https://gitee.com/heroofgod_admin/videofreestudio 下载最新 Release 解压到 [安装目录]（或克隆源码），按 README.md 完成安装并启动：Windows 双击 videofree.bat，Linux 执行 ./videofree.sh。启动后打开 http://127.0.0.1:8765 确认工作台就绪，然后告诉我还需要准备什么：ComfyUI 地址、想装的插件、以及插件 INSTALL.md 里声明的模型。遇到需要登录、接受条款或付费的下载，停下来交给我处理。',
+      release: 'VideoFree Studio 发布包',
+      releaseDesc: 'Windows 完整发布包，内含 Python 运行时。国内网络优先从 Gitee 发行版下载，GitHub Releases 为海外主站。',
+      gitee: 'Gitee 发行版',
+      source: '源码',
+      sourceDesc: 'AGPL-3.0 开源。Linux 源码部署：安装 requirements.txt，执行 chmod +x videofree.sh && ./videofree.sh。',
+      bundle: '配套 ComfyUI 整合包',
+      bundleDesc: '包含项目需要的 ComfyUI、模型和插件（夸克网盘）。保留模型文件名与子目录结构；配套 ComfyUI 必须安装 SageAttention。',
+      quark: '夸克网盘下载',
+      quarkCode: '分享口令：/~2ca93bYCBE~:/',
+      models: '模型与节点',
+      modelsDesc: '英文用户或已有 ComfyUI 的用户不需要整合包：每个插件的 INSTALL.md 声明了所需模型的官方地址，把插件目录交给 AI 智能体即可自动下载。',
+      modelsLink: '查看插件安装教程',
+      ffmpeg: '剪辑插件还需要系统安装 FFmpeg（ffmpeg 与 ffprobe 加入 PATH），仓库不分发这两个程序。',
+      ffmpegLink: 'FFmpeg 官方下载',
+    }
+  : {
+      title: 'Download · VideoFree Studio',
+      desc: 'Download the VideoFree Studio release and source code — or paste one prompt and let your AI agent install everything. The Windows build runs straight from the extracted folder — no Python or Node.js needed.',
+      eyebrow: 'DOWNLOAD',
+      h1: 'Download',
+      lead: 'Current version 2.0.0. The fastest install in the AI era: hand one prompt to an agent that can operate your computer, and it does the rest.',
+      agent: 'Install with your AI agent',
+      agentDesc: 'Paste the prompt below to Claude Code, Codex, Cursor, or any agent that can operate your computer — it downloads, launches, and walks you through setup. Models come from Hugging Face or the official source each plugin declares.',
+      agentPrompt: 'Install VideoFree Studio on this computer: download the latest release from https://github.com/linpengishero/VideoFreeStudio/releases and extract it to [folder] (or clone the repo), follow README.md for my OS, then start it — double-click videofree.bat on Windows, or ./videofree.sh on Linux. Open http://127.0.0.1:8765 to confirm the workspace is up, then tell me what is still missing: the ComfyUI address, the plugins to install, and the models each plugin INSTALL.md declares (fetch them from Hugging Face or the official source). If a download needs a login, terms acceptance, or payment, stop and let me handle it.',
+      release: 'VideoFree Studio release',
+      releaseDesc: 'Full Windows release including its Python runtime. Download from GitHub Releases.',
+      gh: 'GitHub Releases',
+      gitee: 'Gitee mirror',
+      source: 'Source code',
+      sourceDesc: 'Open source under AGPL-3.0. Linux deployment: install requirements.txt, then chmod +x videofree.sh && ./videofree.sh.',
+      models: 'Models & nodes',
+      modelsDesc: 'You do not need the bundle: every plugin declares its required models with official URLs in INSTALL.md. Hand the plugin folder to your AI agent and let it download everything.',
+      modelsLink: 'See the Plugin Installation guide',
+      ffmpeg: 'The editor plugin also requires FFmpeg (ffmpeg and ffprobe on PATH); the repository does not redistribute them.',
+      ffmpegLink: 'Official FFmpeg downloads',
+    };
+---
+
+<BaseLayout {lang} title={c.title} description={c.desc} current="download">
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">{c.eyebrow}</span>
+        <h2 style="margin-top:16px;">{c.h1}</h2>
+        <p>{c.lead}</p>
+      </div>
+
+      <div style="display:grid; gap:18px;">
+        <div class="info-card primary">
+          <h3>{c.agent}</h3>
+          <p class="desc">{c.agentDesc}</p>
+          <blockquote style="margin:8px 0 0;">{c.agentPrompt}</blockquote>
+        </div>
+
+        <div class="info-card">
+          <h3>{c.release}</h3>
+          <p class="desc">{c.releaseDesc}</p>
+          {zh ? (
+            <>
+              <p class="actions"><a class="solid-button" href="https://gitee.com/heroofgod_admin/videofreestudio/releases" target="_blank" rel="noopener noreferrer">{c.gitee} →</a></p>
+              <p class="meta"><a href="https://github.com/linpengishero/VideoFreeStudio/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a></p>
+            </>
+          ) : (
+            <p class="actions"><a class="solid-button" href="https://github.com/linpengishero/VideoFreeStudio/releases" target="_blank" rel="noopener noreferrer">{c.gh} →</a></p>
+          )}
+        </div>
+
+        <div class="info-card">
+          <h3>{c.source}</h3>
+          <p class="desc">{c.sourceDesc}</p>
+          <p class="meta">
+            {zh ? (
+              <>
+                <a href="https://gitee.com/heroofgod_admin/videofreestudio" target="_blank" rel="noopener noreferrer">Gitee</a>
+                {' · '}
+                <a href="https://github.com/linpengishero/VideoFreeStudio" target="_blank" rel="noopener noreferrer">GitHub</a>
+              </>
+            ) : (
+              <a href="https://github.com/linpengishero/VideoFreeStudio" target="_blank" rel="noopener noreferrer">GitHub</a>
+            )}
+          </p>
+        </div>
+
+        <div class="info-card">
+          <h3>{c.models}</h3>
+          <p class="desc">{c.modelsDesc}</p>
+          <p class="meta"><a href={path(lang, 'guide', 'plugin-install')}>{c.modelsLink} →</a></p>
+        </div>
+
+        {zh && (
+          <div class="info-card">
+            <h3>{c.bundle}</h3>
+            <p class="desc">{c.bundleDesc}</p>
+            <p class="actions"><a class="outline-button" href="https://pan.quark.cn/s/2d145a999169" target="_blank" rel="noopener noreferrer">{c.quark} →</a></p>
+            <p class="meta" style="color:var(--faint);"><code>{c.quarkCode}</code></p>
+          </div>
+        )}
+      </div>
+
+      <p style="margin-top:34px; color:var(--muted); font-size:13.5px;">
+        {c.ffmpeg} <a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener noreferrer">{c.ffmpegLink}</a>{zh ? '。' : ''}
+      </p>
+    </div>
+  </section>
+</BaseLayout>

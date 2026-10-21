@@ -1,11 +1,11 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
 """Stable system services exposed to trusted local plugin handlers."""
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +108,44 @@ class PluginRuntime:
            category_id=self.category_id if category_id is None else category_id,
            idempotency_key=idempotency_key)
 
+    def canvas_nodes(self) -> dict[str, Any]:
+        """Return public node declarations for an application-owned canvas UI."""
+        from ..generation.canvas_nodes import CanvasNodeCatalog
+        return CanvasNodeCatalog(self._context.paths.plugins, self._context).public()
+
+    async def execute_canvas_node(self, node_type: str, inputs=None, config=None, *,
+                                  project_id=None, category_id=None) -> dict[str, Any]:
+        """Execute one registered canvas node within the caller's project context."""
+        if self.project_id and project_id and self.project_id != project_id:
+            raise PluginError(422, "画布节点不能跨项目执行")
+        target_project = project_id or self.project_id
+        if not target_project:
+            raise PluginError(422, "画布节点执行需要项目上下文")
+        target_category = self.category_id if category_id is None else category_id
+        from ..projects import ProjectService
+        try:
+            ProjectService(self._context).authorize(target_project)
+            if target_category is not None:
+                ProjectService(self._context).validate_category(target_project, target_category)
+        except ValueError as exc:
+            raise PluginError(422, str(exc)) from exc
+        from ..generation.canvas_nodes import CanvasNodeCatalog
+        catalog = CanvasNodeCatalog(self._context.paths.plugins, self._context)
+        node = catalog.nodes().get(node_type)
+        if not node:
+            raise PluginError(404, f"画布节点不存在: {node_type}")
+        scoped_runtime = replace(
+            self,
+            plugin_id=node["plugin_id"],
+            # Canvas packages are a separate extension type. Per-node settings
+            # are validated and passed as `config`, not looked up in the
+            # regular plugin settings catalog.
+            configuration={},
+            project_id=target_project,
+            category_id=target_category,
+        )
+        return await catalog.execute(node_type, dict(inputs or {}), dict(config or {}), scoped_runtime)
+
     def call_model(self, messages: list[dict[str, Any]], max_tokens: int = 2500) -> str:
         """Call the platform LLM without exposing its credentials to the plugin."""
         if self._call_model is None:
@@ -116,13 +154,32 @@ class PluginRuntime:
 
     def comfyui_request(self, path: str, method="GET", body: bytes | None = None):
         """Access the configured system ComfyUI adapter."""
-        from ...bootstrap import comfyui_client
-        return comfyui_client.request(path, method, body)
+        return self._context.comfyui_provider.request(path, method, body)
 
     def comfyui_upload(self, body: bytes, media_type: str, filename: str) -> str:
         """Upload a plugin-owned temporary input through the configured ComfyUI adapter."""
-        from ...bootstrap import comfyui_client
-        return comfyui_client.upload_input(body, media_type, filename)
+        return self._context.comfyui_provider.upload_input(body, media_type, filename)
+
+    def save_job_file(self, job, name, **options):
+        """Archive an opaque plugin file, from a local source or worker output."""
+        from ..projects.job_files import JobFiles
+        return JobFiles(self).save(job, name, **options)
+
+    def job_file(self, job, name):
+        from ..projects.job_files import JobFiles
+        return JobFiles(self).get(job, name)
+
+    def materialize_job_file(self, job, name):
+        from ..projects.job_files import JobFiles
+        return JobFiles(self).materialize(job, name)
+
+    def link_job_file(self, source_job, name, target_job):
+        from ..projects.job_files import JobFiles
+        return JobFiles(self).link(source_job, name, target_job)
+
+    def restore_job_file(self, job, name, relative, **options):
+        from ..projects.job_files import JobFiles
+        return JobFiles(self).restore(job, name, relative, **options)
 
     def job_request(self, job: dict[str, Any]) -> dict[str, Any]:
         """Read a durable job request without exposing the task-store layout."""
@@ -155,8 +212,7 @@ class PluginRuntime:
             store.write_json(store.directory(job["id"]) / "config" / "request.json", compact)
 
     def free_comfyui_memory(self):
-        from ...bootstrap import comfyui_client
-        comfyui_client.free_memory()
+        self._context.comfyui_provider.free_memory()
 
     def voice_preset(self, preset_id):
         """Read a registered voice and its usable reference sample; never mutate it."""
@@ -225,8 +281,8 @@ class PluginRuntime:
         cached = cache.get(address)
         try:
             from ..settings import SettingsService
-            from ...bootstrap import comfyui_client
             if detect and (cached is None or time.monotonic() - cached[0] > (300 if cached[1] else 15)):
+                comfyui_client = self._context.comfyui_provider
                 live = SettingsService(self._context, comfyui_client).local_comfyui_output_directory(
                     SettingsService(self._context, comfyui_client).read()
                 )

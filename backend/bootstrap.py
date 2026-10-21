@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from .core.context import ApplicationContext
 from .core.config import EnvironmentConfig, ProjectPaths
-from .integrations.comfyui import ComfyUIClient
+from .integrations.system_services.comfyui import load_provider
 from .integrations.system_services import LLMProviderCatalog, LocalStorageProvider
 from .persistence import Database
 
@@ -36,11 +36,12 @@ def create_context(root: Path) -> ApplicationContext:
         comfyui_output_dir=config.default_comfyui_output_dir,
         system_services=LLMProviderCatalog(root / "backend" / "integrations" / "system_services" / "llm_providers"),
         storage_provider=LocalStorageProvider(project_storage_root),
+        comfyui_provider=load_provider(config.default_comfyui_url),
     )
 
 
 context = create_context(ROOT)
-comfyui_client = ComfyUIClient(context.comfyui_url)
+comfyui_client = context.comfyui_provider
 
 def check_installation(root: Path = ROOT) -> None:
     """Check the release package without contacting providers or starting workers."""

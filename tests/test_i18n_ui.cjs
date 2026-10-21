@@ -144,7 +144,7 @@ const server = http.createServer((req, res) => {
       ui: { fields: [{ bind: 'prompt', component: 'textarea', section: 'body', label: 'Prompt' },
         { bind: 'inputs.image', component: 'media', media: 'image', label: 'Images' },
         { bind: 'inputs.video', component: 'media', media: 'video', label: 'Videos' }] } };
-    await page.addInitScript(() => localStorage.setItem('zizai-open-project-id', 'project-ui'));
+    await page.addInitScript(() => localStorage.setItem('videofree-open-project-id', 'project-ui'));
     await page.route('**/api/v2/**', route => {
       const pathname = new URL(route.request().url()).pathname;
       let data = { items: [], categories: [], applications: [], project_tools: [], errors: [] };

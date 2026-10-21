@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -81,6 +81,19 @@ class Database:
                 plugin_id TEXT NOT NULL, job_id TEXT NOT NULL,
                 PRIMARY KEY(plugin_id, job_id),
                 FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS plugin_job_files (
+                plugin_id TEXT NOT NULL, job_id TEXT NOT NULL, name TEXT NOT NULL,
+                project_id TEXT NOT NULL, object_key TEXT NOT NULL,
+                sha256 TEXT NOT NULL, size INTEGER NOT NULL, metadata_json TEXT NOT NULL,
+                PRIMARY KEY(plugin_id, job_id, name),
+                FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_plugin_job_files_object ON plugin_job_files(object_key);
+            CREATE TABLE IF NOT EXISTS upload_metadata (
+                id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL DEFAULT 'local',
+                created_by TEXT NOT NULL DEFAULT 'local', created_at REAL NOT NULL
             );
             CREATE TABLE IF NOT EXISTS artifacts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL,
@@ -195,6 +208,9 @@ class Database:
                 db.execute("ALTER TABLE voice_presets ADD COLUMN profile_version INTEGER DEFAULT 1")
             job_columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)").fetchall()}
             project_columns = {row["name"] for row in db.execute("PRAGMA table_info(projects)").fetchall()}
+            for name in ("tenant_id", "created_by"):
+                if name not in project_columns:
+                    db.execute(f"ALTER TABLE projects ADD COLUMN {name} TEXT NOT NULL DEFAULT 'local'")
             if "ai_created" not in project_columns:
                 db.execute("ALTER TABLE projects ADD COLUMN ai_created INTEGER NOT NULL DEFAULT 0")
             for name, definition in {
@@ -212,6 +228,8 @@ class Database:
                 "comfy_prompt_id": "TEXT",
                 "project_id": "TEXT",
                 "category_id": "TEXT NOT NULL DEFAULT ''",
+                "created_by": "TEXT NOT NULL DEFAULT 'local'",
+                "execution_node_id": "TEXT NOT NULL DEFAULT ''",
             }.items():
                 if name not in job_columns:
                     db.execute(f"ALTER TABLE jobs ADD COLUMN {name} {definition}")
@@ -332,12 +350,13 @@ class Database:
 
     def insert_job(self, job: dict[str, Any]) -> None:
         with self.connect() as db:
-            db.execute("""INSERT INTO jobs (id, kind, status, request_json, created_at, updated_at, width, height, duration_seconds, task_dir, manifest_path, parent_job_id, revision, project_id, category_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (
+            db.execute("""INSERT INTO jobs (id, kind, status, request_json, created_at, updated_at, width, height, duration_seconds, task_dir, manifest_path, parent_job_id, revision, project_id, category_id, created_by, execution_node_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (
                 job["id"], job["kind"], job["status"], json.dumps(job["request"], ensure_ascii=False),
                 job["created_at"], job["created_at"], job.get("width"), job.get("height"), job.get("duration_seconds"),
                 job.get("task_dir"), job.get("manifest_path"), job.get("parent_job_id"), job.get("revision", 1), job.get("project_id"),
                 job.get("category_id", ""),
+                job.get("created_by", "local"), job.get("execution_node_id", ""),
             ))
 
     def update_job(self, job_id: str, values: dict[str, Any]) -> None:
@@ -355,6 +374,51 @@ class Database:
                 "UPDATE jobs SET request_json=?, updated_at=? WHERE id=?",
                 (json.dumps(request, ensure_ascii=False), time.time(), job_id),
             )
+
+    def job_file(self, plugin_id: str, job_id: str, name: str) -> dict | None:
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM plugin_job_files WHERE plugin_id=? AND job_id=? AND name=?",
+                             (plugin_id, job_id, name)).fetchone()
+        if not row:
+            return None
+        value = dict(row)
+        value["metadata"] = json.loads(value.pop("metadata_json"))
+        return value
+
+    def save_job_file(self, value: dict) -> None:
+        with self.connect() as db:
+            db.execute("""INSERT INTO plugin_job_files
+                (plugin_id,job_id,name,project_id,object_key,sha256,size,metadata_json)
+                VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(plugin_id,job_id,name) DO UPDATE SET
+                object_key=excluded.object_key,sha256=excluded.sha256,size=excluded.size,
+                metadata_json=excluded.metadata_json""", (
+                value["plugin_id"], value["job_id"], value["name"], value["project_id"], value["object_key"],
+                value["sha256"], value["size"], json.dumps(value.get("metadata", {}), ensure_ascii=False)))
+
+    def job_files(self, job_id: str) -> list[dict]:
+        with self.connect() as db:
+            return [dict(row) for row in db.execute("SELECT * FROM plugin_job_files WHERE job_id=?", (job_id,))]
+
+    def delete_job_files(self, job_id: str) -> None:
+        with self.connect() as db:
+            db.execute("DELETE FROM plugin_job_files WHERE job_id=?", (job_id,))
+
+    def job_file_referenced(self, key: str, excluding_job: str = "") -> bool:
+        with self.connect() as db:
+            return db.execute("SELECT 1 FROM plugin_job_files WHERE object_key=? AND job_id<>? LIMIT 1",
+                              (key, excluding_job)).fetchone() is not None
+
+    def register_upload(self, upload_id: str) -> None:
+        with self.connect() as db:
+            db.execute("INSERT OR IGNORE INTO upload_metadata(id,created_at) VALUES (?,?)", (upload_id, time.time()))
+
+    def upload_exists(self, upload_id: str) -> bool:
+        with self.connect() as db:
+            return db.execute("SELECT 1 FROM upload_metadata WHERE id=?", (upload_id,)).fetchone() is not None
+
+    def delete_upload_metadata(self, upload_id: str) -> None:
+        with self.connect() as db:
+            db.execute("DELETE FROM upload_metadata WHERE id=?", (upload_id,))
 
     def mark_plugin_job(self, plugin_id: str, job_id: str, selected: bool) -> None:
         with self.connect() as db:
@@ -504,8 +568,8 @@ class Database:
         now = time.time()
         with self.connect() as db:
             db.execute(
-                "INSERT INTO projects (id, name, output_subdir, description, content_summary, status, ai_created, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)",
-                (value["id"], value["name"], value["output_subdir"], value.get("description", ""), value.get("content_summary", ""), int(bool(value.get("ai_created", False))), now, now),
+                "INSERT INTO projects (id, name, output_subdir, description, content_summary, status, ai_created, created_at, updated_at, tenant_id, created_by) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)",
+                (value["id"], value["name"], value["output_subdir"], value.get("description", ""), value.get("content_summary", ""), int(bool(value.get("ai_created", False))), now, now, value.get("tenant_id", "local"), value.get("created_by", "local")),
             )
         return self.project(value["id"]) or value
 

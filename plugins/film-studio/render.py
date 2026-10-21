@@ -49,7 +49,7 @@ def toolkit() -> tuple[Path, Path]:
     if missing:
         raise ValueError(
             f'剪辑插件找不到 {"、".join(missing)}。请安装 FFmpeg，并确保 ffmpeg 和 ffprobe '
-            '可从系统 PATH 执行，然后重启 VideoFree。安装说明见 plugins/film-studio/INSTALL.md。')
+            '可从系统 PATH 执行，然后重启 VideoFree Studio。安装说明见 plugins/film-studio/INSTALL.md。')
     return Path(resolved['ffmpeg']), Path(resolved['ffprobe'])
 
 

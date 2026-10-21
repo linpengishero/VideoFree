@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -7,18 +7,14 @@ import asyncio
 import mimetypes
 import shutil
 import subprocess
-import time
-import urllib.parse
 import uuid
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from ...bootstrap import context
 from ...modules.projects import ProjectService
-from ...modules.generation.plugins import PluginCatalog
 from .dependencies import auth
 
 
@@ -102,6 +98,7 @@ async def upload_media(file: UploadFile = File(...)):
         await file.close()
     try:
         validate_upload_content(target, media_type)
+        context.db.register_upload(upload_id)
     except Exception:
         target.unlink(missing_ok=True)
         raise
@@ -119,51 +116,12 @@ async def library(kind: str = "all", offset: int = 0, limit: int | None = None, 
         raise HTTPException(409, str(exc)) from exc
     if not project or project.get("status") != "active":
         raise HTTPException(422, "项目不存在或已归档")
-    if category_id is not None:
-        try:
-            ProjectService(context).validate_category(project["id"], category_id)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
-    result = await asyncio.to_thread(scan_library, kind, 0, None, sort, types, project)
-    ownership = ProjectService(context).library_categories(project["id"])
-    items = [{**item, "category_id": ownership.get(item["path"], "")} for item in result["items"]]
-    if category_id is not None:
-        items = [item for item in items if item["category_id"] == category_id]
-    page = items[offset:offset + limit] if limit is not None else items[offset:]
-    return {**result, "items": page, "total": len(items), "next_offset": offset + limit if limit is not None and len(items) > offset + limit else None}
+    try:
+        return await asyncio.to_thread(service.library, project["id"], kind=kind, offset=offset,
+                                        limit=limit, sort=sort, category_id=category_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
-
-def scan_library(kind: str, offset: int, limit: int, sort: str, types: dict[str, set[str]], project: dict[str, Any]) -> dict[str, Any]:
-    project_directory = ProjectService(context).ensure_directory(project)
-    directory = str(project_directory)
-    with context.library_lock:
-        if context.library_cache["directory"] != directory or time.monotonic() - context.library_cache["created_at"] > 30:
-            indexed = []
-            output_rules = [app['library_outputs'] for app in PluginCatalog(context.paths.plugins, context).applications() if app.get('library_outputs')]
-            storage = ProjectService(context).storage
-            for stored in storage.list_files(str(project["output_subdir"])):
-                path = Path(stored.key)
-                ext = path.suffix.lower()
-                try:
-                    relative_project = path.relative_to(project["output_subdir"])
-                except ValueError:
-                    continue
-                if any(relative_project.parts and relative_project.parts[0] == rule['directory'] and path.name not in rule['filenames'] for rule in output_rules):
-                    continue
-                if relative_project.parts and relative_project.parts[0] == "public-assets":
-                    continue
-                media_type = "music" if relative_project.parts and relative_project.parts[0] == "music" else next((name for name, extensions in types.items() if name != "music" and ext in extensions), None)
-                if not media_type: continue
-                relative = stored.key
-                indexed.append({"name": path.name, "path": relative, "type": media_type, "modified": stored.modified_at, "size": stored.size, "url": f"/v1/library/files/{urllib.parse.quote(relative)}"})
-            indexed.sort(key=lambda item: item["modified"], reverse=True)
-            context.library_cache.update(directory=directory, created_at=time.monotonic(), items=indexed)
-        items = [item for item in context.library_cache["items"] if kind == "all" or item["type"] == kind]
-    if sort == "old":
-        items = list(reversed(items))
-    page = items[offset:] if limit is None else items[offset:offset + limit]
-    next_offset = None if limit is None or offset + limit >= len(items) else offset + limit
-    return {"items": page, "total": len(items), "next_offset": next_offset, "output_dir": directory, "project_id": project["id"]}
 
 @router.get("/v1/library/files/{path:path}")
 async def library_file(path: str, _: None = Depends(auth)):

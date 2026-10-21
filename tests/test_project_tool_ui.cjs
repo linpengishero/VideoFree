@@ -12,7 +12,7 @@ async function check(base, viewport, size) {
     const page = await browser.newPage({ viewport });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.addInitScript(() => localStorage.setItem('zizai-open-project-id', 'project-ui'));
+    await page.addInitScript(() => localStorage.setItem('videofree-open-project-id', 'project-ui'));
     const project = { id: 'project-ui', name: '创作档案测试项目', status: 'active' };
     const documents = new Map();
     const writes = [];

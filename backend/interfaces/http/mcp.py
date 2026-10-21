@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -32,7 +32,7 @@ from .v2_schemas import CreateRequest, RegenerateRequest
 
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-MCP_SERVER_INFO = {"name": "zizai-media-gateway", "version": "2.0.0"}
+MCP_SERVER_INFO = {"name": "videofree", "version": "2.0.0"}
 
 
 def _jsonrpc(request_id: Any, result: Any = None, error: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -389,7 +389,7 @@ async def _tool_result(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         filename = str(arguments.get("filename", "reference.bin")).replace("\\", "/").rsplit("/", 1)[-1]
         media_type = str(arguments.get("media_type") or mimetypes.guess_type(filename)[0] or "application/octet-stream")
         raw = base64.b64decode(str(arguments.get("data_base64", "")), validate=True)
-        boundary = f"----ZizaiMCP{uuid.uuid4().hex}"
+        boundary = f"----VideoFreeMCP{uuid.uuid4().hex}"
         head = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {media_type}\r\n\r\n").encode()
         body = head + raw + f"\r\n--{boundary}--\r\n".encode()
         return _text(await asyncio.to_thread(_local_api_request, "POST", "/v1/uploads", body, f"multipart/form-data; boundary={boundary}"))

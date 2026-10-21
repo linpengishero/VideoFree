@@ -29,6 +29,7 @@ Thumbs.db
 *.swp
 
 # Temporary exports and downloaded model/media files
+.agents/skills/*.rar
 *.tmp
 *.part
 *.bak

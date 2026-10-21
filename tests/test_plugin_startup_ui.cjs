@@ -69,7 +69,7 @@ async function check(browser, origin, viewport) {
   page.on('pageerror', e => errors.push(e.message));
   // Vue setup errors can be caught by Vue and reported only through console.error.
   page.on('console', m => { if(m.type()==='error') errors.push(m.text()); });
-  await page.addInitScript(() => localStorage.setItem('zizai-open-project-id','startup-test'));
+  await page.addInitScript(() => localStorage.setItem('videofree-open-project-id','startup-test'));
   await page.route('**/v1/**', route => {
     const pathname = new URL(route.request().url()).pathname;
     if(pathname==='/v1/auth/session') {

@@ -1,0 +1,17 @@
+{
+  "name": "videofree-site",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "VideoFree Studio official website (Cloudflare Pages)",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "astro": "^5.14.0"
+  }
+}

@@ -2,9 +2,9 @@
 
 **English** · [中文](THIRD_PARTY_NOTICES_ZH.md)
 
-VideoFree is a media gateway that calls a user-configured ComfyUI installation,
+VideoFree Studio is a media gateway that calls a user-configured ComfyUI installation,
 installed nodes, models, and external services. Content listed below is not covered
-by a single VideoFree license merely because it is referenced by this repository.
+by a single VideoFree Studio license merely because it is referenced by this repository.
 
 ## ComfyUI and community nodes
 
@@ -22,8 +22,8 @@ commercial project.
 
 ## OpenMontage
 
-OpenMontage is located under `.agents/skills/openmontage/`. It can be used as an
-independent skill and is not a runtime dependency of the VideoFree editor plugin.
+OpenMontage is located under `examples/skills/openmontage/`. It can be used as an
+independent skill and is not a runtime dependency of the VideoFree Studio editor plugin.
 Its AGPL-3.0 license applies independently. Keep the OpenMontage license, copyright,
 source notices, and other required files with its source distribution.
 
@@ -31,6 +31,6 @@ source notices, and other required files with its source distribution.
 
 Python, JavaScript packages, FFmpeg, and other dependencies retain the licenses of
 their own projects. Listing a dependency does not transfer its copyright or grant a
-VideoFree sublicense. The editor calls user-installed `ffmpeg` and `ffprobe` from
+VideoFree Studio sublicense. The editor calls user-installed `ffmpeg` and `ffprobe` from
 system `PATH`; this repository does not commit or distribute those binaries. See
 `plugins/film-studio/INSTALL.md` for installation and verification instructions.

@@ -2,7 +2,7 @@
 
 ## 模型
 
-必需仓库 `FunAudioLLM/Fun-CosyVoice3-0.5B`：[Hugging Face](https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B) / [ModelScope](https://modelscope.cn/models/iic/Fun-CosyVoice3-0.5B)。`FL_CosyVoice3_ModelLoader` 默认由 ModelScope 下载并管理缓存，因此**没有固定的 ComfyUI `models/` 安装目录**；若选择手工离线安装，目录和配置方式必须遵循 [ComfyUI_Fill-Nodes](https://github.com/filliptm/ComfyUI_Fill-Nodes) 的当前说明，不能放入 VideoFree 插件源码目录。
+必需仓库 `FunAudioLLM/Fun-CosyVoice3-0.5B`：[Hugging Face](https://huggingface.co/FunAudioLLM/Fun-CosyVoice3-0.5B) / [ModelScope](https://modelscope.cn/models/iic/Fun-CosyVoice3-0.5B)。`FL_CosyVoice3_ModelLoader` 默认由 ModelScope 下载并管理缓存，因此**没有固定的 ComfyUI `models/` 安装目录**；若选择手工离线安装，目录和配置方式必须遵循 [ComfyUI_Fill-Nodes](https://github.com/filliptm/ComfyUI_Fill-Nodes) 的当前说明，不能放入 VideoFree Studio 插件源码目录。
 
 ## ComfyUI 节点
 

@@ -28,7 +28,10 @@ These rules apply to the entire repository. Before changing code, every automate
 | Plugin workflows, dedicated compilers, and collaboration skills | `plugins/<plugin-id>/` |
 | Application-plugin pages, business logic, and actions | `plugins/<plugin-id>/ui/` and the same plugin directory, registered by `plugin.json/application/actions` |
 | Plugin capabilities, primary categories, and processing modes | `plugins/<plugin-id>/plugin.json`, the sole registration source |
-| Director and capability skills | `.agents/skills/` or the corresponding plugin's `collaboration/skills/`; follow neighboring organization |
+| Repository development skills | `.agents/skills/`, only for developing and maintaining this repository |
+| Installable example skills and independent toolkits | `examples/skills/`; not framework runtime dependencies; retain third-party licenses |
+| Plugin-specific collaboration skills | The corresponding plugin's `collaboration/skills/` |
+| Example skill tests | `examples/tests/`, run separately from framework release tests |
 | Automated tests and fixed test assets | `tests/` |
 | Runtime data, caches, jobs, and generated media | `data/`; never commit or manually edit as source |
 | Frontend build output | `static/dist/`, generated only by the frontend build |

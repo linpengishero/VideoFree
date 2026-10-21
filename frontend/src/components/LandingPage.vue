@@ -1,320 +1,276 @@
 <!--
-Copyright (c) 2026 VideoFree individual project author and contributors.
-Part of VideoFree: https://github.com/linpengishero/VideoFree
+Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 -->
 
 <script setup>
-import { t, localizedLabels } from '../services/i18n';
-
+import { onMounted, onUnmounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
-import { ref } from "vue";
-import PluginDialog from './PluginDialog.vue';
+import { t } from "../services/i18n";
 
-defineEmits(["enter", "guide"]);
+defineEmits(["enter"]);
 
-const qrOpen = ref(false);
-const activeQr = ref({ src: "", title: "" });
+const announcementFailed = ref(false);
+const backgroundCanvas = ref(null);
+let animationFrame = 0;
+let resizeObserver;
+let stopAnimation = false;
 
-function openQr(src, title) {
-  activeQr.value = { src, title };
-  qrOpen.value = true;
+function startBackground() {
+  const canvas = backgroundCanvas.value;
+  const context = canvas?.getContext("2d", { alpha: true });
+  if (!canvas || !context) return;
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const nodes = Array.from({ length: 78 }, () => ({
+    x: Math.random(), y: Math.random(),
+    vx: (Math.random() - 0.5) * 0.012,
+    vy: (Math.random() - 0.5) * 0.009,
+    phase: Math.random() * Math.PI * 2,
+  }));
+  let width = 0;
+  let height = 0;
+  let lastFrame = 0;
+  let gridOffset = 0;
+
+  const resize = () => {
+    const bounds = canvas.getBoundingClientRect();
+    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+    width = bounds.width;
+    height = bounds.height;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    cancelAnimationFrame(animationFrame);
+    lastFrame = 0;
+    if (reducedMotion) {
+      draw(performance.now(), true);
+    } else {
+      animationFrame = requestAnimationFrame(draw);
+    }
+  };
+
+  const draw = (timestamp, staticFrame = false) => {
+    if (stopAnimation || (!staticFrame && timestamp - lastFrame < 40)) {
+      if (!stopAnimation && !reducedMotion) animationFrame = requestAnimationFrame(draw);
+      return;
+    }
+    const delta = Math.min(timestamp - lastFrame || 16, 50);
+    const seconds = timestamp / 1000;
+    lastFrame = timestamp;
+    context.clearRect(0, 0, width, height);
+
+    // A perspective grid anchors the scene like a live technical workspace.
+    const horizon = height * 0.47;
+    context.lineWidth = 1;
+    for (let row = 0; row < 15; row += 1) {
+      const progress = row / 14;
+      const y = horizon + Math.pow((progress + gridOffset * 0.045) % 1, 1.7) * height * 0.62;
+      context.strokeStyle = `rgba(72, 194, 207, ${0.075 + progress * 0.085})`;
+      context.beginPath();
+      context.moveTo(0, y);
+      context.lineTo(width, y);
+      context.stroke();
+    }
+    if (!reducedMotion) gridOffset = (gridOffset + delta * 0.012) % 1;
+    for (let ray = -13; ray <= 13; ray += 1) {
+      const bottomX = width / 2 + ray * width / 13;
+      context.strokeStyle = ray % 3 === 0 ? "rgba(87, 215, 206, 0.15)" : "rgba(87, 215, 206, 0.07)";
+      context.beginPath();
+      context.moveTo(width / 2 + ray * 2, horizon);
+      context.lineTo(bottomX, height * 1.12);
+      context.stroke();
+    }
+
+    // Slowly rotating instrument rings sit behind the product mark.
+    const centerX = width / 2;
+    const centerY = height * 0.24;
+    context.save();
+    context.translate(centerX, centerY);
+    context.rotate(seconds * 0.035);
+    [112, 146].forEach((radius, index) => {
+      context.beginPath();
+      context.setLineDash(index ? [2, 10] : [28, 12, 3, 12]);
+      context.lineDashOffset = -seconds * (index ? 8 : 14);
+      context.strokeStyle = index ? "rgba(73, 195, 211, 0.34)" : "rgba(121, 225, 177, 0.4)";
+      context.lineWidth = index ? 1 : 1.4;
+      context.arc(0, 0, radius, 0, Math.PI * 2);
+      context.stroke();
+    });
+    context.setLineDash([]);
+    context.beginPath();
+    context.arc(0, 0, 166, seconds * 0.18, seconds * 0.18 + Math.PI * 0.28);
+    context.strokeStyle = "rgba(243, 184, 102, 0.5)";
+    context.lineWidth = 2;
+    context.stroke();
+    context.restore();
+
+    // A bright scan traverses the field to make motion legible at a glance.
+    const scanY = ((seconds * 0.075) % 1.2 - 0.1) * height;
+    context.strokeStyle = "rgba(93, 218, 210, 0.34)";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(0, scanY);
+    context.lineTo(width, scanY);
+    context.stroke();
+    context.fillStyle = "rgba(93, 218, 210, 0.055)";
+    context.fillRect(0, scanY - 18, width, 36);
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      const point = nodes[i];
+      if (!reducedMotion) {
+        point.x = (point.x + point.vx * delta / 1000 + 1) % 1;
+        point.y = (point.y + point.vy * delta / 1000 + 1) % 1;
+      }
+      const x = point.x * width;
+      const y = point.y * height;
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        const other = nodes[j];
+        const dx = (point.x - other.x) * width;
+        const dy = (point.y - other.y) * height;
+        const distance = Math.hypot(dx, dy);
+        if (distance > 188) continue;
+        context.globalAlpha = (1 - distance / 188) * (0.28 + (Math.sin(seconds * 1.4 + point.phase) + 1) * 0.11);
+        context.beginPath();
+        context.moveTo(x, y);
+        context.lineTo(other.x * width, other.y * height);
+        context.stroke();
+      }
+      const pulse = 0.6 + (Math.sin(seconds * 1.8 + point.phase) + 1) * 0.16;
+      context.globalAlpha = pulse;
+      context.fillStyle = i % 9 === 0 ? "rgba(245, 190, 111, 0.92)" : i % 3 === 0 ? "rgba(98, 220, 220, 0.9)" : "rgba(167, 235, 193, 0.88)";
+      context.beginPath();
+      context.arc(x, y, i % 9 === 0 ? 2.1 : 1.65, 0, Math.PI * 2);
+      context.fill();
+      if (i % 13 === 0) {
+        context.strokeStyle = "rgba(98, 220, 220, 0.32)";
+        context.beginPath();
+        context.moveTo(x - 7, y);
+        context.lineTo(x + 7, y);
+        context.moveTo(x, y - 7);
+        context.lineTo(x, y + 7);
+        context.stroke();
+      }
+    }
+    context.globalAlpha = 1;
+    if (!staticFrame && !reducedMotion && !stopAnimation) animationFrame = requestAnimationFrame(draw);
+  };
+
+  resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(canvas);
+  resize();
 }
 
-function closeQr() {
-  qrOpen.value = false;
+function markAnnouncementFailed() {
+  announcementFailed.value = true;
 }
 
-const capabilities = localizedLabels([
-  { icon: "solar:widget-5-linear", title: "工作流插件化", description: "把模型、工作流、参数和资源封装成可安装能力。" },
-  { icon: "solar:magic-stick-3-linear", title: "大白话创作", description: "按模型规则追问和整理提示词，降低学习门槛。" },
-  { icon: "solar:folder-with-files-linear", title: "项目化管理", description: "统一管理剧本、分类、任务、素材与项目资产。" },
-  { icon: "solar:link-linear", title: "Agent 稳定调用", description: "通过 MCP/API 发现和调用能力，不接触节点连线。" },
-], t);
-
-const services = localizedLabels([
-  { icon: "solar:server-square-cloud-linear", title: "企业级大模型部署", description: "私有化部署、知识库与 RAG、推理服务。" },
-  { icon: "solar:stars-minimalistic-linear", title: "企业 AI 自动化", description: "连接业务系统，让 AI 参与实际生产流程。" },
-  { icon: "solar:diagram-up-linear", title: "智能体与工作流定制", description: "多智能体协作、媒体工作流与持续维护。" },
-], t);
+onMounted(startBackground);
+onUnmounted(() => {
+  stopAnimation = true;
+  cancelAnimationFrame(animationFrame);
+  resizeObserver?.disconnect();
+});
 </script>
 
 <template>
   <div class="landing-page">
-    <header class="landing-nav">
-      <a class="landing-brand" href="/" :aria-label="t(&quot;videofree 首页&quot;)">
-        <img src="/contact/logo.png" alt="" width="32" height="32" />
-        <strong>videofree</strong>
-      </a>
-      <button class="studio-button" type="button" @click="$emit('enter')">{{ t('进入工作台') }}<Icon icon="solar:arrow-right-linear" width="18" />
-      </button>
-    </header>
-
+    <canvas ref="backgroundCanvas" class="tech-background" aria-hidden="true"></canvas>
     <main class="landing-main">
-      <div class="product-column">
-        <section class="product-intro" aria-labelledby="landing-title">
-          <div class="section-label"><span class="label-mark"></span>{{ t('本地 AI 视频创作平台') }}</div>
-          <h1 id="landing-title">videofree</h1>
-          <p class="product-subtitle">{{ t('让复杂的本地工作流，成为真正可用的创作能力。') }}</p>
-          <p class="product-description">{{ t('以 ComfyUI 为生成引擎，把零散模型、复杂节点、提示词规则和配套资源封装成插件。普通用户可以用大白话创作，开发者可以分发能力，Agent 可以通过稳定接口自动调用。') }}</p>
-          <div class="product-modes" :aria-label="t(&quot;支持的创作方式&quot;)">
-            <span><Icon icon="solar:monitor-linear" width="15" />{{ t('本地模型') }}</span>
-            <span><Icon icon="solar:cloud-linear" width="15" />{{ t('云端生成') }}</span>
-            <span><Icon icon="solar:link-linear" width="15" />{{ t('智能体协作') }}</span>
-          </div>
-        </section>
-
-        <section class="product-features" :aria-label="t(&quot;videofree 产品能力&quot;)">
-          <article v-for="item in capabilities" :key="item.title" class="feature-item">
-            <Icon :icon="item.icon" width="22" />
-            <div><h2>{{ item.title }}</h2><p>{{ item.description }}</p></div>
-          </article>
-        </section>
-
-        <section class="resource-section community-section" aria-labelledby="community-title">
-          <div class="resource-copy">
-            <span class="section-label">{{ t('学习与实践 · 知识星球') }}</span>
-            <h2 id="community-title">{{ t('把 AI 创作变成可复用的流水线') }}</h2>
-            <p>{{ t('分享各类 AI 视频自动化流水线、智能体实践与大模型专业知识。从实际案例出发，持续更新可落地的方法与经验。') }}</p>
-            <span class="resource-note">{{ t('AI 视频自动化 / 智能体 / 大模型') }}</span>
-            <div class="guide-links">
-              <button type="button" @click="$emit('guide', 'install')"><Icon icon="solar:monitor-linear" width="16" />{{ t('安装部署教程') }}</button>
-              <button type="button" @click="$emit('guide', 'mcp')"><Icon icon="solar:plug-circle-linear" width="16" />{{ t('MCP 安装教程') }}</button>
-              <button type="button" @click="$emit('guide', 'skills')"><Icon icon="solar:book-linear" width="16" />{{ t('全自动技能包教程') }}</button>
-              <button type="button" @click="$emit('guide', 'plugin')"><Icon icon="solar:widget-add-linear" width="16" />{{ t('插件开发教程') }}</button>
-            </div>
-          </div>
-          <div class="community-qr-list">
-            <button class="qr-link" type="button" @click="openQr('/contact/zsxq-qr.png', t('知识星球'))" :aria-label="t(&quot;放大知识星球二维码&quot;)">
-              <img src="/contact/zsxq-qr.png" :alt="t(&quot;知识星球二维码&quot;)" width="200" height="200" loading="lazy" />
-              <span>{{ t('知识星球') }}</span>
-            </button>
-            <button class="qr-link" type="button" @click="openQr('https://laobanclaw.top/videofree/qrcode.jpg', t('VideoFree 微信交流群'))" :aria-label="t(&quot;放大 VideoFree 微信交流群二维码&quot;)">
-              <img src="https://laobanclaw.top/videofree/qrcode.jpg" :alt="t(&quot;VideoFree 微信交流群二维码&quot;)" width="200" height="200" loading="lazy" referrerpolicy="no-referrer" />
-              <span>{{ t('微信交流群') }}</span>
-            </button>
-          </div>
-        </section>
-
-      </div>
-
-      <aside class="business-column" aria-labelledby="contact-title">
-        <section class="business-intro">
-          <span class="section-label">{{ t('AI老林 · 技术服务与合作') }}</span>
-          <h2 id="contact-title">{{ t('让 AI 进入业务，') }}<br />{{ t('交付真正可运行的系统。') }}</h2>
-          <p>{{ t('面向企业与团队，提供从需求梳理、方案设计到部署交付的技术服务，让 AI 能落地，也能长期维护。') }}</p>
-        </section>
-
-        <div class="service-list" :aria-label="t(&quot;个人技术服务&quot;)">
-          <article v-for="service in services" :key="service.title">
-            <Icon :icon="service.icon" width="21" />
-            <div><h3>{{ service.title }}</h3><p>{{ service.description }}</p></div>
-          </article>
+      <section class="brand-block" aria-labelledby="landing-title">
+        <img class="brand-logo" src="/contact/logo.png" alt="" width="88" height="88" />
+        <p class="brand-kicker">LOCAL AI CREATION PLATFORM</p>
+        <h1 id="landing-title">VideoFree Studio</h1>
+        <p class="brand-subtitle">{{ t("本地 AI 视频创作平台") }}</p>
+        <div class="landing-actions">
+          <button class="primary-action" type="button" @click="$emit('enter')">
+            {{ t("进入工作台") }}
+            <Icon icon="solar:arrow-right-linear" width="18" />
+          </button>
+          <a class="secondary-action" href="https://www.videofreestudio.com/" target="_blank" rel="noopener noreferrer">
+            <Icon icon="solar:global-linear" width="17" />
+            {{ t("访问官网") }}
+          </a>
         </div>
+      </section>
 
-        <div class="business-contact">
-          <section class="contact-item" aria-labelledby="wechat-title">
-            <h3 id="wechat-title">{{ t('微信咨询与合作') }}</h3>
-            <p>{{ t('扫码聊需求') }}</p>
-            <button class="qr-link" type="button" @click="openQr('/contact/weixin.png', t('微信咨询与合作'))" :aria-label="t(&quot;放大微信咨询二维码&quot;)">
-              <img src="/contact/weixin.png" :alt="t(&quot;AI老林微信咨询二维码&quot;)" width="120" height="120" loading="lazy" />
-            </button>
-          </section>
-          <section class="contact-item" aria-labelledby="support-title">
-            <h3 id="support-title">{{ t('支持 videofree') }}</h3>
-            <p>{{ t('您的支持，是我前进的动力') }}</p>
-            <button class="qr-link support-qr" type="button" @click="openQr('/contact/wechat-support.jpg', t('支持 videofree'))" :aria-label="t(&quot;放大微信收款码&quot;)">
-              <img src="/contact/wechat-support.jpg" :alt="t(&quot;微信自愿支持收款码&quot;)" width="745" height="1014" loading="lazy" />
-            </button>
-          </section>
-        </div>
-
-        <a class="arsenal-link" href="https://laobanclaw.top/" target="_blank" rel="noopener noreferrer">
+      <section class="announcement-section" aria-labelledby="announcement-title">
+        <div class="section-heading">
           <div>
-            <span class="section-label">{{ t('AI军火库') }}</span>
-            <strong>laobanclaw.top</strong>
-            <p>{{ t('前沿 AI 技术、工具与实践') }}</p>
+            <span class="section-label">VideoFree Studio</span>
+            <h2 id="announcement-title">{{ t("公告") }}</h2>
           </div>
-          <Icon icon="solar:arrow-right-up-linear" width="25" />
-        </a>
-      </aside>
+          <a href="https://www.videofreestudio.com/" target="_blank" rel="noopener noreferrer" :title="t('访问官网')">
+            <Icon icon="solar:arrow-up-right-linear" width="18" />
+          </a>
+        </div>
+        <div class="announcement-frame">
+          <iframe
+            :title="t('VideoFree Studio 公告')"
+            src="https://www.videofreestudio.com/videofree/announcement"
+            loading="lazy"
+            referrerpolicy="strict-origin-when-cross-origin"
+            @error="markAnnouncementFailed"
+          ></iframe>
+          <div v-if="announcementFailed" class="announcement-fallback">
+            <Icon icon="solar:cloud-cross-linear" width="24" />
+            <p>{{ t("公告暂时无法加载") }}</p>
+            <a href="https://www.videofreestudio.com/" target="_blank" rel="noopener noreferrer">{{ t("打开官网查看") }}</a>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="landing-footer">
-      <span>{{ t('© 2026 AI老林 · videofree') }}</span>
-      <span>{{ t('让创作更自由，让技术真正落地。') }}</span>
+      <a href="mailto:459082139@qq.com">459082139@qq.com</a>
+      <a href="https://github.com/linpengishero/VideoFreeStudio" target="_blank" rel="noopener noreferrer" :aria-label="t('GitHub 源码仓库')">
+        <Icon icon="mdi:github" width="15" />
+        GitHub
+      </a>
+      <a href="https://gitee.com/heroofgod_admin/videofreestudio" target="_blank" rel="noopener noreferrer" :aria-label="t('码云源码仓库')">
+        <Icon icon="simple-icons:gitee" width="15" />
+        Gitee
+      </a>
+      <span>© 2026 VideoFree Studio</span>
     </footer>
-    <PluginDialog :open="qrOpen" :framed="false" :title="activeQr.title" @close="closeQr"><section class="qr-dialog">
-      <header>
-        <h2 id="qr-dialog-title">{{ activeQr.title }}</h2>
-        <button type="button" class="qr-close" :aria-label="t(&quot;关闭二维码&quot;)" :title="t(&quot;关闭&quot;)" @click="closeQr"><Icon icon="solar:close-circle-linear" width="24" /></button>
-      </header>
-      <img v-if="activeQr.src" :src="activeQr.src" :alt="activeQr.title" />
-    </section></PluginDialog>
   </div>
 </template>
 
 <style scoped>
-.landing-page {
-  --page-gutter: 40px;
-  --line: #303330;
-  --muted: #a3aaa5;
-  --green: #9be0bb;
-  height: 100%;
-  overflow: auto;
-  background: #151816;
-  color: #f0f3ef;
-  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-  letter-spacing: 0;
-}
+.landing-page { position: relative; min-height: 100%; overflow: auto; isolation: isolate; background: #111412; color: #f1f5f0; font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif; letter-spacing: 0; }
 .landing-page *, .landing-page *::before, .landing-page *::after { box-sizing: border-box; }
-.landing-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 76px;
-  padding: 16px var(--page-gutter);
-  border-bottom: 1px solid var(--line);
-}
-.landing-brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
-.landing-brand img { object-fit: contain; }
-.landing-brand strong { font-size: 18px; }
-.studio-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 40px;
-  padding: 0 18px;
-  border: 1px solid #b5e7c9;
-  border-radius: 5px;
-  background: #b5e7c9;
-  color: #18291f;
-  font-size: 14px;
-  font-weight: 650;
-  cursor: pointer;
-}
-.studio-button:hover { background: #cdf3db; border-color: #cdf3db; }
-.landing-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 1fr);
-  gap: 48px;
-  margin: 0 var(--page-gutter);
-  padding: 48px 0 40px;
-}
-.product-column, .business-column { min-width: 0; }
-.section-label { display: inline-flex; align-items: center; gap: 8px; color: var(--green); font-size: 12px; font-weight: 600; line-height: 1.6; }
-.label-mark { width: 6px; height: 6px; background: var(--green); }
-.product-intro h1 { margin: 16px 0 14px; font-size: 64px; font-weight: 650; line-height: 1.05; letter-spacing: 0; }
-.product-subtitle { margin: 0 0 14px; font-size: 23px; font-weight: 500; line-height: 1.5; }
-.product-description { max-width: 680px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.85; }
-.product-modes { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 22px; }
-.product-modes span { display: inline-flex; align-items: center; gap: 7px; color: #c1c9c3; font-size: 12px; }
-.product-modes svg { color: var(--green); }
-.product-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 30px; padding: 28px 0; margin-top: 28px; border-top: 1px solid var(--line); }
-.feature-item { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; align-items: start; }
-.feature-item > svg { color: var(--green); }
-.feature-item h2 { margin: 0 0 7px; font-size: 15px; font-weight: 600; }
-.feature-item p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
-.resource-section { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 28px; padding: 26px 0; border-top: 1px solid var(--line); }
-.community-section { grid-template-columns: minmax(0, 1fr) auto; }
-.community-qr-list { display: flex; align-items: flex-start; gap: 16px; }
-.resource-copy { min-width: 0; }
-.resource-copy h2 { margin: 9px 0 10px; font-size: 19px; font-weight: 600; line-height: 1.5; }
-.resource-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
-.resource-note { display: block; margin-top: 14px; color: #76867b; font-size: 12px; line-height: 1.7; }
-.guide-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-.guide-links button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--green); font: inherit; font-size: 12px; cursor: pointer; }
-.guide-links button:hover { border-color: var(--green); }
-.qr-link { display: grid; gap: 8px; width: 120px; padding: 0; border: 0; background: transparent; color: var(--muted); font: inherit; text-align: center; cursor: pointer; }
-.qr-dialog { box-sizing:border-box; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #202420; color: #f0f3ef; }
-.qr-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.qr-dialog h2 { margin: 0; font-size: 17px; }
-.qr-close { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
-.qr-dialog > img { display: block; width: 100%; max-height: calc(100dvh - 120px); object-fit: contain; }
-.qr-link img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; background: #fff; border-radius: 3px; }
-.qr-link span { font-size: 11px; line-height: 1.6; }
-.support-qr img { aspect-ratio: 745 / 1014; }
-.business-column { padding-left: 36px; border-left: 1px solid var(--line); }
-.business-intro .section-label { color: #e7bf85; }
-.business-intro h2 { margin: 16px 0 18px; font-size: 27px; font-weight: 600; line-height: 1.55; }
-.business-intro > p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.85; }
-.service-list { margin-top: 26px; border-top: 1px solid var(--line); }
-.service-list article { display: grid; grid-template-columns: 23px minmax(0, 1fr); gap: 12px; padding: 20px 0; border-bottom: 1px solid var(--line); }
-.service-list article > svg { color: #e7bf85; }
-.service-list h3 { margin: 0 0 7px; font-size: 15px; font-weight: 600; }
-.service-list p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
-.business-contact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; padding: 24px 0; }
-.contact-item { min-width: 0; }
-.business-contact h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; line-height: 1.6; }
-.business-contact p { min-height: 36px; margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.business-contact .qr-link { width: min(120px, 100%); }
-.business-contact .qr-link img { height: auto; aspect-ratio: 1; object-fit: cover; }
-.arsenal-link { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--green); text-decoration: none; }
-.arsenal-link > div { min-width: 0; }
-.arsenal-link strong { display: inline-block; margin: 0 0 0 12px; color: #ecf3ee; font-size: 18px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
-.arsenal-link p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
-.arsenal-link > svg { flex-shrink: 0; }
-.arsenal-link:hover strong, .qr-link:hover span { color: var(--green); }
-.landing-page a:focus-visible, .landing-page button:focus-visible { outline: 2px solid var(--green); outline-offset: 5px; }
-.landing-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 22px var(--page-gutter); border-top: 1px solid var(--line); color: #88958c; font-size: 12px; line-height: 1.7; }
-@media (min-width: 1600px) {
-  .landing-main { grid-template-columns: minmax(0, 1.7fr) minmax(400px, 1fr); gap: 64px; }
-  .product-features { gap: 26px 40px; }
-  .resource-section { grid-template-columns: minmax(0, 1fr) 140px; }
-  .resource-section .qr-link { width: 140px; }
-}
-@media (max-width: 1050px) {
-  .landing-page { --page-gutter: 28px; }
-  .landing-main { gap: 28px; grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr); }
-  .business-column { padding-left: 24px; }
-  .business-intro h2 { font-size: 23px; }
-  .resource-section { gap: 20px; grid-template-columns: minmax(0, 1fr) 104px; }
-  .resource-section .qr-link { width: 104px; }
-  .product-subtitle { font-size: 20px; }
-}
-@media (max-width: 800px) {
-  .landing-main { grid-template-columns: 1fr; gap: 32px; padding: 32px 0; }
-  .business-column { border-left: 0; padding: 32px 0 0; border-top: 1px solid var(--line); }
-  .business-intro h2 { font-size: 27px; }
-  .resource-section { grid-template-columns: minmax(0, 1fr) 120px; }
-  .resource-section .qr-link { width: 120px; }
-}
-@media (max-width: 480px) {
-  .landing-page { --page-gutter: 20px; }
-  .landing-nav { min-height: 68px; }
-  .landing-brand strong { font-size: 16px; }
-  .studio-button { padding: 0 12px; font-size: 13px; }
-  .product-intro h1 { font-size: 48px; }
-  .product-subtitle { font-size: 19px; }
-  .product-features { gap: 24px 18px; }
-  .feature-item { grid-template-columns: 1fr; gap: 10px; }
-  .resource-section { gap: 18px; grid-template-columns: minmax(0, 1fr) 104px; }
-  .resource-section .qr-link { width: 104px; }
-  .community-section { grid-template-columns: 1fr; }
-  .community-qr-list { gap: 14px; }
-  .resource-copy h2 { font-size: 17px; }
-  .resource-note { display: none; }
-  .business-intro h2 { font-size: 24px; }
-  .arsenal-link strong { font-size: 17px; }
-  .landing-footer { flex-direction: column; }
-}
-@media (max-width: 360px) {
-  .landing-page { --page-gutter: 16px; }
-  .resource-section { grid-template-columns: 1fr; }
-  .resource-section .qr-link { width: 120px; }
-}
-@media (min-width: 1051px) {
-  .community-section .community-qr-list .qr-link { width: 200px; }
-}
-@media (min-width: 801px) and (max-width: 1050px) {
-  .community-section .community-qr-list .qr-link { width: 150px; }
-}
-@media (min-width: 481px) and (max-width: 800px) {
-  .community-section .community-qr-list .qr-link { width: 160px; }
-}
-@media (max-width: 480px) {
-  .community-section .community-qr-list .qr-link { width: 112px; }
-}
+.tech-background { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; }
+.landing-main, .landing-footer { position: relative; z-index: 1; }
+.landing-main { width: min(900px, calc(100% - 40px)); margin: 0 auto; padding: clamp(54px, 10vh, 110px) 0 42px; }
+.brand-block { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.brand-logo { width: 88px; height: 88px; object-fit: contain; margin-bottom: 22px; }
+.brand-kicker { margin: 0 0 8px; color: #9bb0a2; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.brand-block h1 { margin: 0; font-size: 60px; font-weight: 650; line-height: 1; text-shadow: 0 0 22px rgba(74, 204, 203, 0.2); }
+.brand-subtitle { margin: 15px 0 0; color: #a8b4aa; font-size: 15px; }
+.landing-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 28px; }
+.primary-action, .secondary-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 5px; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; }
+.primary-action { border: 1px solid #b7e8c5; background: #b7e8c5; color: #17231b; font-weight: 650; }
+.primary-action:hover { background: #d0f5da; border-color: #d0f5da; }
+.secondary-action { border: 1px solid #3a4940; background: transparent; color: #c2d3c7; }
+.secondary-action:hover { border-color: #9dd5ae; color: #d9f5df; }
+.announcement-section { margin-top: 72px; padding-top: 20px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-heading h2 { margin: 5px 0 0; font-size: 17px; font-weight: 600; }
+.section-heading a { display: grid; place-items: center; width: 32px; height: 32px; color: #a9c7b1; text-decoration: none; }
+.section-heading a:hover { color: #d5f5dc; }
+.section-label { color: #91cda1; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.announcement-frame { position: relative; height: 250px; overflow: hidden; border: 1px solid #2e3b32; border-radius: 7px; background: #171d19; }
+.announcement-frame iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
+.announcement-fallback { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; padding: 20px; background: #171d19; color: #9eaca2; text-align: center; }
+.announcement-fallback p { margin: 0; font-size: 13px; }
+.announcement-fallback a { color: #b7e8c5; font-size: 13px; text-decoration: none; }
+.announcement-fallback a:hover { text-decoration: underline; }
+.landing-footer { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px 22px; padding: 20px 20px 28px; color: #76847a; font-size: 12px; }
+.landing-footer a { color: #9bb9a2; text-decoration: none; }
+.landing-footer a[href^="https://"] { display: inline-flex; align-items: center; gap: 5px; }
+.landing-footer a:hover { color: #d1f1d9; text-decoration: underline; }
+@media (max-width: 520px) { .landing-main { width: min(100% - 28px, 900px); padding-top: 48px; } .brand-block h1 { font-size: 38px; } .announcement-section { margin-top: 56px; } .announcement-frame { height: 220px; } }
+@media (max-width: 360px) { .brand-block h1 { font-size: 32px; } }
 </style>

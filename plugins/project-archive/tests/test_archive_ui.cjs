@@ -19,7 +19,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    await page.addInitScript(() => localStorage.setItem('zizai-open-project-id', 'project-archive-test'));
+    await page.addInitScript(() => localStorage.setItem('videofree-open-project-id', 'project-archive-test'));
     await page.route('**/api/v2/**', async route => {
       const pathname = new URL(route.request().url()).pathname;
       const common = { items: [], categories: [], errors: [], applications: [], project_tools: [

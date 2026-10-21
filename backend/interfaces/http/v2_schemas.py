@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -113,6 +113,15 @@ class PluginActionResponse(BaseModel):
     result: dict[str, Any] | None = None
 
     model_config = {"extra": "allow"}
+
+
+class CanvasNodeExecuteRequest(BaseModel):
+    """One project-scoped execution request for the infinite-canvas host."""
+
+    project_id: str | None = Field(default=None, min_length=1, max_length=120)
+    category_id: str | None = Field(default=None, max_length=120)
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CollaborationCreateRequest(BaseModel):

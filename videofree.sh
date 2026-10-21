@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VideoFree Linux launcher. It mirrors videofree.bat where the platforms overlap:
+# VideoFree Studio Linux launcher. It mirrors videofree.bat where the platforms overlap:
 # 读取 .env、填充缺省值、检查运行环境，然后前台启动网关（Ctrl+C 优雅停止）。
 # Usage: ./videofree.sh [--check]
 #   --check  只做安装自检，不启动网关。
@@ -52,7 +52,7 @@ export PYTHONDONTWRITEBYTECODE=1
 : "${MEDIA_GATEWAY_PORT:=8765}"
 export COMFYUI_URL MEDIA_GATEWAY_HOST MEDIA_GATEWAY_PORT
 
-echo "VideoFree is starting..."
+echo "VideoFree Studio is starting..."
 echo "ComfyUI: $COMFYUI_URL"
 echo "Web UI:  http://127.0.0.1:$MEDIA_GATEWAY_PORT"
 if [[ "$MEDIA_GATEWAY_HOST" != "127.0.0.1" ]]; then

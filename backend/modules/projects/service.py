@@ -1,14 +1,17 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
 from __future__ import annotations
+import mimetypes
 import json
 from pathlib import Path
 import re
 import shutil
 import sqlite3
+import time
+import urllib.parse
 import uuid
 from typing import Any
 
@@ -101,7 +104,9 @@ class ProjectService:
         for project in projects:
             directory = self.ensure_directory(project)
             project["output_path"] = str(directory)
-            project["asset_count"] = len(self.storage.list_files(str(project["output_subdir"])))
+            project["asset_count"] = sum(
+                ".internal" not in Path(item.key).parts
+                for item in self.storage.list_files(str(project["output_subdir"])))
         return projects
 
     def categories(self, project_id: str) -> list[dict[str, Any]]:
@@ -180,11 +185,17 @@ class ProjectService:
             getattr(self.context, 'jobs', {}).pop(job['id'], None)
         for path in paths:
             path.unlink(missing_ok=True)
+        project = self.context.db.project(project_id)
+        if project:
+            for directory in set(MEDIA_DIRECTORIES.values()) | {"music"}:
+                self.storage.delete_prefix(f"{project['output_subdir']}/{directory}/imports/{category_id}")
         self.context.db.delete_category(project_id, category_id)
 
     def library_categories(self, project_id: str) -> dict[str, str]:
         result = {}
         project = self.context.db.project(project_id)
+        if not project:
+            return result
         for job in self.context.db.jobs(limit=None, project_id=project_id):
             for index, artifact in enumerate(job.get("artifacts") or []):
                 path = artifact.get("project_path")
@@ -194,7 +205,126 @@ class ProjectService:
                     path = f"{project['output_subdir']}/{directory}/{job['id']}_{index}{suffix}"
                 if path:
                     result[path] = job.get("category_id") or ""
+        valid_categories = {item["id"] for item in self.context.db.project_categories(project_id)}
+        for directory in set(MEDIA_DIRECTORIES.values()) | {"music"}:
+            for item in self.storage.list_files(f"{project['output_subdir']}/{directory}/imports"):
+                try:
+                    relative = Path(item.key).relative_to(project["output_subdir"])
+                except ValueError:
+                    continue
+                if len(relative.parts) >= 4 and relative.parts[1] == "imports":
+                    owner = relative.parts[2]
+                    result[item.key] = owner if owner in valid_categories else ""
         return result
+
+    def scan_library(self, kind: str, offset: int, limit: int | None, sort: str,
+                     project: dict[str, Any]) -> dict[str, Any]:
+        """Return project media using the same index and filtering rules as the library API."""
+        types = {
+            "image": {".png", ".jpg", ".jpeg", ".webp", ".gif"},
+            "video": {".mp4", ".webm", ".mov", ".mkv"},
+            "audio": {".mp3", ".wav", ".flac", ".ogg", ".m4a"},
+            "music": {".mp3", ".wav", ".flac", ".ogg", ".m4a"},
+        }
+        if kind not in {"all", *types} or offset < 0 or (limit is not None and limit < 1) or sort not in {"new", "old"}:
+            raise ValueError("素材库查询参数无效")
+        project_directory = self.ensure_directory(project)
+        directory = str(project_directory)
+        cache = self.context.library_cache
+        cache.setdefault("directory", "")
+        cache.setdefault("created_at", 0.0)
+        cache.setdefault("items", [])
+        lock = getattr(self.context, "library_lock", None)
+        from contextlib import nullcontext
+        with lock if lock is not None else nullcontext():
+            if cache["directory"] != directory or time.monotonic() - cache["created_at"] > 30:
+                indexed = []
+                plugins_path = getattr(self.context.paths, "plugins", None)
+                output_rules = []
+                if plugins_path:
+                    from ..generation.plugins import PluginCatalog
+                    output_rules = [app["library_outputs"] for app in PluginCatalog(plugins_path, self.context).applications()
+                                    if app.get("library_outputs")]
+                for stored in self.storage.list_files(str(project["output_subdir"])):
+                    path = Path(stored.key)
+                    ext = path.suffix.lower()
+                    try:
+                        relative_project = path.relative_to(project["output_subdir"])
+                    except ValueError:
+                        continue
+                    if any(relative_project.parts and relative_project.parts[0] == rule["directory"]
+                           and path.name not in rule["filenames"] for rule in output_rules):
+                        continue
+                    if relative_project.parts and relative_project.parts[0] in {"public-assets", ".internal"}:
+                        continue
+                    media_type = "music" if relative_project.parts and relative_project.parts[0] == "music" else next(
+                        (name for name, extensions in types.items() if name != "music" and ext in extensions), None)
+                    if not media_type:
+                        continue
+                    indexed.append({"name": path.name, "path": stored.key, "type": media_type,
+                                    "modified": stored.modified_at, "size": stored.size,
+                                    "url": f"/v1/library/files/{urllib.parse.quote(stored.key)}"})
+                indexed.sort(key=lambda item: item["modified"], reverse=True)
+                cache.update(directory=directory, created_at=time.monotonic(), items=indexed)
+            items = [item for item in cache["items"] if kind == "all" or item["type"] == kind]
+        if sort == "old":
+            items = list(reversed(items))
+        page = items[offset:] if limit is None else items[offset:offset + limit]
+        return {"items": page, "total": len(items),
+                "next_offset": None if limit is None or offset + limit >= len(items) else offset + limit,
+                "output_dir": directory, "project_id": project["id"]}
+
+    def library(self, project_id: str, *, kind: str = "all", offset: int = 0,
+                limit: int | None = None, sort: str = "new", category_id: str | None = None) -> dict[str, Any]:
+        project = self.authorize(project_id)
+        if category_id is not None:
+            self.validate_category(project_id, category_id)
+        result = self.scan_library(kind, 0, None, sort, project)
+        ownership = self.library_categories(project_id)
+        items = [{**item, "category_id": ownership.get(item["path"], "")} for item in result["items"]]
+        if category_id is not None:
+            items = [item for item in items if item["category_id"] == category_id]
+        page = items[offset:] if limit is None else items[offset:offset + limit]
+        return {**result, "items": page, "total": len(items),
+                "next_offset": offset + limit if limit is not None and offset + limit < len(items) else None}
+
+    def import_upload(self, project_id: str, upload_id: str, *, name: str = "",
+                      kind: str | None = None, category_id: str | None = None) -> dict[str, Any]:
+        """Copy a validated browser upload into a project-owned library location."""
+        project = self.authorize(project_id)
+        self.validate_category(project_id, category_id)
+        if not isinstance(upload_id, str) or not re.fullmatch(r"[a-fA-F0-9]{32}", upload_id):
+            raise ValueError("上传引用无效")
+        upload_root = Path(self.context.paths.uploads).resolve()
+        matches = [path for path in upload_root.glob(f"{upload_id}.*")
+                   if path.is_file() and not path.is_symlink() and path.resolve().parent == upload_root]
+        if len(matches) != 1:
+            raise ValueError("上传文件不存在或已过期")
+        if not self.context.db.upload_exists(upload_id):
+            raise ValueError("上传文件不存在或已过期")
+        source = matches[0]
+        suffix = source.suffix.lower()
+        inferred = next((media for media, extensions in MEDIA_EXTENSIONS.items() if suffix in extensions), None)
+        if inferred is None:
+            raise ValueError("不支持的图片、视频或音频格式")
+        if kind is None:
+            kind = "image" if inferred == "images" else "video" if inferred == "videos" else "audio"
+        if kind not in {"image", "video", "audio", "music"}:
+            raise ValueError("素材类型无效")
+        if kind == "image" and inferred != "images" or kind == "video" and inferred != "videos" or kind in {"audio", "music"} and inferred != "audio":
+            raise ValueError("素材类型与文件格式不匹配")
+        directory = {"image": "images", "video": "videos", "audio": "audio", "music": "music"}[kind]
+        safe_name = str(name or source.name).replace("\\", "/").split("/")[-1]
+        stem = re.sub(r"[^\w.\- ]+", "_", Path(safe_name).stem, flags=re.UNICODE).strip(" .")[:80] or "asset"
+        owner = category_id or "_project"
+        filename = f"{stem}-{uuid.uuid4().hex[:12]}{suffix}"
+        key = f"{project['output_subdir']}/{directory}/imports/{owner}/{filename}"
+        stored = self.storage.put_file(source, key)
+        self.context.library_cache.update(directory="", created_at=0.0, items=[])
+        return {"project_id": project_id, "category_id": category_id or "", "name": filename,
+                "path": stored.key, "type": kind,
+                "media_type": mimetypes.guess_type(filename)[0] or "application/octet-stream",
+                "size": stored.size, "url": f"/v1/library/files/{urllib.parse.quote(stored.key)}"}
 
     def current(self) -> dict[str, Any]:
         project = self.context.db.current_project()
@@ -220,6 +350,9 @@ class ProjectService:
         return project
 
     def authorize_library_path(self, path: Path) -> dict[str, Any]:
+        # Windows aliases directory names regardless of case or trailing dots/spaces.
+        if any(part.rstrip(" .").casefold() == ".internal" for part in path.parts):
+            raise ValueError("素材文件不存在")
         project = next((item for item in self.context.db.projects(True)
                         if item.get("output_subdir") == path.parts[0]), None) if path.parts else None
         if not project:
@@ -421,6 +554,8 @@ class ProjectService:
             ) or []
         artifacts = job.get("artifacts") or []
         self.delete_published(artifacts)
+        from .job_files import delete_job_files
+        delete_job_files(self.context, job["id"])
         project = self.context.db.project(project_id) if project_id else None
         if not project:
             return

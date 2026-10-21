@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 IDENTIFIER = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,119}$")
 
 
-def validate_action_schema(schema):
-    if not isinstance(schema, dict) or schema.get("type") != "object":
-        raise ValueError("Plugin action input_schema must describe an object")
+def validate_plugin_json_schema(schema, label="Plugin"):
+    if not isinstance(schema, dict):
+        raise ValueError(f"{label} schema must be an object")
     resolver = Registry().with_resource("urn:videofree:schema", Resource.from_contents(schema, default_specification=DRAFT202012)).resolver("urn:videofree:schema")
     def check_refs(value):
         if isinstance(value, dict):
@@ -49,7 +49,13 @@ def validate_action_schema(schema):
     try:
         Draft202012Validator.check_schema(schema)
     except SchemaError as exc:
-        raise ValueError(f"Invalid plugin action schema: {exc.message}") from exc
+        raise ValueError(f"Invalid {label} schema: {exc.message}") from exc
+
+
+def validate_action_schema(schema):
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        raise ValueError("Plugin action input_schema must describe an object")
+    validate_plugin_json_schema(schema, "plugin action")
 
 
 def contained_file(root: Path, name: str) -> Path:

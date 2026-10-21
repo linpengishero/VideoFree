@@ -19,6 +19,7 @@ bootstrap / lifecycle -> all application modules
 - `backend/modules/`：generation、collaboration、settings、presets 等业务模块。
 - `backend/interfaces/http/`：V1/V2 请求模型、能力映射和路由适配。
 - `backend/lifecycle.py`：启动恢复、worker 创建、缓存清理和优雅关闭。
+- `.agents/skills/`：仓库开发技能；`examples/skills/`：供用户安装的演示技能和独立工具包，不是框架运行依赖。演示测试在 `examples/tests/` 单独运行。
 
 ## 关键所有权
 
@@ -34,6 +35,23 @@ bootstrap / lifecycle -> all application modules
 - V1 路由按 system、assets、generation、collaboration 分组；V2 的 schema 与 capability 映射独立于路由组装。
 
 ## 扩展规则
+
+### 单机版本的扩展预留
+
+- ComfyUI 适配唯一实现位于 `backend/integrations/system_services/comfyui/`，由
+  `provider.json` 声明类型化契约，启动时注入 `ApplicationContext.comfyui_provider`。
+  旧 `integrations/comfyui/client.py` 仅是导入别名；当前仍只有一个 `default` 执行节点。
+- 项目的 `tenant_id`、`created_by`，任务的 `created_by`、`execution_node_id`，以及上传归属元数据
+  仅为后续版本预留。单机归属默认为 `local`，历史任务节点保持空值；这些字段不提供鉴权或租户隔离，
+  API 不接受调用者自行设置归属。未实现账号、成员、跨节点调度或负载均衡。
+- 插件通过 `PluginRuntime` 的 `save_job_file`、`job_file`、`materialize_job_file`、
+  `link_job_file`、`restore_job_file` 保存和恢复任务依赖。字节由 StorageProvider 存在项目
+  `.internal/files/` 中，索引在 SQLite 的 `plugin_job_files`，按项目、插件、任务归属，校验 SHA256。
+  依赖不出现在素材库，最后一个任务引用删除后清理文件；项目删除清理全部项目对象。
+  输入副本、任务配置、工作流快照仍归现有任务包，不重复归档。
+- 框架不解释 latent、缓存或其他模型格式。H3 插件负责本地检查点发现、元数据及二采前恢复，
+  其他模型可使用同一文件接口。H3 启动补归档只检查本地目录，不要求 ComfyUI 在线；
+  尚未提供跨机器检查点发现或多节点执行。
 
 1. 新能力放入 `plugins/<plugin-id>/`，由 `plugin.json` 注册主分类、能力、参数和多个处理模式。专用工作流编译器与协作处理器放在同一插件内，禁止在路由里判断节点。
    云端供应商必须显式声明 `execution_plane: cloud`，本地能力保持默认的 `local`。
@@ -65,6 +83,8 @@ speech_handler、confirmation_handler 及协作处理器拥有。模型名称、
 插件清单在启动期间注册为 ApplicationContext 共享快照，发现接口不重复扫描文件或探测 ComfyUI；可用性钩子只做轻量只读检查，执行时才校验实际文件与后端依赖。插件更新需排空任务并重启，提交与执行检查版本，避免清单与处理器混用。
 辅助文件生命周期由插件 resource_lifecycle 的 completed/recover/delete 钩子负责；H3 检查点持久化、删除和启动恢复归 minimax-h3 插件。启动恢复仅检查本地目录，不依赖 ComfyUI 在线。
 应用插件应优先分发自己的 `ui/dist/` 独立 bundle，安装插件时不需要重新构建主前端；仓库内仍使用源码 Vue 入口的插件只有在修改该入口时才需要重建主前端。纯声明式生成插件不需要编写专用 Vue 组件。
+
+无限画布节点是独立扩展类型，位于 `plugins/canvas-nodes/<package-id>/`，由 `CanvasNodeCatalog` 和 `/api/v2/canvas-nodes` 发现/执行；普通插件目录、工作台插件栏和 MCP 目录不会加载它们。框架只提供节点清单校验、项目素材读写/上传导入和现有能力桥接，不实现画布 UI、连线、DAG 调度或工作流 JSON；这些属于后续无限画布应用插件。
 
 ```powershell
 python -m compileall -q backend tests

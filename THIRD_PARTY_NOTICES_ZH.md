@@ -17,9 +17,9 @@ ComfyUI 及其社区节点由各自项目作者维护，许可证和版权归各
 
 ## OpenMontage
 
-OpenMontage 位于 `.agents/skills/openmontage/`，是随仓库提供的独立智能体技能和剪辑工具，
-不是 VideoFree 网关或 `film-studio` 插件的运行依赖。它按自己的 AGPL-3.0 许可证独立授权；
-VideoFree 的商业授权不免除其许可证义务。使用或分发 OpenMontage 时，必须保留其目录内的
+OpenMontage 位于 `examples/skills/openmontage/`，是随仓库提供的独立智能体技能和剪辑工具，
+不是 VideoFree Studio 网关或 `film-studio` 插件的运行依赖。它按自己的 AGPL-3.0 许可证独立授权；
+VideoFree Studio 的商业授权不免除其许可证义务。使用或分发 OpenMontage 时，必须保留其目录内的
 `LICENSE`、版权声明和其他来源说明，并以该目录中的许可证和第三方声明为准。
 
 ## 其他依赖

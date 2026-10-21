@@ -6,6 +6,39 @@
 
 ## 安装与边界
 
+### 模型依赖文件归档
+
+插件需要保留 latent、特征、缓存或其他二进制依赖时，使用 `PluginRuntime`：
+
+```python
+record = runtime.save_job_file(job, "model-state", source=local_path,
+    metadata={"format": "my-model-state", "version": 1})
+# 或 output={"filename": "state.bin", "subfolder": "model", "type": "output"}
+# source 与 output 必须二选一；可传 sha256、size 进行预期完整性校验。
+record = runtime.job_file(job, "model-state")  # 不存在时返回 None
+with runtime.materialize_job_file(job, "model-state") as path:
+    consume(path)  # 仅在 with 范围内读取，不修改归档文件
+runtime.link_job_file(source_job, "model-state", target_job)
+runtime.restore_job_file(target_job, "model-state", "model/state.bin")
+```
+
+逻辑名为 1–128 位字母、数字、下划线、点或短横线，首位为字母或数字。
+同一任务同一逻辑名不可换成不同内容；多份状态使用不同逻辑名。任务须已持久化，
+且归属当前插件与项目；禁止跨项目或跨插件链接。插件决定格式、版本和恢复目的路径，
+不得把模型专用解释逻辑加入框架。恢复默认到 ComfyUI output，也可显式指定 `destination="input"`。
+
+返回记录包含 plugin_id、project_id、job_id、name、object_key、sha256、size、metadata。
+字节归项目 StorageProvider，SQLite 仅保存索引；`.internal/files/` 不作为用户素材展示或提供媒体直链。
+保存和读取校验 SHA256，使用流式磁盘暂存，不能假设工作节点缓存永久存在。
+归档保存、链接和删除使用独立文件锁，不在全局状态锁内复制大文件。
+插件可在校验本地工作节点缓存的大小与归档 SHA256 一致后复用缓存，否则从归档恢复。
+恢复收到 HTTP 413 时，需增大 ComfyUI 的 `--max-upload-size` 并重启；使用反向代理时也需检查其限制。
+删除任务/分类按引用清理，最后一个引用删除才移除对象，删除项目清理整个项目。
+子任务应在依赖被使用前建立链接；恢复应在消费任务执行期间进行，任务生命周期阻止并发删除。
+若排队期间尚未链接，插件的 delete 钩子必须阻止源任务提前删除。
+现有输入副本、参数和工作流快照由任务包保存，不应再复制为依赖文件。
+本接口只提供单机存储基础，不代表多节点执行或租户鉴权已经实现。
+
 一个插件就是 `plugins/<plugin-id>/` 下一个完整文件夹。`plugin.json`、`INSTALL.md`、工作流、专用 Python 编译器、协作处理器和技能文件随文件夹一起分发，无需复制到项目其他目录。内置插件遵守同一协议。
 
 平台负责 HTTP/MCP、项目归档、任务队列、ComfyUI 上传/提交/轮询/下载，以及协作会话、追问和确认；插件负责声明能力、节点绑定、模型专用准备和提示词处理。平台的公共集成适配器可以复用，不能在插件里另起网关或直接改平台数据库。
@@ -514,6 +547,67 @@ if (await confirmAction('删除这份记录？', { title: '删除记录', confir
 工作台通过 `GET /api/v2/collaborations?project_id=<ID>` 查询未结束会话，通过 `POST /api/v2/collaborations/<ID>/cancel` 取消。框架负责恢复、轮询和调用这些接口；提问、进度、确认和错误的界面由能力所属插件的 `collaboration_ui` 组件实现，不另外保留按模型提交的框架协作界面。
 
 保留仍在使用的能力 ID、V1 界面入口和任务结构；能力注册唯一来源是 `plugins/*/plugin.json`，不再读取 `workflows/registry.json`。处理模式完全由插件声明，不根据模型名称推断。Python 处理器支持插件内部相对导入，每个插件版本隔离加载。
+
+## 无限画布节点插件
+
+无限画布节点是与普通应用/生成插件分开的扩展类型，只由无限画布宿主发现；不得写入普通 `plugins/<plugin-id>/plugin.json`，也不会出现在工作台插件栏、普通插件目录或 MCP 插件列表。节点包位于 `plugins/canvas-nodes/<package-id>/`，必须包含 `plugin.json`、`INSTALL.md` 和清单引用的本地处理器/资源。它们是受信任的本地 Python 代码，不是安全沙箱。
+
+最小清单：
+
+```json
+{
+  "schema_version": 1,
+  "plugin_type": "canvas_node",
+  "id": "project-tools",
+  "version": "1.0.0",
+  "name": "项目资源节点",
+  "assets": [],
+  "nodes": [{
+    "id": "import-upload",
+    "name": "导入上传素材",
+    "description": "将临时上传素材导入当前项目素材库",
+    "category": "resources",
+    "icon": "solar:import-linear",
+    "handler": "handlers/resources.py:import_upload",
+    "inputs": [{"id": "upload", "name": "上传文件", "type": "upload", "required": true}],
+    "outputs": [{"id": "asset", "name": "项目素材", "type": "asset"}],
+    "config_schema": {
+      "type": "object",
+      "properties": {"name": {"type": "string"}, "kind": {"type": "string", "enum": ["image", "video", "audio", "music"]}},
+      "additionalProperties": false
+    }
+  }]
+}
+```
+
+节点 ID 在包内唯一，外部稳定类型名为 `<package-id>.<node-id>`；端口 ID 也在各自输入/输出列表内唯一。允许的端口类型：`text`、`number`、`integer`、`boolean`、`json`、`upload`、`asset`、`image`、`video`、`audio`、`music`、`media`、`project`、`category`。端口可带 `description`、`required`、`multiple`；`multiple` 只用于输入并表示数组。项目素材句柄至少需要 `{ "project_id": "...", "path": "项目相对路径", "type": "image|video|audio|music" }`，也可包含素材库返回的 `name`、`category_id`、`media_type`、`size`、`modified`、`url` 元数据；`asset`/`media` 可接收任一受支持媒体类型。`image`、`video`、`audio`、`music` 端口会限制媒体类型。`upload` 是短期上传引用 `{ "upload_id": "32位十六进制ID", "name": "可选文件名", "kind": "可选媒体类型" }`，只能作为输入，执行前会验证它仍是网关登记且存在的上传。默认分类 ID 是空字符串。
+
+`config_schema` 必须为 JSON Schema Draft 2020-12 的 object schema；输入和输出依据端口声明自动验证，拒绝额外端口和非 JSON 值。项目端口只能指向当前项目；分类端口必须属于当前项目；素材端口会验证项目归属、素材存在性和扩展名。节点包不能借工作流数据跨项目读取素材。
+
+处理器签名：
+
+```python
+def execute(inputs: dict, config: dict, runtime):
+    return {"asset": runtime.application.import_upload(
+        inputs["upload"]["upload_id"],
+        name=config.get("name", inputs["upload"].get("name", "")),
+        kind=config.get("kind"),
+    )}
+```
+
+也支持 `async def`。处理器必须返回一个只含已声明输出端口的 JSON 对象。资源目录读取使用 `runtime.application.library(kind=..., category_id=...)`；上传转项目素材使用 `runtime.application.import_upload(...)`；生成能力和插件动作必须通过 `runtime.invoke_capability(...)` / `runtime.execute_action(...)`，智能体节点可用 `runtime.call_model(...)`。不要直接访问 SQLite、项目文件绝对路径、ComfyUI HTTP 客户端或其他插件代码。`ApplicationRuntime.library()` 返回项目相对路径，不返回项目磁盘绝对路径。
+
+发现与单节点执行使用受认证的 HTTP API：
+
+```text
+GET  /api/v2/canvas-nodes
+POST /api/v2/canvas-nodes/{package-id}.{node-id}/execute
+```
+
+执行请求体为 `{"project_id":"可省略，默认当前项目","category_id":"可省略","inputs":{},"config":{}}`；响应就是处理器的输出 JSON。发现响应只含展示声明和 `config_schema`，不含 Python handler、包目录或 revision；插件错误只提供通用摘要，具体原因写入网关日志。插件文件变化返回 409 和 `X-Plugin-Restart-Required: true`，需排空节点任务并重启网关。节点执行失败返回统一错误，不直接把 Python traceback 或绝对路径交给客户端。
+
+本协议只提供节点包发现、单节点执行、项目资源读写和现有生成/LLM 服务桥接；不负责画布 UI、连线、DAG 校验/调度、工作流 JSON 的保存/分享或运行记录界面。这些属于无限画布应用插件。框架当前没有内置节点包；项目资源、上传、生成、智能体等基础节点应按本协议独立开发和安装。HTTP 节点执行接口也不等于为每个节点增加 MCP 工具，MCP 暴露策略由画布应用自己的工作流动作设计决定。
+
 ## UI 中英双语约定
 
 界面语言默认 `zh-CN`，用户在设置中选择 `en-US` 后持久化到框架 SQLite settings；不随项目切换，不依赖浏览器系统语言。HTTP/MCP 的 ID、参数、枚举值、提示词和用户内容保持原样。

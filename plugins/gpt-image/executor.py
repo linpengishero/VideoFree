@@ -34,7 +34,7 @@ def _json_request(url: str, payload: dict[str, Any], api_key: str, timeout: int)
     request = urllib.request.Request(url, data=body, method="POST", headers={
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json; charset=utf-8",
-        "User-Agent": "Zizai-Creation/1.0",
+        "User-Agent": "VideoFree Studio/2.0.0",
     })
     for attempt in range(3):
         try:
@@ -140,7 +140,7 @@ def execute_grsai(context: NativeExecutionContext) -> NativeExecutionResult:
             raise NativeExecutionCancelled()
         if urllib.parse.urlparse(url).scheme not in {"http", "https"}:
             raise ValueError("GrisAI 返回了无效图片地址")
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Zizai-Creation/1.0"}), timeout=120) as response:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "VideoFree Studio/2.0.0"}), timeout=120) as response:
             body = response.read(100 * 1024 * 1024 + 1)
             media_type = response.headers.get_content_type()
         if not body or len(body) > 100 * 1024 * 1024:

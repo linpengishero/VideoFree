@@ -404,7 +404,7 @@ class PluginTests(unittest.TestCase):
         paths = SimpleNamespace(artifacts=self.workflows, uploads=self.workflows/'uploads', plugins=self.workflows)
         (self.workflows/'voice.wav').write_bytes(b'example')
         with patch('backend.modules.shared.plugin_runtime.PluginRuntime.job_request', return_value=source['request']):
-            kind, request = asyncio.run(prepare_action(catalog,'normalize',{'parameters':{'strength':0.5}},SimpleNamespace(paths=paths), source))
+            kind, request = asyncio.run(prepare_action(catalog,'normalize',{'parameters':{'strength':0.5}},SimpleNamespace(paths=paths, db=Mock()), source))
         self.assertEqual(kind,'audio')
         self.assertEqual(request.params['capability_id'],'example.create')
         self.assertEqual(request.params['_action_id'],'normalize')
@@ -444,7 +444,7 @@ class PluginTests(unittest.TestCase):
         original = {'prompt':'test','mode':'reference','params':{'video_model':'minimax','latent_checkpoint_ready':True,'latent_checkpoint':'saved.h3latent.safetensors','latent_width':768,'latent_height':432,'h3_checkpoint_kind':'sigma_intermediate','capability_id':'video.reference'}}
         source = {'id':'video-test','kind':'video','status':'completed','request':original,
                   'artifacts': [{'name': 'video-test.mp4'}]}
-        runtime = SimpleNamespace(job_request=lambda job: original, comfyui_output_file=lambda name: Path('saved'), jobs=lambda:[])
+        runtime = SimpleNamespace(job_request=lambda job: original, comfyui_output_file=lambda name: Path('saved'), jobs=lambda:[], job_file=lambda *args: None)
         kind, request = handler({'action':action,'source':source,'inputs':{'width':1280,'height':720}}, runtime)
         self.assertEqual(kind,'video')
         self.assertEqual(request.params['speed'],'staged_refine')

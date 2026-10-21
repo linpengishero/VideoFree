@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -113,7 +113,7 @@ class TaskStore:
         if isinstance(safe_request.get("params"), dict):
             safe_request["params"] = {key: value for key, value in safe_request["params"].items() if key not in {"videos", "audios"}}
         self.write_json(task_dir / "config" / "request.json", safe_request)
-        self.write_json(task_dir / "manifest.json", {"task_id": job["id"], "kind": job["kind"], "project_id": job.get("project_id"), "category_id": job.get("category_id", ""), "parent_task_id": parent_job_id, "revision": job.get("revision", 1), "created_at": job["created_at"], "status": job["status"], "inputs": inputs, "outputs": [], "parameters": safe_request})
+        self.write_json(task_dir / "manifest.json", {"task_id": job["id"], "kind": job["kind"], "project_id": job.get("project_id"), "category_id": job.get("category_id", ""), "parent_task_id": parent_job_id, "revision": job.get("revision", 1), "created_by": job.get("created_by", "local"), "execution_node_id": job.get("execution_node_id", ""), "created_at": job["created_at"], "status": job["status"], "inputs": inputs, "outputs": [], "parameters": safe_request})
         return task_dir
 
     def hydrate(self, job: dict[str, Any]) -> dict[str, Any]:

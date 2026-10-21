@@ -1,5 +1,5 @@
-# Copyright (c) 2026 VideoFree individual project author and contributors.
-# Part of VideoFree: https://github.com/linpengishero/VideoFree
+# Copyright (c) 2026 VideoFree Studio individual project author and contributors.
+# Part of VideoFree Studio: https://github.com/linpengishero/VideoFreeStudio
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
@@ -26,6 +26,7 @@ class ApplicationContext:
     comfyui_output_dir: Path
     system_services: Any = None
     storage_provider: Any = None
+    comfyui_provider: Any = None
     comfyui_output_locations: dict[str, tuple[float, Path | None]] = field(default_factory=dict)
     plugin_catalogs: dict[str, Any] = field(default_factory=dict)
     plugin_catalog_lock: threading.RLock = field(default_factory=threading.RLock)
@@ -51,6 +52,7 @@ class ApplicationContext:
     generation_idempotency_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     collaboration_submission_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     state_lock: threading.RLock = field(default_factory=threading.RLock)
+    job_file_lock: threading.RLock = field(default_factory=threading.RLock)
     library_lock: threading.Lock = field(default_factory=threading.Lock)
     current_collaboration_id: contextvars.ContextVar[str | None] = field(
         default_factory=lambda: contextvars.ContextVar("current_collaboration_id", default=None)

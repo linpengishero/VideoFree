@@ -1,40 +1,42 @@
-# VideoFree
+# VideoFree Studio
 
 **English** · [中文](README_ZH.md)
 
 Current version: `2.0.0`
 
+Official website: [videofreestudio.com](https://videofreestudio.com)
+
 **Turn fragmented local AI workflows into complete creative capabilities that people can use, developers can distribute, and agents can call reliably.**
 
-VideoFree is a local AI video creation workspace, capability gateway, and plugin platform. It uses ComfyUI as a generation engine without forcing users to work directly with complex node graphs, model paths, and disconnected workflow files. Models, workflows, parameter forms, prompt expertise, and supporting assets are packaged as installable plugins, while projects, categories, assets, and jobs are managed in one place.
+VideoFree Studio is a local AI video creation workspace, capability gateway, and plugin platform. It uses ComfyUI as a generation engine without forcing users to work directly with complex node graphs, model paths, and disconnected workflow files. Models, workflows, parameter forms, prompt expertise, and supporting assets are packaged as installable plugins, while projects, categories, assets, and jobs are managed in one place.
 
 People can create in the workspace, while external agents use the same plugin capabilities, project data, and local media through MCP or HTTP APIs.
 
-## Why VideoFree
+## Why VideoFree Studio
 
 ### Local AI is powerful, but fragmented
 
 Cloud products choose the model, parameters, and interaction flow for the user. Moving to local creation means facing an overwhelming number of models, workflows scattered across the web, hard-to-read ComfyUI graphs, missing custom nodes, incompatible versions, and model paths that differ from one installation to another.
 
-VideoFree does not replace ComfyUI. It adds a stable product layer on top of it. A tested workflow can be packaged with its input rules, parameters, compiler logic, UI, dependencies, and documentation. Users select a capability like they would in a regular creative application instead of learning its internal graph first.
+VideoFree Studio does not replace ComfyUI. It adds a stable product layer on top of it. A tested workflow can be packaged with its input rules, parameters, compiler logic, UI, dependencies, and documentation. Users select a capability like they would in a regular creative application instead of learning its internal graph first.
 
 ### Every model speaks a different prompt language
 
 Image, video, speech, and music models use different prompt formats, media roles, and parameter constraints. The same request may need a completely different execution prompt for each model.
 
-A VideoFree plugin can ship model-specific collaboration skills. Users describe the desired scene, motion, dialogue, or music in plain language; the collaboration flow asks for missing information, checks media relationships, and compiles the request into the format expected by the selected model. Model-specific knowledge stays inside the plugin instead of accumulating in the framework.
+A VideoFree Studio plugin can ship model-specific collaboration skills. Users describe the desired scene, motion, dialogue, or music in plain language; the collaboration flow asks for missing information, checks media relationships, and compiles the request into the format expected by the selected model. Model-specific knowledge stays inside the plugin instead of accumulating in the framework.
 
 ### Local files, prompts, and production notes quickly become unmanageable
 
 ComfyUI executes workflows well, but it is not a complete video project manager. Images, clips, voices, music, intermediate files, scripts, prompts, references, and chat notes often end up in unrelated folders.
 
-VideoFree organizes creation as **project → category → asset**. A project can represent a film or series, while categories can represent episodes, chapters, or shot groups. Final media is archived automatically. Job records preserve source media, parameters, capability identity, and regeneration lineage. Reusable characters, scenes, and voices can be maintained as project assets. Project plugins can also manage scripts, storyboards, and progress in the current project or category context.
+VideoFree Studio organizes creation as **project → category → asset**. A project can represent a film or series, while categories can represent episodes, chapters, or shot groups. Final media is archived automatically. Job records preserve source media, parameters, capability identity, and regeneration lineage. Reusable characters, scenes, and voices can be maintained as project assets. Project plugins can also manage scripts, storyboards, and progress in the current project or category context.
 
 ### Agents need a stable capability contract, not raw graph access
 
 Directly manipulating ComfyUI graphs is brittle for agents: node IDs, connections, model filenames, and workflow versions can change at any time.
 
-VideoFree exposes workflows as capabilities with stable IDs, input schemas, and execution contracts. An agent discovers capabilities, uploads media, submits validated inputs, and monitors jobs. VideoFree handles workflow selection, media binding, queues, recovery, error reporting, and result archiving. The workspace, MCP, and HTTP API all share one capability catalog and one job service.
+VideoFree Studio exposes workflows as capabilities with stable IDs, input schemas, and execution contracts. An agent discovers capabilities, uploads media, submits validated inputs, and monitors jobs. VideoFree Studio handles workflow selection, media binding, queues, recovery, error reporting, and result archiving. The workspace, MCP, and HTTP API all share one capability catalog and one job service.
 
 ### Workflows become installable products
 
@@ -55,7 +57,7 @@ Plugin development resources:
 
 - [Plugin development guide](plugins/PLUGIN_DEVELOPMENT.md)
 - [Plugin protocol](docs/plugin-protocol.md)
-- [VideoFree plugin development skill](.agents/skills/videofree-plugin-development/SKILL.md)
+- [VideoFree Studio plugin development skill](.agents/skills/videofree-plugin-development/SKILL.md)
 
 ## Core capabilities
 
@@ -70,17 +72,17 @@ Plugin development resources:
 
 ## Quick start
 
-VideoFree supports Windows release packages and Linux source deployments.
+VideoFree Studio supports Windows release packages and Linux source deployments.
 
 1. Prepare and start ComfyUI with the models and custom nodes required by the plugins you want to use.
-2. Extract the complete VideoFree release package.
+2. Extract the complete VideoFree Studio release package.
 3. On Windows, double-click `videofree.bat`. On Linux, install `requirements.txt`, run `chmod +x videofree.sh`, then start with `./videofree.sh`.
 4. Open the workspace, create a project, and enter the actual ComfyUI URL in Settings. The common default is `http://127.0.0.1:8189`, but your installation may use another port.
 5. Start with a low-resolution image or short clip to verify the environment before running expensive jobs.
 
 The release package includes its Python runtime and does not require a separate Python or Node.js installation. Source deployments must install `requirements.txt` and build the frontend.
 
-The editing plugin requires `ffmpeg` and `ffprobe` on system `PATH`; these binaries are not stored in this repository. Download FFmpeg from [the official download page](https://ffmpeg.org/download.html), then verify both `ffmpeg -version` and `ffprobe -version` in the environment that launches VideoFree. See the [editor installation guide](plugins/film-studio/INSTALL.md) for platform-specific instructions.
+The editing plugin requires `ffmpeg` and `ffprobe` on system `PATH`; these binaries are not stored in this repository. Download FFmpeg from [the official download page](https://ffmpeg.org/download.html), then verify both `ffmpeg -version` and `ffprobe -version` in the environment that launches VideoFree Studio. See the [editor installation guide](plugins/film-studio/INSTALL.md) for platform-specific instructions.
 
 The optional companion ComfyUI package is currently hosted on Quark Drive. Copy the complete share text into the Quark app if the browser link does not open:
 
@@ -123,8 +125,8 @@ For another machine on the LAN, replace `127.0.0.1` with the gateway machine's r
 
 Agents should begin with health and discovery calls, then submit only capability IDs and schemas returned by the running gateway. They should not infer model paths, workflow files, or ComfyUI nodes.
 
-- MCP guide: [.agents/skills/zizai-creation/references/mcp-install.md](.agents/skills/zizai-creation/references/mcp-install.md)
-- Direct API skill: [.agents/skills/zizai-creation](.agents/skills/zizai-creation)
+- MCP guide: [examples/skills/videofree-creation/references/mcp-install.md](examples/skills/videofree-creation/references/mcp-install.md)
+- Direct API skill: [examples/skills/videofree-creation](examples/skills/videofree-creation)
 - Interactive API documentation: `http://127.0.0.1:8765/docs`
 - Capability catalog: `http://127.0.0.1:8765/api/v2/capabilities`
 
@@ -136,18 +138,18 @@ Wait for jobs using the plugin to finish, copy or update the whole folder, resta
 
 Use the included skill when asking a coding agent to create, migrate, review, or validate a plugin:
 
-> Use `$videofree-plugin-development` to package this ComfyUI workflow as a VideoFree plugin. Keep all model-specific code and assets inside the plugin, expose a stable capability schema, and run the plugin and release checks.
+> Use `$videofree-plugin-development` to package this ComfyUI workflow as a VideoFree Studio plugin. Keep all model-specific code and assets inside the plugin, expose a stable capability schema, and run the plugin and release checks.
 
 ## Community
 
 - AI Arsenal and project updates: [laobanclaw.top](https://laobanclaw.top/)
 - **Knowledge Planet**: AI video automation workflows and practical knowledge about AI, agents, and large language models.
-- **VideoFree WeChat group**: discuss local models, plugin development, workflow packaging, and AI video creation. If the QR code expires, visit [laobanclaw.top](https://laobanclaw.top/) for the latest entry.
+- **VideoFree Studio WeChat group**: discuss local models, plugin development, workflow packaging, and AI video creation. If the QR code expires, visit [laobanclaw.top](https://laobanclaw.top/) for the latest entry.
 
 <table>
   <tr>
     <td align="center"><strong>Knowledge Planet</strong><br /><a href="frontend/public/contact/zsxq-qr.png"><img src="frontend/public/contact/zsxq-qr.png" alt="Knowledge Planet QR code" width="220" /></a></td>
-    <td align="center"><strong>VideoFree WeChat group</strong><br /><a href="https://laobanclaw.top/videofree/qrcode.jpg"><img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree WeChat group QR code" width="220" /></a></td>
+    <td align="center"><strong>VideoFree Studio WeChat group</strong><br /><a href="https://laobanclaw.top/videofree/qrcode.jpg"><img src="https://laobanclaw.top/videofree/qrcode.jpg" alt="VideoFree Studio WeChat group QR code" width="220" /></a></td>
   </tr>
 </table>
 
@@ -157,8 +159,8 @@ Project attribution, release evidence, commercial delivery records, and contribu
 authorization practices are documented in [Source provenance](docs/source-provenance.md).
 See [NOTICE](NOTICE) for project source and copyright notices.
 
-VideoFree-owned source code is released under [GNU AGPL-3.0](LICENSE) ([Chinese explanation](LICENSE_ZH.md)). For closed-source integration, enterprise deployment, white-label use, support, or custom development, see the [commercial licensing notice](COMMERCIAL_LICENSE.md).
+VideoFree Studio-owned source code is released under [GNU AGPL-3.0](LICENSE) ([Chinese explanation](LICENSE_ZH.md)). For closed-source integration, enterprise deployment, white-label use, support, or custom development, see the [commercial licensing notice](COMMERCIAL_LICENSE.md).
 
-ComfyUI, community nodes, models, LoRAs, fonts, FFmpeg, and other third-party resources keep their own licenses. The editor is the `plugins/film-studio/` application plugin; it requires user-installed `ffmpeg` and `ffprobe` on system `PATH` and does not redistribute those binaries. See its [installation guide](plugins/film-studio/INSTALL.md). `.agents/skills/openmontage/` is an independent automation skill and is not a runtime dependency of the editor. See [third-party notices](THIRD_PARTY_NOTICES.md).
+ComfyUI, community nodes, models, LoRAs, fonts, FFmpeg, and other third-party resources keep their own licenses. The editor is the `plugins/film-studio/` application plugin; it requires user-installed `ffmpeg` and `ffprobe` on system `PATH` and does not redistribute those binaries. See its [installation guide](plugins/film-studio/INSTALL.md). `examples/skills/openmontage/` is an independent automation skill and is not a runtime dependency of the editor. See [third-party notices](THIRD_PARTY_NOTICES.md).
 
-Only install plugins from sources you trust. Model and sample-file redistribution rights must be verified separately from VideoFree's source-code license.
+Only install plugins from sources you trust. Model and sample-file redistribution rights must be verified separately from VideoFree Studio's source-code license.

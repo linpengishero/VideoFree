@@ -32,18 +32,18 @@ def persist(job, request, runtime, *, detect=True):
     if not matches:
         raise RuntimeError("H3 初稿完成，但未找到原生 latent 检查点")
     checkpoint = matches[0]
-    digest = hashlib.sha256()
-    with checkpoint.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
-            digest.update(chunk)
+    archived = runtime.save_job_file(job, "native-latent", source=checkpoint,
+                                    metadata={"format": "h3latent.safetensors", "version": 1,
+                                              "filename": checkpoint.name})
     frames = max(5, round(request.duration_seconds * 24))
     request.params.update(
         latent_checkpoint=checkpoint.name, latent_checkpoint_owner=job["id"],
-        latent_sha256=digest.hexdigest().upper(), latent_checkpoint_ready=True,
+        latent_archive_job=job["id"],
+        latent_sha256=archived["sha256"].upper(), latent_checkpoint_ready=True,
         latent_width=int(request.params.get("width", 768)),
         latent_height=int(request.params.get("height", 432)),
         latent_frames=frames + (5 - frames % 17) % 17, latent_fps=24,
-        latent_size=checkpoint.stat().st_size,
+        latent_size=archived["size"],
         h3_checkpoint_kind=str(request.params.get("h3_checkpoint_kind") or "completed_draft_latent"),
         h3_resume_stage=str(request.params.get("h3_resume_stage") or "post_sampling"),
         h3_resume_step=int(request.params.get("h3_resume_step") or 0),
@@ -75,7 +75,7 @@ def completed(event, runtime):
 def recover(event, runtime):
     for job in runtime.jobs():
         params = (job.get("request") or {}).get("params", {})
-        if not owns(job) or job.get("status") != "completed" or params.get("latent_checkpoint_ready"):
+        if not owns(job) or job.get("status") != "completed" or params.get("latent_archive_job"):
             continue
         if params.get("parent_job_id") or job.get("parent_job_id") or params.get("refine_mode"):
             continue
@@ -96,14 +96,14 @@ def delete(event, runtime):
         return
     if not owner and (job.get("parent_job_id") or params.get("refine_mode")):
         return
+    # Protect queued children even if ComfyUI's cache was already removed.
+    for other in runtime.jobs():
+        other_params = (other.get("request") or {}).get("params", {})
+        if (other["id"] != job["id"] and other.get("status") in {"queued", "running"}
+                and name and other_params.get("latent_checkpoint") == name):
+            raise RuntimeError("H3 检查点仍被运行中的二采任务引用")
     path = checkpoint_path(runtime, name)
     if path:
-        # A child may still be queued against this file, even when its owner is deleted.
-        for other in runtime.jobs():
-            other_params = (other.get("request") or {}).get("params", {})
-            if (other["id"] != job["id"] and other.get("status") in {"queued", "running"}
-                    and other_params.get("latent_checkpoint") == name):
-                raise RuntimeError("H3 检查点仍被运行中的二采任务引用")
         try:
             path.unlink()
         except PermissionError:
