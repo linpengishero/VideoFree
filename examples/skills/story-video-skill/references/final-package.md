@@ -39,6 +39,13 @@ config:
   min_scenes: 3
   single_scene_reason: ''
   allow_self_review: false
+  automation_authorization:
+    scope: this_project_and_revision
+    h3_review_and_confirm: true
+    self_review_fallback: false
+    local_export: true
+    external_publish: false
+    evidence: 用户本次开场授权原文及时间
   refine: true
   subtitles: false
   budget: 用户批准的预算
@@ -52,7 +59,7 @@ config:
 
 generation_settings按阶段保存前期确认的参数，字段和值必须以网关实时能力为准，上例不代替能力发现。程序按定稿自动填入画幅、按shot_ids顺序嵌入四宫格prompt的四条图格描述、逐镜时长和全部实际参考输入；角色板画幅始终覆盖为16:9。改变这些生成设置须修订并重审，不临时覆盖定稿。
 
-模型策略、授权、时长估算等可在config记录额外字段，但不能以“一口气做完”推导无限预算或用户没授权的对外发布。需要无人值守H3确认，在前期明确征求“审核并确认本定稿镜头的H3转换结果”的授权，并记录证据；不需要每镜再问一次。未授权默认等待批准，真实歧义必须停止。
+`automation_authorization`必须来自开场真实授权，限定本项目与当前定稿revision。开始前一次确认H3逐稿审核/确认、QA代理不可用时是否允许明确标记的self_review、预算/重试/二采上限及本地导出；授权生效后不逐镜或逐阶段停下来询问。self_review获准时同时设`allow_self_review: true`。若H3审核确认获准，build后须在`production.json`写入对应的`h3_delegation`，其中`shot_specs`逐镜绑定当前compile规格；准确结构见[自动制作授权](generation.md)。超预算、外部发布、改变已批准故事方向仍须另行批准；真实歧义或能力故障按恢复规则处理。仅设置`h3_review_and_confirm: true`不代表允许self_review或外部发布。
 
 research_notes.md：正文完整记录研究结论、来源、原文依据与不确定性；唯一数据块：
 

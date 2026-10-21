@@ -27,7 +27,7 @@ python <bridge> --openmontage-root <root> --projects-root <projects> --project-i
 python <bridge> --openmontage-root <root> --projects-root <projects> --project-id <id> checkpoint --stage script --status completed --artifacts <artifacts.json>
 ```
 
-未获得自动推进授权时用--require-approval和awaiting_human；--approved必须有真实用户批准。H3确认是另一个边界，默认人工批准，仅明确记录的特定镜头审核及确认委托可例外，不允许通用自动确认。
+开场记录自动制作授权后，授权范围内使用自动阶段推进并连续执行，不在普通检查点逐阶段询问；未授权的项目才用`--require-approval`并停在`awaiting_human`。H3逐稿确认包含在本项目开场明确授权中，必须先审核实际转换稿并记录证据；无该授权才等待逐稿批准。授权按定稿revision限定，超预算、外部发布、实质歧义或无法恢复的故障不包含在内。
 
 assets内部按Qwen草稿、定版图、四宫格、切割、H3 compile、视频QA执行。二采复审并选中后运行selected。完成assets/edit检查点自动检查selected，compose/publish检查final，均追加--production。修改上游只重做受影响内容；未变化资产可通过spec哈希复用，不修改旧QA版本假称复审。
 

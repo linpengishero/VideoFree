@@ -15,11 +15,22 @@
 
 ## 提示词与确认
 
+### 本项目一次性自动制作授权
+
+首次开工时一次性确认本次项目的故事/成片目标、预算和重试/二采上限，并征得两项明确授权：
+
+1. 主制片可以审核并确认本项目所有符合已批准定稿、参考输入和能力约束的H3 compile结果，随后自动提交视频生成；不需要每镜再次询问。
+2. 媒体QA优先由独立审核代理完成。若宿主没有可用的独立审核代理，是否允许主制片执行视觉抽帧、音频听检和技术检查并如实标记`self_review`；若允许，同时将`config.allow_self_review=true`。
+
+把用户原话、项目ID、定稿revision、预算/重试范围、是否允许self_review和授权时间写入`task_config.yaml`的`automation_authorization`。若授权H3审核确认，在build后、首个compile前，将同一授权写入`production.json`的`h3_delegation`：`approved_by: user`、`evidence`为用户授权原文及时间、`allow_review_and_confirm: true`，`shot_specs`为每个当前shot_id对应的`validate.py specification(plan, 'compilations', shot_id)`。这是网关守卫要求的精确逐镜规格绑定，不是逐镜索取授权。修改故事/定稿revision后重新确认并重建受影响的H3规格映射。不得把授权扩展到超预算、外部发布、改变故事方向或静默接受不符合定稿的转换稿。
+
+获得授权后自动推进前期制作、批次生成、QA、H3转换与确认、视频生成、剪辑、渲染和本地导出。普通转换追问优先引用定稿续答；只有涉及未定义的实质创作决策、预算或授权范围时才回到用户。阶段失败按已批准重试上限局部恢复，不重复询问正常确认点。
+
 图像提交显式选择Qwen能力；H3视频一律 `prompt_processing=compile`，由网关按官方技能分析真实参考与描述词、纠错并转换。direct仅用于图像等不需H3转换的能力，不用于本技能的视频。不能把简单翻译或自行写六段稿冒充转换。
 
-返回session时保存会话ID，不当作生成任务。`needs_input`通过guarded_mcp的continue续答原session。get_collaboration返回规范model_id、collaboration_mode、confirmation和revision，同时保留result兼容字段。前期明确记录本定稿镜头H3审核与确认的委托后，生产者核对实际转换稿并确认，无须每镜再问；真实歧义或超出定稿仍停止。没有这种委托时，`awaiting_confirmation`展示双语稿等待用户批准。不能把全自动制作的一般授权当作审核委托。
+返回session时保存会话ID，不当作生成任务。`needs_input`通过guarded_mcp的continue续答原session。get_collaboration返回规范model_id、collaboration_mode、confirmation和revision，同时保留result兼容字段。若本项目授权记录覆盖当前定稿revision，生产者核对实际转换稿并自动确认；否则`awaiting_confirmation`展示双语稿等待用户批准。真实歧义或超出定稿仍停止。不能略过compile或覆盖转换结果。
 
-保存完整转换请求、就绪回执、用户批准或有范围的委托证据及确认回执。修改镜头后旧委托失效，须重新授权；禁止direct避开转换。
+保存完整转换请求、就绪回执、项目级授权证据及确认回执。授权按当前定稿revision生效；修改故事/镜头后仅对受影响镜头重新审核并更新授权映射。禁止direct避开转换。
 
 H3执行稿使用subject_definitions、summary、retention_analysis、detailed_description、overall_soundscape、non_diegetic_music结构：身份锚定实际参考编号，保留故事事件、动作因果、时序、空间关系、运镜及按需的对白/声音设计。不压缩或改写剧情。只有对白镜才绑定speaker声音参考及normalized_line；无对白镜不得凭空添加台词。图片顺序为分镜单格、需要保持身份的出镜主体、场景及关键道具；超过能力数量时调整构图/拆镜，不静默丢参考。
 

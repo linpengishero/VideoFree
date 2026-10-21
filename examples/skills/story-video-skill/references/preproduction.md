@@ -120,7 +120,7 @@ references另带parent_sha256指向草稿；grids的reference_sha256精确覆盖
 
 compilations每条记录含`revision`、`request`（原始submit_generation参数）、`response`（保存get_collaboration返回awaiting_confirmation时的完整回执）以及确认后的`submission`。request显式compile、当前project_id、当前镜头源稿及真实inputs；图片依次为单格、当前speaker和listener定版角色板、scene_id、其余required_assets（场景去重），音频仅为speaker的voices声音参考。静音/旁白镜不传speaker和声音。response必须是MiniMax H3 quick转换会话，六段英文执行稿及逐字对白完整；needs_input不能放行。submission的collaboration_id和job_id必须关联该会话及videos记录。
 
-确认默认逐稿取得用户批准：compilation.authorization记录approved_by=user、真实evidence和response_sha256=fingerprint(response)。若用户明确委托特定镜头的H3审核及确认，在plan.h3_delegation记录approved_by=user、真实evidence、allow_review_and_confirm=true、shot_specs={shot_id: specification(plan, 'compilations', shot_id)}。不得从笼统“全自动”推断此委托。先审核就绪稿，再按当前collaboration_id/revision确认，禁止确认时覆盖稿件。
+H3确认按开场自动制作授权处理：若`automation_authorization.h3_review_and_confirm=true`且授权证据覆盖当前revision，主制片先审核实际就绪稿，再按当前collaboration_id/revision确认，不逐稿等待用户。`production.json.h3_delegation`必须包含`approved_by: user`、授权原文及时间的`evidence`、`allow_review_and_confirm: true`，以及所有当前shot_id到`specification(plan, 'compilations', shot_id)`的`shot_specs`映射；这满足网关确认守卫的范围校验。每条`compilation.authorization`仍记录实际转换稿哈希和逐稿审核证据。没有该授权时才记录approved_by=user并等待逐稿批准；真实歧义、转换稿改变关键剧情/动作结果或超出预算必须暂停。禁止确认时覆盖稿件。
 
 成功refinements记录具有视频同等文件/QA/spec字段，gateway_job.id、status=completed及parent_job_id必须与记录匹配。父文件哈希对应真实上级，每条成功二采复审。selected覆盖全部镜头；终片QA绑定实际文件，并以selection_hash(plan)和fingerprint(composition证据)记录selection_sha256/compose_sha256。
 

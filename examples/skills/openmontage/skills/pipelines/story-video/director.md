@@ -58,15 +58,21 @@ authoritative local stage state. Neither substitutes for the other.
 When revising upstream work, invalidate downstream checkpoints by marking them in_progress
 before continuing; old reports cannot approve changed inputs.
 
-The manifest permits automatic stage progression ONLY within the user's recorded content,
-budget, runtime and review authorization. Without that authorization, use the bridge's
---require-approval and stop at awaiting_human; --approved requires a real user approval.
-Gateway confirmation defaults to explicit user approval. Only a user's recorded,
-shot-scoped delegation of H3 review AND confirmation permits the producer to confirm
-after reviewing the actual draft. General automatic-progression permission is not that delegation.
+At kickoff, record one project-scoped authorization covering the approved story revision,
+budget, retry/refinement limits, H3 draft review and confirmation, QA mode and local export.
+Within that scope, progress through stages and confirm each conforming H3 draft after review
+without asking again per shot or checkpoint. If independent QA agents are unavailable,
+continue with frame-based visual review and audio/technical checks only when the user has
+authorized a disclosed `self_review` fallback. Without automatic authorization, use the
+bridge's `--require-approval` and stop at `awaiting_human`. Pause for overspend, material
+ambiguity, scope changes, missing required capability or unrecoverable failure. External
+publishing is never included in local-export authorization.
 All caller submissions and confirmations use guarded_mcp.py; reference input receipts
 include actual upload IDs and hashes for every required visible subject and scene reference.
-Attach voice references only to dialogue shots that need them. The selected
+Video QA reviews the real clip by playback or a timestamped sequence of extracted frames
+covering the start, key action beats and end; add samples around cuts and complex motion.
+Final QA samples the rendered timeline similarly and checks audio separately. A cover frame
+alone is never sufficient. Attach voice references only to dialogue shots that need them. The selected
 gate covers reviewed refinements; the final gate binds selected media, compose inputs
 and the reviewed rendered file. Unchanged artifact specifications may reuse their QA.
 
