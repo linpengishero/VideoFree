@@ -18,7 +18,7 @@ class GenerateRequest(BaseModel):
     references: list[str] = Field(default_factory=list)
     duration_seconds: float = Field(default=5, ge=1, le=360)
     mode: str = ""
-    generation: dict[str, str] = Field(default_factory=dict)
+    generation: dict[str, Any] = Field(default_factory=dict)
     internal_project_id: str | None = Field(default=None, exclude=True)
 
 
@@ -36,7 +36,7 @@ class TTSRequest(BaseModel):
     reference_audio: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
     parent_job_id: str | None = None
-    generation: dict[str, str] = Field(default_factory=dict)
+    generation: dict[str, Any] = Field(default_factory=dict)
     internal_project_id: str | None = Field(default=None, exclude=True)
 
 

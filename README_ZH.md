@@ -2,7 +2,7 @@
 
 [English](README.md) · **中文**
 
-当前版本：`2.0.0`
+当前版本：`2.0.1`
 
 官方网站：[videofreestudio.com](https://videofreestudio.com)
 

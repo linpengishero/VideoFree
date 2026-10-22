@@ -1,11 +1,18 @@
 {
   "schema_version": 1,
   "id": "gpt-image",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "name": "gpt-image",
   "settings": {
     "title": "GPT-Image",
-    "description": "云端图片生成，通过 GrisAI 服务调用。配置保存在本插件的 .env 文件。",
+    "description": "云端图片生成，通过 GrisAI 服务调用。配置保存在网关运行数据目录。",
+    "links": [
+      {
+        "label": "GrisAI API 官网 / 申请 Key",
+        "label_key": "settings.api_site",
+        "url": "https://grsai.dakka.com.cn"
+      }
+    ],
     "fields": [
       {
         "key": "GRSAI_API_KEY",
@@ -26,7 +33,7 @@
         "label_key": "API 地址"
       }
     ],
-    "description_key": "云端图片生成，通过 GrisAI 服务调用。配置保存在本插件的 .env 文件。"
+    "description_key": "云端图片生成，通过 GrisAI 服务调用。配置保存在网关运行数据目录。"
   },
   "categories": [
     {

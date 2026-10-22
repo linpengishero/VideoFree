@@ -365,8 +365,40 @@ async function showTaskDetails(job) {
     notify(error.message);
   }
 }
-async function regenerateTask({ manifest, draft, replacements, removed = {}, action = "direct", done }) {
+async function continueTaskProcessing(manifest) {
+  const jobId = manifest?.task_id;
+  if (!jobId) return;
+  let job = jobs.value.find(item => item.id === jobId);
+  if (!job) {
+    try { job = await gateway.job(jobId); }
+    catch (error) { notify(error.message); return; }
+  }
+  postSource.value = job;
+  taskDetails.value = null;
+}
+async function regenerateTask({ manifest, draft, replacements, removed = {}, action = "direct", pluginAction, pluginActionInputs, done }) {
   try {
+    if (pluginAction) {
+      let sourceJobId = manifest.parent_task_id || null;
+      let sourceUploadId = null;
+      if (!sourceJobId && pluginAction.scope === 'resource') {
+        const source = (manifest.inputs || []).find(item => ['image','video','audio'].includes(item.type));
+        if (!source) throw Error(t('原任务缺少插件动作所需的源素材'));
+        const blob = await readMediaBlob(gateway.taskFileUrl(manifest.task_id, source.path));
+        const file = new File([blob], source.original_name || source.name || 'action-source', {type:source.media_type || blob.type});
+        sourceUploadId = (await uploadValue(file)).replace(/^upload:/, '');
+      }
+      const created = await gateway.runPluginAction(pluginAction.id, {
+        sourceJobId, sourceUploadId, projectId:manifest.project_id,
+        categoryId:manifest.category_id || '', inputs:pluginActionInputs || {},
+      });
+      if (created.job_id) {
+        jobs.value.unshift({...created,id:created.job_id,kind:manifest.kind});
+        poll(created.job_id);
+      }
+      taskDetails.value = null;
+      return;
+    }
     const encodedInputs = { image: [], video: [], audio: [] };
     const activeInputs = (manifest.inputs || []).filter(
       (item) => !removed[`${item.type}:${item.index}`],
@@ -608,7 +640,7 @@ onUnmounted(() => {
         @click="leaveStudio"
       >
         <img src="/contact/logo.png" alt="" />
-        videofree
+        VideoFree Studio
       </button>
       <button v-if="!projectHomeVisible" class="topbar-workspace" type="button" :title="t(&quot;返回项目&quot;)" @click="showProjectHome">
         <Icon icon="solar:layers-minimalistic-linear" width="15" /><span
@@ -626,7 +658,7 @@ onUnmounted(() => {
       <div class="topbar-actions">
         <a
           class="topbar-site"
-          href="https://laobanclaw.top/"
+          href="https://www.videofreestudio.com/"
           target="_blank"
           rel="noopener noreferrer"
           :title="t(&quot;访问 videofree 官网&quot;)"
@@ -704,6 +736,7 @@ onUnmounted(() => {
       @regenerate="regenerateTask"
       @translate="translateTask"
       @resource-changed="refreshWorkspace"
+      @process="continueTaskProcessing"
     />
     </template>
     <AssetDrawer v-model:open="drawer" :project-id="currentProject?.id || ''" :category-id="currentCategory === '@public' ? null : currentCategory" :categories="categories" :picker-types="resourcePickerTypes" @use="handleAssetUse" />

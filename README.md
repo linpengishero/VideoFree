@@ -2,7 +2,7 @@
 
 **English** · [中文](README_ZH.md)
 
-Current version: `2.0.0`
+Current version: `2.0.1`
 
 Official website: [videofreestudio.com](https://videofreestudio.com)
 

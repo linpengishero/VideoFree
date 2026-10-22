@@ -1,4 +1,7 @@
 {
+  "action.text": "生成文本",
+  "action.voice_description": "声音描述",
+  "action.speed": "语速",
   "声音生成": "声音生成",
   "直接生成": "直接生成",
   "声音设计": "声音设计",

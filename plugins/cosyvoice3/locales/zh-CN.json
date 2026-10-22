@@ -1,4 +1,7 @@
 {
+  "action.text": "生成文本",
+  "action.speed": "语速",
+  "action.preset": "预设声音",
   "声音生成": "声音生成",
   "直接生成": "直接生成",
   "CosyVoice3 预设音色": "CosyVoice3 预设音色",

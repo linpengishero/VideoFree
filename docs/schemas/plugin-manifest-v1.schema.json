@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://videofreestudio.com/schemas/plugin-manifest-v1.schema.json",
+  "title": "VideoFree Studio plugin manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "categories", "capabilities"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"$ref": "#/$defs/id"},
+    "version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$"},
+    "name": {"$ref": "#/$defs/text"},
+    "name_key": {"type": "string"},
+    "description": {"type": "string"},
+    "description_key": {"type": "string"},
+    "enabled": {"type": "boolean"},
+    "requires": {"$ref": "#/$defs/requires"},
+    "localization": {"$ref": "#/$defs/localization"},
+    "settings": {"$ref": "#/$defs/settings"},
+    "assets": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "style_library": {"$ref": "#/$defs/styleLibrary"},
+    "categories": {"type": "array", "items": {"$ref": "#/$defs/category"}},
+    "modes": {"type": "array", "items": {"$ref": "#/$defs/mode"}},
+    "capabilities": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/id"},
+      "additionalProperties": {"$ref": "#/$defs/capability"}
+    },
+    "ui_models": {"type": "array", "items": {"$ref": "#/$defs/uiModel"}},
+    "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+    "voice_presets": {"$ref": "#/$defs/handler"},
+    "prompt_translation_action": {"$ref": "#/$defs/id"},
+    "resource_lifecycle": {"$ref": "#/$defs/resourceLifecycle"},
+    "application_lifecycle": {"$ref": "#/$defs/applicationLifecycle"},
+    "application": {"$ref": "#/$defs/application"},
+    "project_tool": {"$ref": "#/$defs/projectTool"},
+    "collaboration_ui": {"oneOf": [{"type": "string"}, {"$ref": "#/$defs/uiBundle"}]}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$"},
+    "text": {"type": "string", "minLength": 1},
+    "handler": {"type": "string", "pattern": "^[^:]+\\.py:[A-Za-z_][A-Za-z0-9_]*$"},
+    "mediaKind": {"enum": ["image", "video", "tts", "music", "audio"]},
+    "requires": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "platform_min": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+        "platform_max_exclusive": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+      }
+    },
+    "localization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["default_locale", "messages"],
+      "properties": {
+        "default_locale": {"enum": ["zh-CN", "en-US"]},
+        "messages": {
+          "type": "object", "minProperties": 1,
+          "propertyNames": {"enum": ["zh-CN", "en-US"]},
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    },
+    "settings": {
+      "type": "object", "additionalProperties": false, "required": ["fields"],
+      "properties": {
+        "title": {"type": "string"}, "title_key": {"type": "string"},
+        "description": {"type": "string"}, "description_key": {"type": "string"},
+        "links": {"type": "array", "items": {"$ref": "#/$defs/settingsLink"}},
+        "fields": {"type": "array", "items": {"$ref": "#/$defs/settingsField"}}
+      }
+    },
+    "settingsLink": {
+      "type": "object", "additionalProperties": false, "required": ["label", "url"],
+      "properties": {"label": {"$ref": "#/$defs/text"}, "label_key": {"type": "string"}, "url": {"type": "string", "format": "uri"}}
+    },
+    "settingsField": {
+      "type": "object", "additionalProperties": false, "required": ["key", "label"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+        "label": {"type": "string"}, "label_key": {"type": "string"},
+        "type": {"enum": ["string", "secret", "url", "boolean", "number", "select"]},
+        "required": {"type": "boolean"}, "default": {}, "prefix": {"type": "string"},
+        "runtime_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "placeholder": {"type": "string"}, "placeholder_key": {"type": "string"},
+        "help": {"type": "string"}, "help_key": {"type": "string"},
+        "minimum": {"type": "number"}, "maximum": {"type": "number"},
+        "options": {"type": "array", "items": {"$ref": "#/$defs/option"}}
+      }
+    },
+    "styleLibrary": {
+      "type": "object", "additionalProperties": false, "required": ["directory"],
+      "properties": {"directory": {"type": "string", "minLength": 1}, "default_id": {"$ref": "#/$defs/id"}}
+    },
+    "category": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string"}, "name_key": {"type": "string"}, "icon": {"type": "string"}}
+    },
+    "mode": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "name": {"type": "string"}, "name_key": {"type": "string"}, "handler": {"$ref": "#/$defs/handler"}}
+    },
+    "uiModel": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "category", "functions"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"}, "name_key": {"type": "string"},
+        "category": {"$ref": "#/$defs/id"}, "selector_order": {"type": "integer", "minimum": 0},
+        "default": {"type": "boolean"},
+        "functions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/uiFunction"}}
+      }
+    },
+    "uiFunction": {
+      "type": "object", "additionalProperties": false, "required": ["capability_id", "name"],
+      "properties": {"capability_id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"}, "name_key": {"type": "string"}, "selector_order": {"type": "integer", "minimum": 0}}
+    },
+    "referenceCount": {
+      "type": "object", "additionalProperties": false, "required": ["min", "max"],
+      "properties": {"min": {"type": "integer", "minimum": 0}, "max": {"type": "integer", "minimum": 0}}
+    },
+    "references": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"image": {"$ref": "#/$defs/referenceCount"}, "video": {"$ref": "#/$defs/referenceCount"}, "audio": {"$ref": "#/$defs/referenceCount"}}
+    },
+    "binding": {
+      "type": "object", "required": ["node", "input"],
+      "properties": {
+        "node": {"type": ["string", "integer"]}, "input": {"type": "string", "minLength": 1},
+        "source": {"type": "string"}, "source_index": {"type": "integer", "minimum": 0},
+        "connect": {"type": "boolean"}, "default": {"type": ["string", "number", "boolean"]}, "value": {}
+      },
+      "additionalProperties": false
+    },
+    "bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/binding"}},
+    "parameter": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["string", "boolean", "integer", "number"]},
+        "label": {"type": "string"}, "label_key": {"type": "string"}, "required": {"type": "boolean"},
+        "default": {}, "enum": {"type": "array", "minItems": 1},
+        "minimum": {"type": "number"}, "maximum": {"type": "number"}, "maxLength": {"type": "integer", "minimum": 0}
+      }
+    },
+    "duration": {
+      "type": "object", "additionalProperties": false, "required": ["min", "max", "default"],
+      "properties": {"min": {"type": "number", "exclusiveMinimum": 0}, "max": {"type": "number", "exclusiveMinimum": 0}, "default": {"type": "number", "exclusiveMinimum": 0}}
+    },
+    "promptPolicy": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"preserve_all": {"type": "boolean"}, "preserve_template": {"type": "boolean"}}
+    },
+    "requirements": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"nodes": {"type": "array", "items": {"type": "string"}}, "models": {"type": "array", "items": {"type": "string"}}}
+    },
+    "ui": {
+      "type": "object", "additionalProperties": false, "required": ["version", "fields"],
+      "properties": {"version": {"const": 1}, "fields": {"type": "array", "items": {"$ref": "#/$defs/uiField"}}, "edit": {"type": "object"}, "prompt_template": {"type": "object", "additionalProperties": false, "required": ["fields"], "properties": {"fields": {"type": "array", "items": {"type": "string"}}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}}}
+    },
+    "uiField": {
+      "type": "object", "additionalProperties": false, "required": ["bind", "component", "label"],
+      "properties": {
+        "bind": {"type": "string", "minLength": 1},
+        "component": {"enum": ["textarea", "text", "number", "select", "checkbox", "media", "voice", "style", "dimensions"]},
+        "label": {"type": "string"}, "label_key": {"type": "string"},
+        "placeholder": {"type": "string"}, "placeholder_key": {"type": "string"}, "help": {"type": "string"}, "help_key": {"type": "string"},
+        "section": {"enum": ["body", "settings", "submit"]}, "required": {"type": "boolean"},
+        "rows": {"type": "integer", "minimum": 1}, "maxLength": {"type": "integer", "minimum": 0},
+        "minimum": {"type": "number"}, "maximum": {"type": "number"}, "step": {"type": "number", "exclusiveMinimum": 0},
+        "default": {}, "options": {"type": "array", "items": {"$ref": "#/$defs/option"}},
+        "media": {"enum": ["image", "video", "audio"]}, "normal_chars_per_second": {"type": "number", "exclusiveMinimum": 0},
+        "alignment": {"type": "integer", "minimum": 1}, "presets": {"type": "array"}
+      }
+    },
+    "option": {
+      "type": "object", "additionalProperties": false, "required": ["value", "label"],
+      "properties": {"value": {}, "label": {"type": "string"}, "label_key": {"type": "string"}, "prompt": {"type": "string"}}
+    },
+    "capability": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "mode", "category"],
+      "properties": {
+        "name": {"type": "string"}, "name_key": {"type": "string"},
+        "category": {"$ref": "#/$defs/id"}, "kind": {"$ref": "#/$defs/mediaKind"}, "mode": {"type": "string"},
+        "mode_name": {"type": "string"}, "mode_name_key": {"type": "string"},
+        "model": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}},
+        "model_id": {"type": "string"}, "model_name": {"type": "string"}, "model_name_key": {"type": "string"},
+        "model_family": {"type": "string"}, "model_aliases": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "mode_aliases": {"type": "array", "items": {"$ref": "#/$defs/id"}}, "provider_name": {"type": "string"},
+        "skill_model": {"type": "string"}, "skill_mode": {"type": "string"},
+        "operation": {"enum": ["generate", "postprocess"]}, "execution_plane": {"enum": ["local", "cloud"]},
+        "executor": {"type": "string"}, "executor_handler": {"$ref": "#/$defs/handler"},
+        "compiler": {"enum": ["builtin", "declarative"]}, "compiler_handler": {"$ref": "#/$defs/handler"},
+        "confirmation_handler": {"$ref": "#/$defs/handler"}, "speech_handler": {"$ref": "#/$defs/handler"},
+        "file": {"type": "string"}, "references": {"$ref": "#/$defs/references"},
+        "input_roles": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+        "prompt": {"$ref": "#/$defs/promptPolicy"}, "prompt_bindings": {"$ref": "#/$defs/bindings"},
+        "media_bindings": {"type": "object", "additionalProperties": {"$ref": "#/$defs/bindings"}},
+        "parameter_bindings": {"type": "object", "additionalProperties": {"$ref": "#/$defs/bindings"}},
+        "parameters": {"type": "object", "additionalProperties": {"$ref": "#/$defs/parameter"}},
+        "input_overrides": {"type": "array", "items": {"$ref": "#/$defs/binding"}},
+        "output_nodes": {"type": "array", "items": {"type": ["string", "integer"]}},
+        "output_bindings": {"type": "array", "items": {"$ref": "#/$defs/binding"}},
+        "output_prefix": {"type": "string"}, "prune_to_outputs": {"type": "boolean"},
+        "requirements": {"$ref": "#/$defs/requirements"}, "variants": {"type": "object", "additionalProperties": {"type": "object"}},
+        "public_variants": {"type": "array", "items": {"type": "string"}},
+        "duration": {"$ref": "#/$defs/duration"}, "dimension_alignment": {"type": "integer", "minimum": 1},
+        "processing_modes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/id"}},
+        "ui": {"$ref": "#/$defs/ui"}, "ui_hidden": {"type": "boolean"},
+        "prompt_translation_action": {"$ref": "#/$defs/id"},
+        "task_instruction": {"type": "string"}, "shot_instruction": {"type": "string"},
+        "shot_nodes": {"type": "array", "items": {"type": ["string", "integer"]}},
+        "storyboard_grid": {"type": "object"}, "grid": {"type": "string"},
+        "dynamic_ltx_dimensions": {"type": "boolean"}, "qwen_image21_multi_reference": {"type": "boolean"}
+      }
+    },
+    "action": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name", "scope"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"}, "name_key": {"type": "string"},
+        "description": {"type": "string"}, "description_key": {"type": "string"},
+        "scope": {"enum": ["resource", "workspace", "automation"]}, "automation": {"type": "boolean"},
+        "source_types": {"type": "array", "items": {"$ref": "#/$defs/mediaKind"}, "uniqueItems": true},
+        "source_schema": {"type": "object"}, "capability_id": {"$ref": "#/$defs/id"}, "model_name": {"type": "string"},
+        "handler": {"$ref": "#/$defs/handler"}, "availability_handler": {"$ref": "#/$defs/handler"},
+        "input_schema": {"type": "object"}, "ui": {"$ref": "#/$defs/ui"}
+      }
+    },
+    "uiBundle": {"type": "object", "additionalProperties": false, "required": ["entry"], "properties": {"entry": {"type": "string"}}},
+    "application": {
+      "type": "object", "additionalProperties": false, "required": ["name"],
+      "properties": {
+        "name": {"$ref": "#/$defs/text"}, "name_key": {"type": "string"}, "entry": {"type": "string"}, "ui": {"$ref": "#/$defs/uiBundle"},
+        "resource_entry": {"type": "string"}, "startup": {"$ref": "#/$defs/handler"},
+        "source_types": {"type": "array", "items": {"$ref": "#/$defs/mediaKind"}},
+        "selection_label": {"type": "string"}, "selection_label_key": {"type": "string"},
+        "scope": {"enum": ["workspace", "project", "category", "resource"]}, "order": {"type": "integer", "minimum": 0},
+        "icon": {"type": "string"}, "library_outputs": {"type": "object"},
+        "requires_project_flags": {"type": "array", "items": {"type": "string"}}, "category_selector": {"type": "boolean"}
+      }
+    },
+    "projectTool": {
+      "type": "object", "additionalProperties": false, "required": ["name"],
+      "properties": {
+        "name": {"$ref": "#/$defs/text"}, "name_key": {"type": "string"}, "entry": {"type": "string"}, "ui": {"$ref": "#/$defs/uiBundle"},
+        "scope": {"enum": ["project", "category"]}, "order": {"type": "integer", "minimum": 0}, "icon": {"type": "string"},
+        "dialog": {"type": "object", "additionalProperties": false, "properties": {"width": {"oneOf": [{"const": "auto"}, {"type": "integer", "minimum": 1, "maximum": 4096}]}, "height": {"oneOf": [{"const": "auto"}, {"type": "integer", "minimum": 1, "maximum": 4096}]} }},
+        "requires_project_flags": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "resourceLifecycle": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"completed": {"$ref": "#/$defs/handler"}, "recover": {"$ref": "#/$defs/handler"}, "delete": {"$ref": "#/$defs/handler"}}
+    },
+    "applicationLifecycle": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"project_delete": {"$ref": "#/$defs/handler"}, "category_delete": {"$ref": "#/$defs/handler"}}
+    }
+  }
+}

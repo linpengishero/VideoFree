@@ -4,6 +4,8 @@
 
 This protocol packages local AI models and standalone workflows as stable product capabilities. Workbench users select features instead of editing nodes; agents call capability schemas instead of guessing workflow structure. Plugins own model-specific workflows, prompt rules, UI, and fixed assets. The framework provides shared project, job, media, collaboration, and transport services.
 
+The sole machine-readable contract for `plugin.json` is the [JSON Schema Draft 2020-12 file](schemas/plugin-manifest-v1.schema.json). Startup discovery, built-in regression tests, and third-party editors use the same file. Python adds only file-existence, cross-reference, and ownership checks that JSON Schema cannot express.
+
 ## Installation and boundaries
 
 ### Archiving model dependencies
@@ -49,7 +51,7 @@ A plugin is a complete directory under `plugins/<plugin-id>/`. Its `plugin.json`
 
 The platform owns HTTP/MCP transport, project archival, job queues, ComfyUI upload/submit/poll/download, and collaboration sessions, follow-up, and confirmation. A plugin declares capabilities, node bindings, model-specific preparation, and prompt handling. It may use public platform adapters, but must not create another gateway or access the platform database directly.
 
-Before installation or upgrade, drain that plugin's generation and collaboration jobs, copy its complete directory, restart the gateway, and refresh the workbench. Set `enabled: false` to disable a plugin. Do not remove code used by a running job. Invalid plugins are isolated and reported in `GET /api/v2/plugins` under `errors`; online hot-unload is not guaranteed.
+Before installation or upgrade, drain that plugin's generation and collaboration jobs, copy its complete directory, restart the gateway, and refresh the workbench. User configuration is kept at `data/plugin-settings/<plugin-id>.env`, so plugin upgrades cannot overwrite it; a legacy `.env` beside plugin code is migrated once at startup. Set `enabled: false` to disable a plugin. Do not remove code used by a running job. Invalid plugins are isolated and reported in `GET /api/v2/plugins` under `errors`; online hot-unload is not guaranteed.
 
 Plugin Python handlers run with gateway permissions and are **not sandboxed**. Install trusted code only. Plugins do not automatically install models, ComfyUI nodes, or Python packages. Missing dependencies must be reported when the feature is used; importing a plugin must not download files or start services.
 
@@ -122,6 +124,30 @@ Generation plugins explicitly declare `ui_models` as **primary category → mode
 
 The first bottom selector chooses a category and the second a model. Expandable labels at the upper left select model subfeatures, peer to prompt-processing modes on the right. Every capability declares `ui: {"version": 1, "fields": [...]}`. Built-in and third-party plugins share the same renderer; no model-specific form is selected by model name. `parameters` defines business types and execution constraints; `ui.fields` defines controls, layout, defaults, and request bindings. Resource editing and post-processing use the same declarations.
 
+### Task edit presentation
+
+The framework owns the generic “Edit and regenerate” dialog, media replacement, submission, and field rendering. A plugin can declare an edit presentation in a capability's `ui.edit` instead of implementing a dedicated dialog. Omitted declarations retain backward-compatible defaults. The contract controls prompt visibility/copy, summary rows, and the parameter section title; editable controls still reuse `ui.fields`, and media inputs still come from the task snapshot.
+
+```json
+"ui": {
+  "version": 1,
+  "fields": [
+    {"bind": "parameters.strength", "component": "number", "label": "Enhancement strength", "default": 0.7, "minimum": 0, "maximum": 1}
+  ],
+  "edit": {
+    "prompt": {"visible": false},
+    "summary": [
+      {"source": "operation_name", "label": "Operation", "label_key": "edit.operation"},
+      {"source": "model_name", "label": "Execution model", "label_key": "edit.model"},
+      {"source": "provider_name", "label": "Service"}
+    ],
+    "parameters": {"label": "Enhancement settings", "label_key": "edit.parameters"}
+  }
+}
+```
+
+`edit.prompt` may be a boolean or an object containing `visible`, `label`/`label_key`, and `placeholder`/`placeholder_key`; it defaults to visible. When hidden, the original task prompt is retained for submission. `edit.summary` is displayed in array order. `source` is limited to `operation_name`, `model_name`, `mode_name`, and `provider_name`; empty values are omitted, and an empty array hides the summary. Summary labels support plugin localization keys. When `summary` is omitted, the framework uses generic defaults. `edit.parameters.label` can rename the parameter section. If there are no summary rows or editable fields, the framework hides the whole section instead of leaving empty space. Existing plugins without `ui.edit` keep their current behavior.
+
 Every field has unique `bind`, `component`, and `label`. `section` may be `body`, `settings` (default), or `submit`. Field order determines display order within a section.
 
 | Component | Purpose and main fields |
@@ -148,6 +174,8 @@ Every generation capability must appear in `ui_models`, or explicitly declare `u
 Additional declaration constraints:
 
 - `schema_version` is `1`. Plugin, version, capability, category, and mode IDs use letters, digits, `.`, `_`, or `-`, are at most 120 characters, and start with a letter or digit. Capability IDs are globally unique. Plugins sharing a primary category must declare it identically. Categories are extensible; `kind` remains a media execution type (`image`, `video`, `tts`, `music`, or `audio`), not a primary category.
+- A plugin may declare an optional platform range: `"requires":{"platform_min":"2.0.0","platform_max_exclusive":"3.0.0"}`. Both values use `major.minor.patch`; the gateway checks the range during discovery and isolates incompatible plugins in scan diagnostics. Omitting `requires` does not bypass `schema_version` validation.
+- Top-level, application, project-tool, and settings declarations reject unknown fields. New protocol fields require matching framework validation and bilingual documentation; misspelled fields are not silently ignored.
 - `file`, variants, and handlers are plugin-relative. Workflow files may be JSON or PNG; API JSON is recommended to avoid frontend-specific node conversion.
 - `compiler` defaults to `declarative`. Model-specific graph transformation belongs in `compiler_handler`; the framework does not guess based on model name.
 - Ratios are positive integer `width:height` values such as `32:9`. Resolution values may be `900P`, `1.5K`, or `4K`; K means 1024 pixels. Images interpret the resolution as width; video P uses the short edge and K uses the long edge. Final dimensions must remain within API limits and satisfy node alignment. Options come from the plugin, not framework name allowlists.
@@ -194,6 +222,30 @@ The plugin must provide the referenced capability/workflow; the platform does no
 - At least one of `capability_id` and `handler` is required. A capability ID must belong to this plugin; a handler must resolve inside it. Task-producing handlers must declare `capability_id`.
 - Resource actions declare `source_types` (`image`, `video`, `tts`, `music`, `audio`) and require a completed matching source. `source_schema` can constrain source metadata. Use plugin-local `availability_handler` for file/state checks; legacy model-specific `requires_latent` and `preview_only` fields are not supported.
 - Optional `ui` supports existing post-processing forms such as `parameters.<name>`, `upscaler`, and `target_size`; it is not an arbitrary application UI engine.
+
+### Editing and rerunning generated action jobs
+
+The task detail dialog can edit and rerun generated jobs created by plugin actions. Its form comes from `actions[].ui.fields`, not the underlying capability's generation form. The framework resolves the action from the task snapshot's `generation.mode_id` and calls the same action ID again. Continue using declarative `PluginField` controls; do not build a framework-specific or model-specific page for this workflow.
+
+Editable action values must appear in both `input_schema.properties` and `ui.fields`. Action UI fields may bind to top-level schema properties such as `text`, `speed`, and `preset_id`, or use `parameters.<name>` for properties inside the declared `parameters` object. Do not submit undeclared form values. At submission, the framework stores validated effective action inputs, including UI defaults, in `generation.action_inputs` so the editor can restore them later. Plugins remain responsible for business-state validation. The special `dimensions` control binds to `target_size`; the schema must declare integer `width` and `height` properties, and the displayed `widthxheight` value maps to those properties. For older tasks without an action-input snapshot, the editor restores only unambiguous top-level request fields, `api_settings`, `plugin_parameters`, and dimensions; required values that cannot be inferred must be clearly requested by the plugin form.
+
+Rerunning a resource action uses its original parent job. An action started from an uploaded file re-uploads the source input saved in the task package. Source-less actions run under their original scope. Action jobs never fall through to the ordinary `/jobs/{id}/regenerate` capability path. For older jobs without `generation.action_inputs`, compatibility values are restored only when they can be derived unambiguously from the task snapshot; submission is blocked if the action or its required source is unavailable.
+
+```json
+{
+  "ui": {
+    "version": 1,
+    "fields": [
+      {"bind": "target_size", "component": "dimensions", "label": "Target size", "required": true,
+       "alignment": 32, "presets": [{"edge": 720, "label": "720P"}]}
+    ]
+  }
+}
+```
+
+Every declared field must map back to an input accepted by `input_schema`; include plugin tests for UI defaults, legacy task restoration, dimension mapping, and reruns. JSON Schema `default` does not mutate submitted data. Declare `ui.fields[].default` when the editor and saved task snapshot need a deterministic default.
+
+The `voice` control lists presets registered by the current plugin. When voice selection is editable, use a stable voice key (for example `preset_id`) in both the action schema and form; never submit a localized display label. For actions requiring an uploaded audio sample, the plugin must explicitly define whether replacement is supported. Do not reuse ordinary generation media fields without an action media-replacement contract.
 
 ### Shared discovery and execution endpoints
 
@@ -265,7 +317,9 @@ Handlers receive `AgentChatRequest` and the platform `PluginRuntime`. Public ope
 
 - `await runtime.single(request)`: reuse the shared single-stage collaboration flow.
 - `runtime.call_model(messages, max_tokens)`: call the system LLM without exposing its key.
-- `runtime.configuration`: this plugin's declared settings mapped from its own `.env`.
+- `runtime.call_system_service(service_id, operation, inputs, provider_id=None)`: invoke a manifest-declared system-service JSON operation; the framework validates both directions and injects only approved settings into the Provider.
+- `runtime.api_version`: stable runtime contract version (`1` in VideoFree Studio 2.0.1).
+- `runtime.configuration`: this plugin's declared settings mapped from its runtime-data configuration file.
 - `runtime.session()` / `runtime.save_session()`: use platform-managed temporary collaboration state.
 - `runtime.start_progress()`, `update_progress()`, `finish_progress()`, `fail_progress()`: update shared collaboration progress.
 
@@ -279,7 +333,7 @@ When a capability needs model-specific questions, confirmation, or stage display
 {"collaboration_ui":"ui/Collaboration.vue"}
 ```
 
-The path must point to an existing `.vue` file under that plugin's `ui/` directory. The catalog rejects paths outside the directory, non-Vue files, and missing files. Discovery returns `plugin_folder` and `collaboration_ui`; the workbench loads the component dynamically. The plugin owns its template, styles, and model-specific interaction. The framework does not render collaboration DOM based on model name or retain an old model-specific panel.
+The legacy string form must point to an existing `.vue` file under that plugin's `ui/` directory. A standalone bundle uses `{"entry":"ui/dist/index.js"}`. The catalog rejects paths outside the plugin, wrong extensions, and missing files; discovery returns either the legacy entry or a runtime `collaboration_ui_entry`. The plugin owns its template, styles, and model-specific interaction. The framework does not render collaboration DOM based on model name or retain an old model-specific panel.
 
 The component receives read-only `session`, `busy`, `pending`, and `answer` props. It may emit `update:answer`, `answer`, `confirm`, and `new-task`. The framework owns collaboration APIs, polling, recovery, revision checks, and job lifecycle. Plugin UI must not call internal routes or read the database. Without a declared component, only status text is shown.
 
@@ -300,7 +354,7 @@ Declare `settings` only when the plugin needs its own settings; the settings pag
 }
 ```
 
-Values are stored in the plugin's `.env`, not the system database or capability/MCP catalog. `runtime_key` determines the name visible to the plugin; secrets are injected only during execution. System settings such as ComfyUI, storage paths, and the shared LLM remain in the framework settings store.
+Values are stored in a plugin-specific file under runtime data, not in the plugin source directory, system database, or capability/MCP catalog. `runtime_key` determines the name visible to the plugin; secrets are injected only during execution. System settings such as ComfyUI, storage paths, and the shared LLM remain in the framework settings store. Settings may also expose read-only links such as `"links":[{"label":"GrisAI API website / Get a key","label_key":"settings.api_site","url":"https://grsai.dakka.com.cn"}]`; links must be credential-free HTTP(S) URLs and are never saved as configuration values.
 
 Collaboration handler results must be dictionaries:
 
@@ -363,7 +417,7 @@ Application documents are category-isolated. `runtime.application.documents(proj
 
 Applications may declare `application_lifecycle` hooks `project_delete` and `category_delete`. Handler signature is `(event, runtime)`. The event includes `project_id`, `category_id` (null for project deletion), and `reason`. A hook failure stops deletion. Use it to clean external resources/indexes; the platform then deletes shared document data. Save plugin files with `runtime.application.directory(project_id)`; use `category_directory()` for category files.
 
-Applications may ship a standalone UI bundle under `ui/dist/` by declaring `application.ui.entry`, for example `ui/dist/index.js`. It must default-export a Vue component; JavaScript, CSS, and images are served from `/api/v2/plugins/<plugin-id>/ui/...`. Installation does not require rebuilding the main frontend. Without `application.ui`, the traditional `application.entry` compatibility mode remains available.
+Applications may ship a standalone UI bundle under `ui/dist/` by declaring `application.ui.entry`, for example `ui/dist/index.js`. Project tools may use `project_tool.ui.entry`, and collaboration UIs may use `collaboration_ui:{"entry":"ui/dist/index.js"}`. Each standalone entry must be a JavaScript module inside `ui/dist/`; all three hosts load it through `/api/v2/plugins/<plugin-id>/ui/...` without rebuilding the main frontend. Do not declare both legacy and standalone entries for the same host; legacy Vue entries remain supported for compatibility.
 
 Application documents receive `schema_version` (default `1`). Increment it when changing data formats and handle migration or compatibility when reading older documents; the platform does not interpret plugin JSON.
 

@@ -3,12 +3,14 @@
 # Licensed under the GNU Affero General Public License v3.0; see LICENSE and NOTICE.
 # Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 
-"""Declarative plugin settings stored as literal values in each plugin's .env."""
+"""Declarative plugin settings stored outside replaceable plugin source folders."""
 import json
 import os
 from pathlib import Path
 import re
+import shutil
 import tempfile
+from urllib.parse import urlparse
 
 from ..generation.plugins import PluginCatalog
 
@@ -16,11 +18,31 @@ from ..generation.plugins import PluginCatalog
 def validate_settings_schema(schema):
     if not isinstance(schema, dict) or not isinstance(schema.get("fields"), list):
         raise ValueError("Plugin settings requires fields")
+    if set(schema) - {"title", "title_key", "description", "description_key", "links", "fields"}:
+        raise ValueError("Plugin settings contains unknown fields")
     if not isinstance(schema.get("title", ""), str) or not isinstance(schema.get("description", ""), str):
         raise ValueError("Invalid plugin settings title or description")
+    links = schema.get("links", [])
+    if not isinstance(links, list):
+        raise ValueError("Plugin settings links must be a list")
+    for link in links:
+        if (not isinstance(link, dict) or set(link) - {"label", "label_key", "url"}
+                or not isinstance(link.get("label"), str) or not link["label"].strip()
+                or not isinstance(link.get("label_key", ""), str)
+                or not isinstance(link.get("url"), str)):
+            raise ValueError("Invalid plugin settings link")
+        parsed = urlparse(link["url"])
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+            raise ValueError("Plugin settings links require a credential-free HTTP(S) URL")
     keys, bindings = set(), set()
     for field in schema["fields"]:
         key = field.get("key", "") if isinstance(field, dict) else ""
+        if not isinstance(field, dict) or set(field) - {
+            "key", "label", "label_key", "type", "required", "default", "prefix",
+            "runtime_key", "placeholder", "placeholder_key", "help", "help_key",
+            "minimum", "maximum", "options",
+        }:
+            raise ValueError("Plugin setting field contains unknown fields")
         if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key) or key in keys:
             raise ValueError("Invalid or duplicate plugin setting key")
         if field.get("type", "string") not in {"string", "secret", "url", "boolean", "number", "select"} or not isinstance(field.get("label"), str):
@@ -33,7 +55,9 @@ def validate_settings_schema(schema):
         if field.get("type") == "secret" and field.get("default"):
             raise ValueError("Plugin secrets cannot have manifest defaults")
         if field.get("type") == "select" and any(
-            not isinstance(option, dict) or "value" not in option or not isinstance(option.get("label"), str)
+            not isinstance(option, dict) or set(option) - {"value", "label", "label_key"}
+            or "value" not in option or not isinstance(option.get("label"), str)
+            or not isinstance(option.get("label_key", ""), str)
             for option in field["options"]
         ):
             raise ValueError("Invalid plugin setting options")
@@ -56,12 +80,19 @@ class PluginSettings:
         return plugin
 
     def _path(self, plugin):
+        data = getattr(self.context.paths, "data", self.context.paths.plugins.parent / "data").resolve()
+        root = (getattr(self.context.paths, "plugin_settings", data / "plugin-settings")).resolve()
+        path = (root / f"{plugin['id']}.env").resolve()
+        if path.parent != root or not path.is_relative_to(data):
+            raise ValueError("插件配置路径无效")
+        return path
+
+    def _legacy_path(self, plugin):
         root = self.context.paths.plugins.resolve()
-        # Resolve by discovered folder, not by a client-supplied path.
         folder = root / plugin["_plugin_folder"]
         path = (folder / ".env").resolve()
-        if path.parent != folder.resolve() or not path.is_relative_to(root):
-            raise ValueError("插件配置路径无效")
+        if path.parent != folder or not path.is_relative_to(root):
+            raise ValueError("插件旧配置路径无效")
         return path
 
     @staticmethod
@@ -106,6 +137,7 @@ class PluginSettings:
     def save(self, plugin_id, supplied):
         plugin = self._plugin(plugin_id)
         path = self._path(plugin)
+        path.parent.mkdir(parents=True, exist_ok=True)
         stored = self._read(path)
         fields = {f["key"]: f for f in plugin["settings"]["fields"]}
         if not isinstance(supplied, dict) or set(supplied) - fields.keys():
@@ -122,7 +154,6 @@ class PluginSettings:
             if value and field.get("prefix") and not value.startswith(field["prefix"]):
                 raise ValueError(f"{field['label']} 必须以 {field['prefix']} 开头")
             if value and field.get("type") == "url":
-                from urllib.parse import urlparse
                 if urlparse(value).scheme not in {"http", "https"} or not urlparse(value).netloc:
                     raise ValueError(f"{field['label']} 必须是 HTTP(S) 地址")
             if field.get("type") == "boolean" and value.lower() not in {"true", "false"}:
@@ -173,6 +204,17 @@ class PluginSettings:
         return result
 
     def migrate_legacy(self):
+        for plugin in self._plugins():
+            source = self._legacy_path(plugin)
+            target = self._path(plugin)
+            if source.exists() and not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+                try:
+                    source.unlink()
+                except OSError:
+                    # Read-only plugin installs remain usable; the runtime copy is authoritative.
+                    pass
         legacy = str(self.context.db.settings().get("grsai_api_key") or os.getenv("GRSAI_API_KEY", "")).strip()
         try:
             current = self.values("gpt-image")

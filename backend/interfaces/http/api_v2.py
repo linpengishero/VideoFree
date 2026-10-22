@@ -475,8 +475,12 @@ def build_router(*, context, db, auth: Callable, workflow_registry: Callable, wo
     async def plugin_ui_file(plugin_id: str, file_path: str):
         plugins, _ = PluginCatalog(workflows_path, context).scan()
         plugin = next((item for item in plugins if item["id"] == plugin_id), None)
-        ui = (plugin or {}).get("application", {}).get("ui", {})
-        if not plugin or not isinstance(ui, dict) or not ui.get("entry"):
+        declarations = [
+            (plugin or {}).get("application", {}).get("ui"),
+            (plugin or {}).get("project_tool", {}).get("ui"),
+            (plugin or {}).get("collaboration_ui") if isinstance((plugin or {}).get("collaboration_ui"), dict) else None,
+        ]
+        if not plugin or not any(isinstance(ui, dict) and ui.get("entry") for ui in declarations):
             raise HTTPException(404, "插件没有独立 UI")
         root = (workflows_path / plugin["_plugin_folder"] / "ui" / "dist").resolve()
         target = (root / file_path).resolve()

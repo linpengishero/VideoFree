@@ -4,6 +4,8 @@
 
 本协议用于把本地 AI 模型和零散工作流封装为稳定产品能力：工作台用户选择功能而不是编辑节点，Agent 调用能力 Schema 而不是猜测工作流结构。插件拥有模型专用工作流、提示词规则、UI 和固定资源；框架只提供通用项目、任务、素材、协作与接口能力。
 
+`plugin.json` 的唯一机器契约是 [JSON Schema Draft 2020-12 文件](schemas/plugin-manifest-v1.schema.json)。启动扫描、内置插件回归测试和第三方编辑器使用同一文件；Python 代码只补充文件存在性、跨字段引用、项目归属等 JSON Schema 无法表达的语义检查。
+
 ## 安装与边界
 
 ### 模型依赖文件归档
@@ -43,7 +45,7 @@ runtime.restore_job_file(target_job, "model-state", "model/state.bin")
 
 平台负责 HTTP/MCP、项目归档、任务队列、ComfyUI 上传/提交/轮询/下载，以及协作会话、追问和确认；插件负责声明能力、节点绑定、模型专用准备和提示词处理。平台的公共集成适配器可以复用，不能在插件里另起网关或直接改平台数据库。
 
-安装/升级：等待该插件的生成和协作任务结束，复制完整文件夹，重启网关，刷新工作台。禁用可设置 `enabled: false`。不要运行中删除正在执行任务依赖的插件。扫描会隔离无效插件，在 `GET /api/v2/plugins` 的 `errors` 中报告；不保证在线热卸载。
+安装/升级：等待该插件的生成和协作任务结束，复制完整文件夹，重启网关，刷新工作台。用户配置独立保存在 `data/plugin-settings/<plugin-id>.env`，不会随插件升级覆盖；旧版本插件目录中的 `.env` 会在启动时迁移一次。禁用可设置 `enabled: false`。不要运行中删除正在执行任务依赖的插件。扫描会隔离无效插件，在 `GET /api/v2/plugins` 的 `errors` 中报告；不保证在线热卸载。
 
 Python 处理器以网关权限运行，**不是安全沙箱**。只安装可信来源的插件。插件不会自动安装模型、ComfyUI 节点、Python 包。缺少依赖应在使用时报告，不能在导入时下载或启动服务。
 
@@ -168,6 +170,30 @@ resource_lifecycle 钩子调度。框架不识别 checkpoint 格式和具体模�
 `parameters` 负责业务参数类型和执行约束；`ui.fields` 负责控件、排列、默认值和提交绑定。
 资源编辑和后处理同样读取这些声明。
 
+### 任务编辑界面
+
+任务详情中的“编辑并重新生成”由框架提供通用弹框、素材替换、提交和字段渲染；插件可以在能力的 `ui.edit` 中声明编辑视图，不编写专用弹框。未声明时使用兼容默认值。当前支持控制提示词显示/文案、摘要信息项及参数区标题；编辑控件仍复用 `ui.fields`，媒体输入仍来自任务快照。
+
+```json
+"ui": {
+  "version": 1,
+  "fields": [
+    {"bind": "parameters.strength", "component": "number", "label": "增强强度", "default": 0.7, "minimum": 0, "maximum": 1}
+  ],
+  "edit": {
+    "prompt": {"visible": false},
+    "summary": [
+      {"source": "operation_name", "label": "处理功能", "label_key": "edit.operation"},
+      {"source": "model_name", "label": "执行模型", "label_key": "edit.model"},
+      {"source": "provider_name", "label": "服务"}
+    ],
+    "parameters": {"label": "增强参数", "label_key": "edit.parameters"}
+  }
+}
+```
+
+`edit.prompt` 可为布尔值，或包含 `visible`、`label`/`label_key`、`placeholder`/`placeholder_key` 的对象；默认显示。隐藏提示词时仍保留原任务提示词用于提交。`edit.summary` 按数组顺序显示；`source` 仅允许 `operation_name`、`model_name`、`mode_name`、`provider_name`，空值会略过，空数组表示不显示摘要。摘要标签支持插件语言包键。省略 `summary` 时由框架提供通用默认项。`edit.parameters.label` 可替换参数区标题；没有摘要和可编辑字段时，框架隐藏整个区域，避免空白占位。无 `ui.edit` 的旧插件保持既有编辑行为。
+
 ### 声明式表单
 
 每个字段必须包含唯一的 `bind`、`component`、`label`。`section` 可为 `body`（正文区）、
@@ -222,6 +248,8 @@ resolution、duration、variant、voice_id、voice_speed、instruction、native_
 提交仍使用原 `capability_id`，没有另一套 UI 专用生成接口。
 
 - `schema_version` 固定 1；插件 ID、版本、能力 ID、分类和模式 ID 使用字母、数字、点、下划线、连字符，最多 120 字符，以字母或数字开头。
+- 插件可声明可选的平台兼容范围：`"requires":{"platform_min":"2.0.0","platform_max_exclusive":"3.0.0"}`。两个值使用 `major.minor.patch`；网关在发现阶段检查当前版本，不兼容插件会被隔离并写入扫描错误。省略 `requires` 不代表绕过 `schema_version` 校验。
+- 清单顶层、应用、项目工具及设置声明拒绝未知字段；新增协议字段必须先升级框架校验和中英文协议，字段拼写错误不会静默忽略。
 - 能力 ID 全局唯一。多个插件可加入同一主分类，但分类声明必须一致。主分类可任意新增；`kind` 仍是媒体执行类型：image、video、tts、music、audio，不等于主分类。
 - `file`、variant 的工作流、处理器都相对于插件目录，不能逃出目录。工作流支持 JSON/PNG，推荐 API JSON，避免依赖前端专用节点转换。
 - `compiler` 默认 declarative；专用图变换通过 `compiler_handler` 交给插件，框架不按模型猜测工作流。
@@ -288,6 +316,30 @@ resolution、duration、variant、voice_id、voice_speed、instruction、native_
 - `capability_id` 如提供，必须属于当前插件；`handler` 如提供，必须为插件内的 `文件.py:函数`。两者至少一个。会生成任务的处理器须声明 capability_id。
 - `resource` 必须声明 `source_types`，支持 image/video/tts/music/audio，执行时要求已完成且类型匹配的源素材。可通过 `source_schema`（与 input_schema 相同的 JSON Schema 规则）进一步限制来源、格式和元数据；需检查文件或专用状态时使用插件内 `availability_handler: "文件.py:函数"`。不再支持模型专属的 requires_latent/preview_only 字段。
 - `ui` 可选，用于现有后处理表单；支持 `parameters.<参数名>`、`upscaler`、`target_size`，不是任意应用 UI 引擎。
+
+### 生成动作的编辑与重执行
+
+任务详情弹框可直接编辑并重执行由插件动作创建的生成任务。编辑表单由 `actions[].ui.fields` 驱动，而不是该任务底层 capability 的生成表单；框架按任务快照中的 `generation.mode_id` 找回动作，并再次调用同一个动作 ID。动作 UI 继续使用 `PluginField` 的声明式字段，不要为此编写框架专用或模型专用页面。
+
+可编辑的动作输入必须出现在动作的 `input_schema.properties` 和 `ui.fields` 中。动作 UI 支持将字段绑定到动作 schema 的顶层属性（如 `text`、`speed`、`preset_id`），也支持 `parameters.<名称>` 绑定到 schema 中声明的 `parameters` 对象属性；不能把未声明的表单值提交给动作。任务创建时，框架会把经过 Schema 校验并应用 UI 默认值的有效动作输入存入 `generation.action_inputs`，以便之后恢复原值；插件动作仍须自行校验其业务状态。`dimensions` 是特殊控件：绑定 `target_size`，其控件值为 `宽x高`，schema 必须声明 `width`、`height` 两个整数属性，提交时转换成这两个值。旧任务没有动作输入快照时，框架只从任务请求中无歧义的顶层字段、`api_settings`、`plugin_parameters` 和宽高恢复；无法推断的必填项应由插件表单明确要求用户补齐。
+
+重执行资源动作时，框架使用原任务的父源任务；由上传素材启动的动作使用任务包保存的源输入重新上传。无源动作仍按其原作用域执行。编辑动作任务不会误走普通 `/jobs/{id}/regenerate` 能力重生成路径。旧任务没有 `generation.action_inputs` 时，界面只对能从任务快照无歧义恢复的字段提供兼容值；动作已卸载或源任务不可用时会阻止错误提交。
+
+```json
+{
+  "ui": {
+    "version": 1,
+    "fields": [
+      {"bind": "target_size", "component": "dimensions", "label": "目标尺寸", "required": true,
+       "alignment": 32, "presets": [{"edge": 720, "label": "720P"}]}
+    ]
+  }
+}
+```
+
+确保每个声明字段都能映射回 `input_schema` 接受的动作输入，并为 UI 默认值、旧任务回填、尺寸转换和重执行提供插件测试。JSON Schema 的 `default` 不会自动修改传入数据；要让 UI 回填和任务快照有确定默认值，应在对应 `ui.fields[].default` 中声明。
+
+`voice` 控件只展示当前插件注册的音色；允许更改音色时，动作 schema 与表单都应使用稳定音色 key（如 `preset_id`），不提交本地化名称。依赖上传音频样本的动作需由插件明示是否支持重传；未定义动作媒体替换契约时，不要复用普通生成任务的素材字段。
 
 ### 唯一发现和执行入口
 
@@ -384,7 +436,9 @@ async def review(request, runtime):
 
 - `await runtime.single(request)`：复用系统单阶段智能协作。
 - `runtime.call_model(messages, max_tokens)`：调用系统 LLM；插件不能读取系统 LLM 密钥。
-- `runtime.configuration`：当前插件在自己的 `.env` 中保存、并由声明映射出的运行配置。
+- `runtime.call_system_service(service_id, operation, inputs, provider_id=None)`：调用清单注册的系统服务 JSON 操作；框架校验输入输出并只向 Provider 注入获准设置。
+- `runtime.api_version`：当前稳定运行时协议版本；2.0.1 为 `1`。
+- `runtime.configuration`：当前插件在运行数据目录中保存、并由声明映射出的运行配置。
 - `runtime.session()` / `runtime.save_session()`：使用平台管理的临时协作会话。
 - `runtime.start_progress()`、`update_progress()`、`finish_progress()`、`fail_progress()`：写入统一协作进度。
 
@@ -398,7 +452,7 @@ async def review(request, runtime):
 {"collaboration_ui": "ui/Collaboration.vue"}
 ```
 
-`collaboration_ui` 必须是当前插件目录下 `ui/` 目录内的 `.vue` 文件。扫描器会拒绝目录外文件、非 Vue 文件和不存在的文件；能力发现会返回 `plugin_folder` 与 `collaboration_ui`，工作台据此动态加载组件。组件由插件自己维护模板、样式和模型专用交互，框架不根据模型名称渲染协作 DOM，也不在框架中保留旧版协作面板。
+传统 `collaboration_ui` 字符串必须指向当前插件 `ui/` 目录内的 `.vue` 文件；独立构建使用对象形式 `{"entry":"ui/dist/index.js"}`。扫描器会拒绝目录外文件、错误扩展名和不存在的文件；能力发现分别返回传统入口或运行时 `collaboration_ui_entry`。组件由插件自己维护模板、样式和模型专用交互，框架不根据模型名称渲染协作 DOM，也不在框架中保留旧版协作面板。
 
 组件接收只读属性 `session`、`busy`、`pending`、`answer`，可发出 `update:answer`、`answer`、`confirm`、`new-task` 事件。框架仍负责协作 API、轮询、恢复、版本校验和任务生命周期；插件组件不得直接调用 HTTP 路由或读取数据库。未声明组件时仅显示状态文本。
 
@@ -419,7 +473,7 @@ async def review(request, runtime):
 }
 ```
 
-支持 `string`、`secret`、`url`、`boolean`、`number`、`select`。字段值写入插件目录的 `.env`，不会写入系统数据库，也不会通过能力目录或 MCP 暴露。`runtime_key` 决定插件运行时可见的名称；密钥只在任务执行时注入。系统配置（ComfyUI、资源目录、公共 LLM）仍写入数据库。
+支持 `string`、`secret`、`url`、`boolean`、`number`、`select`。字段值写入运行数据目录中的插件配置文件，不写入插件源码目录、系统数据库或能力/MCP目录。`runtime_key` 决定插件运行时可见的名称；密钥只在任务执行时注入。系统配置（ComfyUI、资源目录、公共 LLM）仍写入数据库。设置还可声明只读外链：`"links":[{"label":"GrisAI API 官网 / 申请 Key","label_key":"settings.api_site","url":"https://grsai.dakka.com.cn"}]`。链接只允许无凭据的 HTTP(S) 地址，统一显示在插件设置页；`url` 字段仍表示用户可编辑并保存的配置值。
 
 返回值必须是字典：
 - `status: needs_input`：同时返回 session_id、questions，保留会话上下文，用户答复后继续该会话。
@@ -477,7 +531,7 @@ async def review(request, runtime):
 
 `icon` 应是插件目录内的 `.png`、`.jpg`、`.jpeg`、`.webp` 或 `.gif`，例如 `ui/icon.png`。前端从插件目录加载该图片；没有图片时框架使用应用名称的第一个字符。旧的 `solar:`、`mdi:` 和 `lucide:` 图标名仍兼容，但新插件不应依赖框架图标库。
 
-两个 UI 入口必须是插件目录内实际存在的 `.vue` 文件。当前构建扫描 `plugins/*/ui/*.vue`，入口放在该层；安装或修改 Vue/JS 后运行 `cd frontend; npm run build`。这不是远程脚本或运行时任意代码安装器。仅修改声明和 Python 后重启网关即可，已有已构建页面无需重复构建。
+传统 UI 入口必须是插件目录内实际存在的 `.vue` 文件。仓库构建扫描 `plugins/*/ui/*.vue`，安装或修改后需要重建主前端。新插件推荐使用独立 bundle：`application.ui.entry`、`project_tool.ui.entry`，或 `collaboration_ui:{"entry":"ui/dist/index.js"}`。独立入口必须是插件 `ui/dist/` 内的 JavaScript 模块，三类宿主均通过插件静态资源接口运行时加载，不需要重建主前端；同一宿主不能同时声明传统入口和独立入口。
 
 页面收到 `project`、`category`、`categoryId`、`categories`、`jobs` 和应用声明中的 `scope`。`categoryId` 为 `null` 表示项目级总览，空字符串表示默认分类，`@public` 不会作为普通分类传给插件。框架在所有应用页面上方提供统一的分类选择器，切换分类会重新挂载应用页面。
 

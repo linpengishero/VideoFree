@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://videofreestudio.com/schemas/system-service-provider-v1.schema.json",
+  "title": "VideoFree Studio system service provider v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "service_id", "contract_version", "provider_id", "name", "entry", "operations"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "service_id": {"$ref": "#/$defs/id"},
+    "contract_version": {"type": "integer", "minimum": 1},
+    "provider_id": {"$ref": "#/$defs/id"},
+    "name": {"type": "string", "minLength": 1},
+    "entry": {"type": "string", "pattern": "^[^:]+\\.py:[A-Za-z_][A-Za-z0-9_]*$"},
+    "default": {"type": "boolean"},
+    "ui_hidden": {"type": "boolean"},
+    "selection_key": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,127}$"},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": {"type": ["string", "number", "boolean", "null"]}
+    },
+    "thinking": {"type": "string"},
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key"],
+            "properties": {
+              "key": {"$ref": "#/$defs/settingKey"},
+              "label": {"type": "string"},
+              "description": {"type": "string"},
+              "source": {"$ref": "#/$defs/settingKey"},
+              "environment": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
+              "type": {"enum": ["string", "url", "number", "boolean", "select"]},
+              "secret": {"type": "boolean"},
+              "required": {"type": "boolean"},
+              "options": {"type": "array", "items": {"type": ["string", "number", "boolean"]}},
+              "default": {"type": ["string", "number", "boolean", "null"]}
+            }
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/operationId"},
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["input_schema", "output_schema"],
+        "properties": {
+          "description": {"type": "string"},
+          "input_schema": {"$ref": "#/$defs/objectSchema"},
+          "output_schema": {"$ref": "#/$defs/objectSchema"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+    "operationId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+    "settingKey": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,127}$"},
+    "objectSchema": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {"type": {"const": "object"}}
+    }
+  }
+}

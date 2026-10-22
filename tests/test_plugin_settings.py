@@ -27,7 +27,10 @@ class PluginSettingsTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
         (root / "cloud-image").mkdir()
-        self.service = StubPluginSettings(SimpleNamespace(paths=SimpleNamespace(plugins=root)))
+        database = SimpleNamespace(settings=lambda: {}, delete_settings=lambda keys: None)
+        self.service = StubPluginSettings(SimpleNamespace(
+            paths=SimpleNamespace(plugins=root, data=root / "data"), db=database,
+        ))
 
     def test_plugin_env_is_atomic_masked_and_runtime_mapped(self):
         saved = self.service.save("cloud-image", {
@@ -37,7 +40,7 @@ class PluginSettingsTests(unittest.TestCase):
         self.assertEqual(self.service.runtime("cloud-image"), {
             "api_key": "sk-private", "base_url": "https://cloud.example/v1",
         })
-        content = (self.service.context.paths.plugins / "cloud-image" / ".env").read_text(encoding="utf-8")
+        content = (self.service.context.paths.data / "plugin-settings" / "cloud-image.env").read_text(encoding="utf-8")
         self.assertIn('CLOUD_KEY="sk-private"', content)
         self.assertNotIn("********", content)
 
@@ -48,6 +51,30 @@ class PluginSettingsTests(unittest.TestCase):
             self.service.save("cloud-image", {"CLOUD_KEY": "wrong"})
         with self.assertRaises(ValueError):
             self.service.save("cloud-image", {"UNKNOWN": "value"})
+
+    def test_readonly_links_are_validated_and_published_as_schema(self):
+        schema = {
+            "title": "Cloud Image",
+            "links": [{"label": "Get a key", "label_key": "settings.key", "url": "https://example.test/keys"}],
+            "fields": [],
+        }
+        validate_settings_schema(schema)
+        for url in ("javascript:alert(1)", "https://user:secret@example.test/keys", "//example.test"):
+            schema["links"][0]["url"] = url
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                validate_settings_schema(schema)
+        schema["links"][0]["url"] = "https://example.test"
+        schema["unknown"] = True
+        with self.assertRaises(ValueError):
+            validate_settings_schema(schema)
+
+    def test_legacy_plugin_env_is_migrated_out_of_source_directory(self):
+        source = self.service.context.paths.plugins / "cloud-image" / ".env"
+        source.write_text('CLOUD_KEY="sk-legacy"\n', encoding="utf-8")
+        self.service.migrate_legacy()
+        target = self.service.context.paths.data / "plugin-settings" / "cloud-image.env"
+        self.assertFalse(source.exists())
+        self.assertEqual(self.service._read(target)["CLOUD_KEY"], "sk-legacy")
 
 
 if __name__ == "__main__":

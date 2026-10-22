@@ -42,17 +42,17 @@ backend/integrations/system_services/
     <provider-id>/provider.json
 ```
 
-Provider manifests are stored in `<provider-id>/provider.json`. The manifest's `entry` currently resolves from the `llm_providers/` catalog root, allowing the built-in providers to share `openai-compatible/provider.py`. The catalog validates the entry remains inside that root. Current manifests use `schema_version`, `id`, `name`, `entry`, optional `thinking`, and string `defaults` limited to `ai_base_url` and `ai_model`.
+Generic provider manifests are stored in `<service-id>_providers/<provider-id>/provider.json`. The manifest's `entry` resolves from the service catalog root, allowing providers of one service to share an adapter while preventing paths from escaping that catalog. The complete machine-readable contract is [`schemas/system-service-provider-v1.schema.json`](schemas/system-service-provider-v1.schema.json).
 
-Provider 清单位于 `<provider-id>/provider.json`。当前 `entry` 相对于 `llm_providers/` 目录解析，因此内置 Provider 可以共用 `openai-compatible/provider.py`；目录注册器会校验入口仍在该目录内。当前清单字段为 `schema_version`、`id`、`name`、`entry`、可选的 `thinking`，以及仅含字符串 `ai_base_url`、`ai_model` 的 `defaults`。
+通用 Provider 清单位于 `<service-id>_providers/<provider-id>/provider.json`。`entry` 相对于该服务目录解析，因此同一服务可共享适配器，同时禁止路径逃逸。完整机器契约见 [`schemas/system-service-provider-v1.schema.json`](schemas/system-service-provider-v1.schema.json)。
 
 The first file-storage contract is implemented separately from LLM provider discovery in `backend/integrations/system_services/storage/`: `protocol.py` owns the contract and object metadata; `local.py` implements the local backend. `StorageProvider` owns byte-object operations only: safe relative keys, `put_stream`/`put_file`, `open`, metadata listing, delete/prefix-delete, and local materialization. The framework owns project/category metadata and authorization. The built-in `LocalStorageProvider` follows the active resource-directory setting; it is not manifest-discovered because it is currently the only backend. A future storage backend must satisfy the same contract and be explicitly selected by framework configuration before use.
 
 首个文件存储契约独立于 LLM Provider 注册器，代码位于 `backend/integrations/system_services/storage/`：`protocol.py` 声明契约与对象元数据，`local.py` 实现本地后端。`StorageProvider` 只负责文件对象字节操作：安全相对键、`put_stream`/`put_file`、`open`、元数据列表、删除/前缀删除及本地物化。项目/分类元数据和授权仍归框架。本地 Provider 根据当前资源目录设置工作；目前它是唯一后端，因此没有做清单发现。未来存储后端必须实现同一契约，并由框架配置显式选择后才可启用。
 
-Do not put system services in `plugins/`, `backend/modules/`, `backend/core/`, or the project data directory. Runtime configuration and secrets remain in the framework settings database, never beside provider code. If the generic cross-service runtime contract is implemented, its loader and manifest may use a service-first directory layout, but that migration must update this document and its tests together.
+Do not put system services in `plugins/`, `backend/modules/`, `backend/core/`, or the project data directory. Runtime configuration and secrets remain in the framework settings database, never beside provider code. The registry rejects providers of one service when they disagree on contract version, selection key, UI visibility, or operation schemas.
 
-系统服务不得放进 `plugins/`、`backend/modules/`、`backend/core/` 或项目数据目录。运行配置和密钥继续由框架保存到设置数据库，不得与服务商代码放在一起。未来若通用跨服务运行时采用 service-first 目录布局，必须同步更新本协议和测试。
+系统服务不得放进 `plugins/`、`backend/modules/`、`backend/core/` 或项目数据目录。运行配置和密钥继续由框架保存到设置数据库，不得与服务商代码放在一起。同一服务的 Provider 若在契约版本、选择键、UI 可见性或操作 Schema 上不一致，注册表会拒绝加载。
 
 ## Current ComfyUI contract / 当前 ComfyUI 契约
 
@@ -80,7 +80,7 @@ Plugins use PluginRuntime rather than importing provider implementations.
 访问服务和任务依赖文件，不导入 Provider 实现。这是单 Provider 接入，没有实现
 下文的通用 invoke 注册表或多节点调度。
 
-## Future generic service contract / 未来通用服务契约
+## Generic service contract / 通用服务契约
 
 Every system service uses the same outer contract. Service-specific Python types may refine the payloads, but must not bypass the registry, settings boundary, or error contract.
 
@@ -110,11 +110,11 @@ class SystemServiceProvider:
 
 ## Manifest / 清单
 
-The following is a **target design, not the current implementation**. The current LLM catalog does not load `service_id`, `contract_version`, operation schemas, or schema-driven provider settings. Do not implement a provider against this example until the generic runtime is implemented and the status section below is updated.
+This contract is implemented by `SystemServiceRegistry`. LLM providers use it directly; typed ComfyUI and Storage facades remain available for streaming and filesystem operations that are not JSON operations.
 
-以下是**目标设计，不是当前实现**。当前 LLM 注册器不读取 `service_id`、`contract_version`、操作 Schema 或 Schema 驱动的 Provider 设置。通用运行时实现并更新下文状态之前，不要按该示例实现 Provider。
+本契约由 `SystemServiceRegistry` 实现。LLM Provider 已接入；ComfyUI 和 Storage 对流式字节及文件操作继续保留类型化门面，不强行伪装成 JSON 操作。
 
-Each future generic provider manifest would declare identity, contract compatibility, operations, settings, and a local entry point:
+Each generic provider manifest declares identity, contract compatibility, operations, settings, and a local entry point:
 
 ```json
 {
@@ -125,8 +125,10 @@ Each future generic provider manifest would declare identity, contract compatibi
   "name": "Example LLM",
   "entry": "provider.py:Provider",
   "settings": {
-    "defaults": {"base_url": "https://api.example/v1", "model": "example-model"},
-    "fields": []
+    "fields": [
+      {"key":"base_url","type":"url","default":"https://api.example/v1"},
+      {"key":"api_key","type":"string","secret":true,"environment":"EXAMPLE_API_KEY"}
+    ]
   },
   "operations": {
     "chat": {
@@ -142,16 +144,16 @@ Each future generic provider manifest would declare identity, contract compatibi
 ```
 
 - `service_id` and `provider_id` are stable machine IDs; display names may change.
-- In the current LLM catalog, `entry` is relative to `llm_providers/` and must resolve within that catalog. Shared adapters are allowed there; provider-private code should remain inside its provider directory.
-- `settings.defaults` contains non-secret initial values only. Secret fields are declared explicitly and are stored by the framework in its settings database.
+- `entry` is relative to the `<service-id>_providers/` catalog and must remain inside it. Shared adapters are allowed there; provider-private code should remain inside its provider directory.
+- `settings.fields` is a whitelist. Each field may declare its runtime key, framework settings source, environment fallback, type, default, required/secret flags and UI metadata. Plugins never receive this declaration or its secret values.
 - Each operation has JSON Schema input/output. Undeclared operations are not callable.
 - Manifests may include non-secret capability metadata, but must not contain executable workflow definitions, user data, credentials, or arbitrary filesystem paths.
 
 每份服务商清单必须声明身份、契约兼容版本、操作、设置和本地入口：
 
 - `service_id`、`provider_id` 是稳定机器 ID，显示名称可以修改。
-- `entry` 相对服务商目录解析，必须留在该目录内部。
-- `settings.defaults` 只能包含非敏感默认值。密钥字段必须显式声明，并由框架写入设置数据库。
+- `entry` 相对 `<service-id>_providers/` 服务目录解析，必须留在该目录内部。
+- `settings.fields` 是设置白名单，可声明运行键、框架设置来源、环境变量回退、类型、默认值以及 required/secret 和 UI 信息；插件不会得到设置声明或密钥值。
 - 每个操作都要提供 JSON Schema 输入/输出；未声明操作不得调用。
 - 清单可声明非敏感能力元数据，但不得包含可执行工作流、用户数据、凭证或任意文件系统路径。
 
@@ -161,6 +163,7 @@ Each future generic provider manifest would declare identity, contract compatibi
 - Provider receives only the selected provider's settings. It must never log or persist secrets, and errors must redact URL credentials and authorization headers.
 - Network calls require explicit timeouts. Long-running/cancellable work must cooperate with the supplied cancellation context; providers must not create unmanaged threads or global mutable state.
 - Catalog loading validates IDs, versions, entry paths, and operation schemas. Invalid providers are reported in diagnostics and do not disable healthy providers.
+- Settings updates persist only explicitly supplied values; masked or environment-derived secrets are never copied into the database implicitly.
 - Providers must not access the database directly, mutate projects/jobs, scan plugin folders, or call another provider by importing its implementation.
 - Adding/removing providers requires a gateway restart. Hot reload is not part of protocol v1.
 
@@ -168,22 +171,23 @@ Each future generic provider manifest would declare identity, contract compatibi
 - Provider 只能收到当前选中服务商的设置，不得记录或持久化密钥；错误信息需脱敏 URL 凭证和授权头。
 - 网络调用必须设置超时。长任务/可取消任务必须遵从传入的取消上下文；不得创建无人管理的线程或模块级可变状态。
 - 注册表需校验 ID、版本、入口路径和操作 Schema。非法服务商只产生诊断，不得拖垮其他正常服务商。
+- 配置更新只持久化调用方明确提交的字段；遮罩值或环境变量提供的密钥不会被隐式复制进数据库。
 - Provider 不得直接访问数据库、修改项目/任务、扫描插件目录或通过导入另一个 Provider 实现来调用它。
 - 新增或移除服务商需要重启网关；协议 v1 不承诺热更新。
 
 ## Current LLM provider contract / 当前 LLM Provider 契约
 
-The current provider interface has three methods: `build_chat_request(settings, messages, max_tokens, tools, tool_choice, *, plain_request=False, disable_thinking=False)`, `parse_chat_response(payload)`, and `list_models(base_url, api_key="")`. `build_chat_request` returns `(endpoint, body, headers, has_optional_thinking)`. The adapter owns endpoint construction, provider-specific request options, response normalization, and model-list retrieval. Collaboration retains cancellation-aware HTTP transport, media fallback/retry, orchestration, and output validation.
+The typed LLM facade keeps `build_chat_request`, `parse_chat_response`, and `list_models`. The generic surface additionally implements `invoke(operation, inputs, settings, *, context)`. Collaboration retains cancellation-aware transport and media retries; `PluginRuntime.call_system_service("llm", ...)` uses the declared generic operations.
 
-当前 Provider 接口有三个方法：`build_chat_request(settings, messages, max_tokens, tools, tool_choice, *, plain_request=False, disable_thinking=False)`、`parse_chat_response(payload)` 和 `list_models(base_url, api_key="")`。`build_chat_request` 返回 `(endpoint, body, headers, has_optional_thinking)`。适配器负责 endpoint 构造、供应商专用请求参数、响应归一化和模型列表读取；协作模块继续负责可取消 HTTP 传输、媒体兼容重试、编排和输出校验。
+LLM 类型化门面继续提供 `build_chat_request`、`parse_chat_response`、`list_models`；通用面额外实现 `invoke(operation, inputs, settings, *, context)`。协作模块继续负责可取消传输和媒体重试；插件通过声明的通用操作调用 LLM。
 
-1. Add `backend/integrations/system_services/llm_providers/<provider-id>/provider.json`. Set `id`, `name`, `entry`, optional `thinking`, and safe string `defaults`. Never put API keys in a manifest.
+1. Add `backend/integrations/system_services/llm_providers/<provider-id>/provider.json`. Declare `service_id`, `contract_version`, `provider_id`, `name`, `entry`, settings fields and operation schemas. Never put API keys in a manifest.
 2. Reuse `openai-compatible/provider.py` only when its request format and response shape match the service. The current adapter's supported thinking values are `none`, `openai`, `deepseek`, and `custom`; adding a new request protocol or thinking behavior requires changing the provider adapter and tests, not a manifest-only addition.
 3. If a new adapter is needed, place it under `llm_providers/` and point `entry` to it. The entry is resolved from the catalog root, not the provider folder.
 4. Add tests for request construction, response normalization, model listing, malformed responses, and secret redaction.
 5. Run focused tests and the backend suite, then restart the gateway. Settings discovery comes from the catalog.
 
-1. 在 `backend/integrations/system_services/llm_providers/<provider-id>/provider.json` 新增清单，声明 `id`、`name`、`entry`、可选 `thinking` 和安全字符串 `defaults`。禁止把 API Key 写入清单。
+1. 在 `backend/integrations/system_services/llm_providers/<provider-id>/provider.json` 新增清单，声明 `service_id`、`contract_version`、`provider_id`、`name`、`entry`、设置字段和操作 Schema。禁止把 API Key 写入清单。
 2. 只有当请求格式和响应结构一致时才复用 `openai-compatible/provider.py`。当前适配器支持的 thinking 值为 `none`、`openai`、`deepseek`、`custom`；若增加新的请求协议或 thinking 行为，需修改 Provider 适配器并补测试，不能只靠清单实现。
 3. 若需新适配器，将代码放在 `llm_providers/` 下并在 `entry` 指向它。入口相对注册表根目录解析，不是相对 Provider 子目录。
 4. 为请求构造、响应归一化、模型列表、异常响应和密钥脱敏添加测试。
@@ -191,13 +195,9 @@ The current provider interface has three methods: `build_chat_request(settings, 
 
 ## Current implementation status / 当前实现状态
 
-The current code implements LLM manifest discovery, the local StorageProvider, and a manifest-validated typed single-node ComfyUIProvider. The generic invoke registry, schema-driven settings for arbitrary services, remote storage, multi-node execution and PluginRuntime.call_system_service remain unimplemented. Framework-free catalog additions currently apply to LLM providers; storage selection and additional ComfyUI nodes still require future configuration/runtime work. Do not claim arbitrary service types are plug-and-play.
+The code implements generic provider discovery, contract-versioned manifests, JSON Schema input/output validation, schema-driven settings storage, credential-free errors, and `PluginRuntime.call_system_service`. LLM providers run on this registry. Local StorageProvider and the single-node ComfyUIProvider retain typed facades because their streaming/file operations are intentionally outside the JSON invocation contract. Remote storage, multiple ComfyUI nodes, scheduling and tenancy are not part of v1.
 
-当前已实现 LLM 清单发现、本地 StorageProvider，以及清单校验的单节点 ComfyUIProvider。
-通用 invoke 注册表、任意服务类型的 Schema 驱动设置、远程存储、多节点执行及
-PluginRuntime.call_system_service 尚未实现。当前无需修改框架即可增加目录项的保证
-仅适用于 LLM Provider；存储选择及额外 ComfyUI 节点仍需要后续配置和运行时开发，
-不得宣称任意服务类型已经可以直接插拔。
+当前已实现通用 Provider 发现、带契约版本的清单、输入输出 JSON Schema 校验、Schema 驱动设置存储、无凭据错误以及 `PluginRuntime.call_system_service`；LLM Provider 已运行在该注册表上。本地 StorageProvider 与单节点 ComfyUIProvider 因包含流式/文件操作继续使用类型化门面。远程存储、多 ComfyUI 节点、调度和多租户不属于 v1。
 
 ## Related docs / 相关文档
 

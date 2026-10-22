@@ -180,6 +180,59 @@ class PluginTests(unittest.TestCase):
         self.manifest['enabled'] = False
         self.assertEqual(self.catalog().public()['applications'], [])
 
+    def test_independent_ui_bundles_do_not_require_legacy_vue_entries(self):
+        dist = self.folder / 'ui' / 'dist'
+        dist.mkdir(parents=True)
+        (dist / 'index.js').write_text('export default {}', encoding='utf-8')
+        self.manifest['application'] = {'name': 'Editor', 'ui': {'entry': 'ui/dist/index.js'}}
+        app = self.catalog().public()['applications'][0]
+        self.assertEqual(app['ui_entry'], '/api/v2/plugins/example/ui/index.js')
+
+        self.manifest.pop('application')
+        self.manifest['project_tool'] = {'name': 'Tool', 'ui': {'entry': 'ui/dist/index.js'}}
+        tool = self.catalog().public()['project_tools'][0]
+        self.assertEqual(tool['ui_entry'], '/api/v2/plugins/example/ui/index.js')
+
+        self.manifest.pop('project_tool')
+        self.manifest['collaboration_ui'] = {'entry': 'ui/dist/index.js'}
+        config = self.catalog().capabilities()['example.create']
+        self.assertEqual(config['collaboration_ui_entry'], '/api/v2/plugins/example/ui/index.js')
+        self.assertNotIn('collaboration_ui', config)
+
+    def test_independent_ui_rejects_dual_or_non_javascript_entries(self):
+        dist = self.folder / 'ui' / 'dist'
+        dist.mkdir(parents=True)
+        (dist / 'index.js').write_text('export default {}', encoding='utf-8')
+        (dist / 'style.css').write_text('', encoding='utf-8')
+        (self.folder / 'ui' / 'page.vue').write_text('<template />', encoding='utf-8')
+        invalid = [
+            {'name': 'Editor', 'entry': 'ui/page.vue', 'ui': {'entry': 'ui/dist/index.js'}},
+            {'name': 'Editor', 'ui': {'entry': 'ui/dist/style.css'}},
+            {'name': 'Editor', 'ui': {'entry': '../outside.js'}},
+        ]
+        for declaration in invalid:
+            with self.subTest(declaration=declaration):
+                self.manifest['application'] = declaration
+                self.assertTrue(self.catalog().scan()[1])
+
+    def test_manifest_unknown_fields_and_platform_incompatibility_are_rejected(self):
+        self.manifest['typo_field'] = True
+        self.assertIn('Unknown plugin manifest fields', self.catalog().scan()[1][0]['error'])
+        self.manifest.pop('typo_field')
+        self.manifest['requires'] = {'platform_min': '3.0.0'}
+        self.assertIn('current is 2.0.1', self.catalog().scan()[1][0]['error'])
+        self.manifest['requires'] = {'platform_min': '2.0.0', 'platform_max_exclusive': '3.0.0'}
+        self.assertFalse(self.catalog().scan()[1])
+
+    def test_application_and_project_tool_unknown_fields_are_rejected(self):
+        (self.folder / 'ui').mkdir()
+        (self.folder / 'ui' / 'page.vue').write_text('<template />', encoding='utf-8')
+        self.manifest['application'] = {'name': 'Editor', 'entry': 'ui/page.vue', 'typo': True}
+        self.assertIn('Unknown application fields', self.catalog().scan()[1][0]['error'])
+        self.manifest.pop('application')
+        self.manifest['project_tool'] = {'name': 'Tool', 'entry': 'ui/page.vue', 'typo': True}
+        self.assertIn('Unknown project tool fields', self.catalog().scan()[1][0]['error'])
+
     def test_collaboration_ui_is_plugin_local_and_published(self):
         (self.folder / 'ui').mkdir()
         (self.folder / 'ui/Collaboration.vue').write_text('<template><section /></template>', encoding='utf-8')
@@ -419,7 +472,8 @@ class PluginTests(unittest.TestCase):
     def test_action_identity_becomes_task_snapshot_without_leaking_internal_params(self):
         from backend.modules.generation.service import generation_metadata
         params = {'capability_id':'example.create', '_action_id':'normalize',
-                  '_action_name':'Normalize', '_action_model_name':'Audio Pipeline'}
+                  '_action_name':'Normalize', '_action_model_name':'Audio Pipeline',
+                  '_action_inputs':{'width':1280,'height':720,'parameters':{'strength':0.5}}}
         registry = Mock()
         registry.capability.return_value = {'kind':'audio', 'mode':'create', 'model_family':'example',
                                             'model_id':'example', 'model_name':'Example'}
@@ -427,6 +481,7 @@ class PluginTests(unittest.TestCase):
             snapshot = generation_metadata('audio', {'mode':'create', 'params':params})
         self.assertEqual((snapshot['model_name'], snapshot['mode_id'], snapshot['mode_name']),
                          ('Audio Pipeline', 'normalize', 'Normalize'))
+        self.assertEqual(snapshot['action_inputs'], {'width':1280,'height':720,'parameters':{'strength':0.5}})
         self.assertFalse(any(key.startswith('_action_') for key in params))
 
     def test_postprocessor_rejects_conflicting_actions(self):

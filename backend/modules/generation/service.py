@@ -205,12 +205,13 @@ def workflow_registry() -> dict[str, dict[str, Any]]:
 
 
 
-def generation_metadata(kind: str, payload: dict[str, Any]) -> dict[str, str]:
+def generation_metadata(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
     """Create one durable identity snapshot for every generation task."""
     params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
     action_id = str(params.pop("_action_id", ""))
     action_name = str(params.pop("_action_name", ""))
     action_model_name = str(params.pop("_action_model_name", ""))
+    action_inputs = params.pop("_action_inputs", None)
     explicit_id = params.get("capability_id")
     mode = str(payload.get("mode", ""))
     variant = str(params.get("speed", "")) if kind == "video" else ""
@@ -225,7 +226,7 @@ def generation_metadata(kind: str, payload: dict[str, Any]) -> dict[str, str]:
     model_id = native_model or str(config.get("model_id", family))
     provider_name = str(config.get("provider_name", "ComfyUI" if executor == "comfyui" else executor))
     existing = payload.get("generation") if isinstance(payload.get("generation"), dict) else {}
-    return {
+    metadata = {
         **{key: str(value) for key, value in existing.items() if value is not None},
         "capability_id": capability_id,
         "provider_id": executor,
@@ -245,6 +246,9 @@ def generation_metadata(kind: str, payload: dict[str, Any]) -> dict[str, str]:
         "plugin_version": str(config.get("plugin_version", "")),
         "plugin_revision": str(config.get("plugin_revision", "")),
     }
+    if action_id and isinstance(action_inputs, dict):
+        metadata["action_inputs"] = action_inputs
+    return metadata
 
 
 def job_execution_plane(job: dict[str, Any]) -> str:
@@ -587,10 +591,14 @@ def cancel_generation(job_id: str) -> dict[str, Any]:
         set_status(job_id, "cancelled")
     if prompt_id := item.get("comfy_prompt_id"):
         try:
-            # ComfyUI's global interrupt may kill a different client's running prompt.
             comfy("/queue", "POST", json.dumps({"delete": [prompt_id]}).encode())
         except Exception:
             logger.warning("Could not remove cancelled prompt from ComfyUI queue", exc_info=True)
+        try:
+            # Scope the interrupt to this prompt so another client's work is untouched.
+            comfy("/interrupt", "POST", json.dumps({"prompt_id": prompt_id}).encode())
+        except Exception:
+            logger.warning("Could not interrupt cancelled prompt in ComfyUI", exc_info=True)
     return {"id": job_id, "status": "cancelled"}
 
 

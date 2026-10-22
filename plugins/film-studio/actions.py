@@ -36,8 +36,8 @@ async def execute(request, runtime):
         update = StageWrite.model_validate(inputs['progress'])
         return service.progress(project_id, film_id, update.stage, update.status, update.note)
     if action == 'transcribe':
-        return await service.transcribe(project_id, film_id, inputs.get('language', 'auto'),
-                                        inputs.get('model', 'large-v3-turbo'))
+        return await service.queue_transcribe(project_id, film_id, inputs.get('language', 'zh'),
+                                              inputs.get('model', 'large-v3-turbo'))
     if action == 'delete':
         service.delete(project_id, film_id)
         return {'deleted': True}

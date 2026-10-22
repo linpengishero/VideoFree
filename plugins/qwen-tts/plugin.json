@@ -103,6 +103,14 @@
       "capability_id": "tts.describe",
       "handler": "actions.py:speech",
       "description": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {"bind": "text", "component": "textarea", "label": "生成文本", "label_key": "action.text", "required": true, "maxLength": 20000},
+          {"bind": "voice_description", "component": "textarea", "label": "声音描述", "label_key": "action.voice_description", "required": true, "maxLength": 2000},
+          {"bind": "speed", "component": "number", "label": "语速", "label_key": "action.speed", "default": 1, "minimum": 0.5, "maximum": 2, "step": 0.1}
+        ]
+      },
       "input_schema": {
         "type": "object",
         "properties": {

@@ -44,7 +44,7 @@ class CompositionService:
 
     @staticmethod
     def _active(film: dict) -> bool:
-        return any(film.get(key, {}).get('status') in ACTIVE for key in ('render', 'preview'))
+        return any(film.get(key, {}).get('status') in ACTIVE for key in ('render', 'preview', 'transcribe'))
 
     def _cancel_marker(self, project_id: str, film_id: str, quality: str) -> Path:
         return self.runtime.directory(project_id) / 'films' / film_id / f'.cancel-{quality}'
@@ -207,7 +207,7 @@ class CompositionService:
         if previous and expected_revision is not None and previous.get('revision', 0) != expected_revision:
             raise RuntimeError('成片方案已被修改，请刷新后重试')
         if previous and self._active(previous):
-            raise RuntimeError("合成进行中，请完成后再编辑")
+            raise RuntimeError("成片任务进行中，请完成后再编辑")
         # Updates may omit unchanged fields. Validate the effective plan so canvas-dependent
         # rules never run against schema defaults that differ from the stored film.
         effective = {key: previous[key] for key in PLAN_KEYS if previous and key in previous}
@@ -250,7 +250,7 @@ class CompositionService:
     def add_clip(self, project_id: str, film_id: str, clip: dict) -> dict:
         film = self.get(project_id, film_id)
         if self._active(film):
-            raise RuntimeError('目标成片正在合成，请完成后再添加')
+            raise RuntimeError('目标成片任务正在进行，请完成后再添加')
         self.source(project_id, clip if clip.get('library_path') else clip['job_id'], clip.get('artifact_index', 0), require_selected=False, allow_image=True)
         if clip.get('out', 0) <= clip.get('in', 0):
             raise ValueError('裁剪终点必须大于起点')
@@ -282,7 +282,7 @@ class CompositionService:
     def delete(self, project_id: str, film_id: str) -> None:
         film = self.get(project_id, film_id)
         if self._active(film):
-            raise RuntimeError("合成进行中，暂时不能删除")
+            raise RuntimeError("成片任务进行中，暂时不能删除")
         directory = self.runtime.directory(project_id) / 'films' / film_id
         if directory.is_dir():
             shutil.rmtree(directory)
@@ -298,6 +298,11 @@ class CompositionService:
                         film[key] = {**film[key], 'status': 'failed', 'error': '网关重启中断了合成，请重新提交'}
                         film['stages']['composition'].update(status='failed', note='网关重启中断了合成', updated_at=time.time())
                         changed = True
+                if film.get('transcribe', {}).get('status') in ACTIVE:
+                    film['transcribe'] = {'status': 'failed', 'progress': 0,
+                                          'error': '网关重启中断了字幕识别，请重新识别',
+                                          'updated_at': time.time()}
+                    changed = True
                 if changed:
                     self.persist(film)
 
@@ -335,7 +340,7 @@ class CompositionService:
         }
 
     async def transcribe(self, project_id: str, film_id: str,
-                         language: str = 'auto', model: str = 'large-v3-turbo') -> dict:
+                         language: str = 'zh', model: str = 'large-v3-turbo') -> dict:
         if not self.plugin_runtime:
             raise RuntimeError('字幕识别运行时不可用')
         film = self.get(project_id, film_id)
@@ -345,8 +350,10 @@ class CompositionService:
         temporary.parent.mkdir(parents=True, exist_ok=True)
         try:
             duration = await render.dialogue_audio(plan, temporary)
+            from .asr import transcription_prompt
+            prompt = transcription_prompt(language)
             raw = await ComfyWhisper(self.plugin_runtime).transcribe(
-                temporary, language=language, model=model, seek=0, duration=duration)
+                temporary, language=language, model=model, prompt=prompt, seek=0, duration=duration)
         finally:
             temporary.unlink(missing_ok=True)
         latest = self.get(project_id, film_id)
@@ -354,17 +361,58 @@ class CompositionService:
             raise RuntimeError('字幕识别期间方案已修改，请重新识别')
         film = latest
         generated = []
+        from .asr import normalize_text
         for item in raw:
             start = max(0.0, item['start'])
             end = min(duration, max(0.0, item['end']))
             if end > start:
-                generated.append({'text': item['text'], 'start': round(start, 3), 'end': round(end, 3)})
+                generated.append({'text': normalize_text(item['text'], language),
+                                  'start': round(start, 3), 'end': round(end, 3)})
         film['captions'] = generated
         film['updated_at'] = time.time()
         film['revision'] = revision + 1
         film['render'] = {'status': 'draft', 'progress': 0}
         film.pop('preview', None)
         self.persist(film)
+        return film
+
+    async def queue_transcribe(self, project_id: str, film_id: str,
+                               language: str = 'zh', model: str = 'large-v3-turbo') -> dict:
+        """Start recognition in the plugin-owned application task manager."""
+        film = self.get(project_id, film_id)
+        state = film.get('transcribe') or {}
+        if state.get('status') in ACTIVE:
+            return film
+        film['transcribe'] = {'status': 'queued', 'progress': 0, 'error': '',
+                              'updated_at': time.time()}
+        self.persist(film)
+        key = f'transcribe:{film_id}'
+
+        async def run():
+            current = self.get(project_id, film_id)
+            current['transcribe'] = {'status': 'running', 'progress': 5, 'error': '',
+                                     'updated_at': time.time()}
+            self.persist(current)
+            try:
+                result = await self.transcribe(project_id, film_id, language, model)
+                result['transcribe'] = {'status': 'completed', 'progress': 100, 'error': '',
+                                        'updated_at': time.time()}
+                self.persist(result)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                failed = self.get(project_id, film_id)
+                failed['transcribe'] = {'status': 'failed', 'progress': 0,
+                                        'error': str(exc), 'updated_at': time.time()}
+                self.persist(failed)
+
+        try:
+            self.runtime.start(key, run())
+        except Exception as exc:
+            film['transcribe'] = {'status': 'failed', 'progress': 0, 'error': str(exc),
+                                  'updated_at': time.time()}
+            self.persist(film)
+            raise
         return film
 
     async def preflight(self, project_id: str, plan: dict) -> None:
@@ -420,6 +468,8 @@ class CompositionService:
 
     async def submit(self, project_id: str, film_id: str, quality: str = 'final') -> dict:
         film = self.get(project_id, film_id)
+        if film.get('transcribe', {}).get('status') in ACTIVE:
+            raise RuntimeError('字幕识别进行中，请完成后再导出')
         key = 'preview' if quality == 'preview' else 'render'
         if self._active(film):
             raise RuntimeError("该成片已经在合成队列中")

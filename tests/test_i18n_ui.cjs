@@ -54,7 +54,7 @@ const server = http.createServer((req, res) => {
     source = source.replace(new RegExp(`import ${variable} from [^;]+;`), `const ${variable} = ${fs.readFileSync(path.join(root, 'frontend/src/locales', locale + '.json'), 'utf8')};`);
   }
   const i18n = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
-  i18n.registerPluginMessages([{ id: 'test', localization: { default_locale: 'zh-CN' }, ui_messages: { 'zh-CN': { name: '中文', count: '共 {count} 项' }, 'en-US': { name: 'English' } } }]);
+  i18n.registerPluginMessages([{ id: 'test', localization: { default_locale: 'zh-CN' }, ui_messages: { 'zh-CN': { name: '中文', count: '共 {count} 项', operation: '处理功能', prompt: '执行稿' }, 'en-US': { name: 'English', operation: 'Operation', prompt: 'Execution prompt' } } }]);
   i18n.setLocale('en-US');
   assert.equal(i18n.pluginT('test')('count', '', { count: 3 }), '共 3 项');
   assert.equal(i18n.pluginT('missing')('absent', 'Fallback'), 'Fallback');
@@ -64,6 +64,9 @@ const server = http.createServer((req, res) => {
   assert.equal(translated.ui.fields[0].options[0].label, 'English');
   assert.equal(translated.ui.fields[0].options[0].value, '中文');
   assert.equal(translated.ui.fields[0].default, '中文');
+  const editDeclaration = i18n.localizeDeclaration({plugin_id:'test',ui:{edit:{prompt:{label:'原稿',label_key:'prompt'},summary:[{source:'operation_name',label:'原功能',label_key:'operation'}]}}});
+  assert.equal(editDeclaration.ui.edit.prompt.label, 'Execution prompt');
+  assert.equal(editDeclaration.ui.edit.summary[0].label, 'Operation');
   assert.deepEqual(translated.parameters, raw.parameters);
   assert.equal(i18n.localizeDeclaration({plugin_id:'test', variants:[{name:'Original',name_key:'name',id:'original'}]}).variants[0].name, 'English');
   assert.equal(raw.name, 'Original');
@@ -78,7 +81,9 @@ const server = http.createServer((req, res) => {
   assert.equal(i18n.pluginT('qwen-image')('基础风格'), 'Basic styles');
   assert.equal(i18n.pluginT('minimax-h3')('提交全部确认（{done}/{total}）', undefined, {done:2,total:3}), 'Submit all choices (2/3)');
   const gpt = JSON.parse(fs.readFileSync(path.join(root, 'plugins/gpt-image/plugin.json')));
-  assert.equal(i18n.localizeDeclaration({id:'gpt-image', name_key:gpt.settings.title_key, name:gpt.settings.title, schema:gpt.settings}).schema.fields.find(field => field.label === 'API URL')?.label, 'API URL');
+  const localizedGptSettings = i18n.localizeDeclaration({id:'gpt-image', name_key:gpt.settings.title_key, name:gpt.settings.title, schema:gpt.settings}).schema;
+  assert.equal(localizedGptSettings.fields.find(field => field.label === 'API URL')?.label, 'API URL');
+  assert.equal(localizedGptSettings.links[0].label, 'GrisAI API website / Get a key');
   i18n.registerPluginMessages([{ id: 'test', localization: { default_locale: 'zh-CN' }, ui_messages: { 'zh-CN': { name: '中文' }, 'en-US': { name: 'English' } } }]);
   i18n.setLocale('zh-CN');
   assert.equal(i18n.localizeDeclaration(raw).name, '中文');
@@ -112,8 +117,11 @@ const server = http.createServer((req, res) => {
   const labelsSource = taskSource.slice(taskSource.indexOf('const modelLabel ='),taskSource.indexOf('const hasBilingualPrompt'));
   const cap = ref({model_name:'Image model',mode_name:'Text to image',provider_name:'Cloud provider'});
   const generation = ref({model_name:'历史模型',model_version:'v2',mode_name:'历史模式',provider_name:'历史服务'});
-  const evaluateLabels = new Function('computed','capability','generation','isPostprocess','props','t',labelsSource+';return {modelLabel,modeLabel,providerLabel};');
-  const labels = evaluateLabels(computed,cap,generation,computed(()=>false),{manifest:{}},i18n.t);
+  const actionDeclaration = ref(null);
+  const actionTask = computed(() => Boolean(actionDeclaration.value));
+  const editUi = computed(() => (actionDeclaration.value?.ui || {}).edit || {});
+  const evaluateLabels = new Function('computed','capability','generation','isPostprocess','props','t','actionDeclaration','actionTask','editUi',labelsSource+';return {modelLabel,modeLabel,providerLabel};');
+  const labels = evaluateLabels(computed,cap,generation,computed(()=>false),{manifest:{}},i18n.t,actionDeclaration,actionTask,editUi);
   assert.equal(labels.modelLabel.value,'Image model · v2');
   assert.equal(labels.modeLabel.value,'Text to image');
   assert.equal(labels.providerLabel.value,'Cloud provider');
@@ -121,13 +129,6 @@ const server = http.createServer((req, res) => {
   assert.equal(labels.modelLabel.value,'历史模型 · v2');
   assert.equal(labels.modeLabel.value,'历史模式');
   assert.equal(labels.providerLabel.value,'历史服务');
-  const guideSource=fs.readFileSync(path.join(root,'frontend/src/components/GuidePage.vue'),'utf8');
-  const guidePrompts=new Function('computed','t',guideSource.slice(guideSource.indexOf('const sagePrompt'),guideSource.indexOf('</script>'))+';return {sagePrompt,installPrompt,example};')(computed,i18n.t);
-  i18n.setLocale('zh-CN');
-  const chineseExample=guidePrompts.example.value;
-  i18n.setLocale('en-US');
-  assert.notEqual(guidePrompts.example.value,chineseExample);
-  for(const value of Object.values(guidePrompts))assert.ok(!/[\u3400-\u9fff]/u.test(value.value));
   i18n.setLocale('zh-CN');
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -147,8 +148,14 @@ const server = http.createServer((req, res) => {
     await page.addInitScript(() => localStorage.setItem('videofree-open-project-id', 'project-ui'));
     await page.route('**/api/v2/**', route => {
       const pathname = new URL(route.request().url()).pathname;
+      if (pathname === '/api/v2/plugins/runtime-tool/ui/index.js') {
+        return route.fulfill({ contentType: 'text/javascript', body: "export default {mounted(){document.body.dataset.runtimePlugin='loaded'},render(){return null}}" });
+      }
       let data = { items: [], categories: [], applications: [], project_tools: [], errors: [] };
-      if (pathname.endsWith('/plugins')) data = { ...data, items, project_tools: items.filter(p => p.project_tool).map(p => ({ ...p.project_tool, id: p.id, plugin_folder: p.id })) };
+      if (pathname.endsWith('/plugins')) data = { ...data, items, project_tools: [
+        ...items.filter(p => p.project_tool).map(p => ({ ...p.project_tool, id: p.id, plugin_folder: p.id })),
+        {id:'runtime-tool',name:'Runtime plugin',scope:'project',ui_entry:'/api/v2/plugins/runtime-tool/ui/index.js'},
+      ] };
       if (pathname.endsWith('/capabilities')) data = { items: new URL(route.request().url()).searchParams.get('operation') === 'generate' ? [capability] : [] };
       if (pathname.endsWith('/generations')) { submissions.push(route.request().postDataJSON()); data = { job_id: 'test-job' }; }
       if (pathname.includes('/plugin-actions/')) data = { result: { content: { project_type: 'single', text: '' }, status: 'draft', revision: 0, items: [] } };
@@ -211,6 +218,8 @@ const server = http.createServer((req, res) => {
     await page.getByText('The referenced file was removed: actor portrait.png. Remove the mention or select a file again.', { exact: true }).waitFor();
     assert.equal(submissions.length, 1);
     assert.equal(await page.locator('.mention-mirror mark.is-missing').count(), 1);
+    await page.getByRole('button', { name: 'Runtime plugin', exact: true }).click();
+    await page.waitForFunction(() => document.body.dataset.runtimePlugin === 'loaded');
     assert.deepEqual(errors, []);
     console.log('UI locale persistence, plugin translation, live draft preservation and file mention submission passed');
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

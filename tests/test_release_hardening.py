@@ -128,16 +128,28 @@ class ReleaseHardeningTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue((await v1_generation.delete_job(job['id']))['deleted'])
             service.process(job['id'])  # A stale cancelled queue entry is harmless after deletion.
 
-    def test_cancellation_never_globally_interrupts_comfy(self):
+    def test_cancellation_removes_queued_prompt_and_targets_running_interrupt(self):
         job = self.job(comfy_prompt_id='queued-behind-another-client')
         with patch.object(service, 'context', self.ctx), patch.object(service, 'update_task_manifest'), \
              patch.object(service, 'comfy') as comfy:
             service.cancel_generation(job['id'])
-            self.assertEqual(comfy.call_args.args[0], '/queue')
-            self.assertEqual(json.loads(comfy.call_args.args[2]), {'delete': [job['comfy_prompt_id']]})
-            comfy.assert_called_once()
+            self.assertEqual(
+                [(call.args[0], json.loads(call.args[2])) for call in comfy.call_args_list],
+                [
+                    ('/queue', {'delete': [job['comfy_prompt_id']]}),
+                    ('/interrupt', {'prompt_id': job['comfy_prompt_id']}),
+                ],
+            )
             with self.assertRaises(service.JobCancelled):
                 service.set_status(job['id'], 'running')
+
+    def test_queue_removal_failure_does_not_skip_targeted_interrupt(self):
+        job = self.job(comfy_prompt_id='running-prompt')
+        with patch.object(service, 'context', self.ctx), patch.object(service, 'update_task_manifest'), \
+             patch.object(service, 'comfy', side_effect=[RuntimeError('queue unavailable'), {}]) as comfy:
+            service.cancel_generation(job['id'])
+        self.assertEqual(comfy.call_args_list[1].args[0], '/interrupt')
+        self.assertEqual(json.loads(comfy.call_args_list[1].args[2]), {'prompt_id': job['comfy_prompt_id']})
 
     def test_finalizing_job_cannot_be_cancelled(self):
         job = self.job(_publishing=True)

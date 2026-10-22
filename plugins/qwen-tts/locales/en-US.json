@@ -1,4 +1,7 @@
 {
+  "action.text": "Text",
+  "action.voice_description": "Voice description",
+  "action.speed": "Speed",
   "声音生成": "Speech generation",
   "直接生成": "Generate directly",
   "声音设计": "Voice design",

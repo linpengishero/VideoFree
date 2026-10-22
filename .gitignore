@@ -5,6 +5,8 @@
 
 # Runtime data, generated media, caches and local databases
 data/
+runtime/python/Lib/site-packages/
+runtime/python/Scripts/
 __pycache__/
 *.pyc
 *.pyo

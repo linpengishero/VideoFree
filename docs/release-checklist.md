@@ -54,7 +54,7 @@ cmd /c "videofree.bat --check"
 - 本轮未提交或推送 Git。发布时须包含新增的 `plugins/`、后端与前端源码、测试、文档、Python 依赖及重新构建的 `static/dist/`，不能只打包已被 Git 跟踪的旧文件。
 - 完整安装包必须包含 `runtime/`；源码部署须按依赖清单安装环境并构建前端。建议在实际发布包解压后再次运行 `--check`。
 - 前端发布包必须包含构建生成的 `static/dist/.vite/manifest.json` 和全部分块资源；不要因目录以点开头而漏打包。
-- 不发布本地 `.env`、插件 `.env`、`data/`、备份或缓存。插件密钥由使用者在设置页填写。
+- 不发布本地 `.env`、`data/plugin-settings/`、其他 `data/` 内容、备份或缓存。插件密钥由使用者在设置页填写。
 - 旧 `commuity/`、`backups/`、`备份/`、`agent_skills/` 和插件归档工作流已清理；发布包不得重新带入这些旧实现或本机缓存。
 - Python 插件为可信本地代码，不是安全沙箱。应用插件的 Vue 页面在插件目录内独立构建到 `ui/dist/`，不需要重新构建主前端；纯声明式生成插件不需要专用 Vue 页面。
 - 旧模型生成、专用 TTS、refine、H3 翻译和 studio 协作协议入口已删除；前端、MCP 统一使用当前生成、协作与插件动作协议。旧客户端必须更新，不保留兼容转发；现行项目、上传及任务管理接口保留。新增控件类型仍需要扩展框架渲染器。
@@ -93,3 +93,10 @@ cmd /c "videofree.bat --check"
 - 当前工作区包含大量尚未纳入版本控制的新插件、源码、MP3、依赖及构建分块；必须完整提交后做一次干净检出或最终安装包验收。
 - 未执行真实 GPU、云端计费生成和完整浏览器人工验收；自检不验证用户 ComfyUI 的全部节点与模型。
 - CosyVoice3 固定音频的再分发授权仍须由维护者确认。
+
+## 2.0.1 扩展契约复核（2026-10-22）
+
+- `docs/schemas/plugin-manifest-v1.schema.json` 是插件清单的唯一机器可读结构契约；启动扫描与契约测试共用该 Schema，跨字段、文件和归属规则继续由语义校验负责。
+- `docs/schemas/system-service-provider-v1.schema.json` 定义通用系统服务 Provider 清单；注册表统一完成发现、契约一致性、设置白名单、输入输出校验、错误脱敏与 Provider 选择。
+- `PluginRuntime.api_version == 1` 固化插件运行时边界；插件通过 `call_system_service` 调用声明式 JSON 服务，不读取 Provider、系统设置或密钥。
+- 发布自检同时阻断无效插件和无效系统服务 Provider；新增扩展必须通过 `tests/test_extension_contracts.py` 与系统服务专项测试。

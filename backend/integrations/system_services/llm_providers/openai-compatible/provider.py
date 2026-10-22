@@ -84,3 +84,25 @@ class Provider:
             raise ValueError("无法获取模型列表: 服务返回的数据格式无效")
         return sorted({str(item.get("id") or item.get("name")) for item in rows
                        if isinstance(item, dict) and (item.get("id") or item.get("name"))}, key=str.lower)
+
+    def invoke(self, operation, inputs, settings, *, context=None):
+        if operation == "list-models":
+            return {"items": self.list_models(inputs.get("base_url") or settings.get("ai_base_url", ""),
+                                               inputs.get("api_key") or settings.get("ai_api_key", ""))}
+        if operation != "chat":
+            raise ValueError("Unsupported LLM operation")
+        endpoint, body, headers, _ = self.build_chat_request(
+            settings, inputs["messages"], inputs.get("max_tokens", 2500),
+            inputs.get("tools"), inputs.get("tool_choice"),
+            plain_request=inputs.get("plain_request", False),
+            disable_thinking=inputs.get("disable_thinking", False),
+        )
+        request = urllib.request.Request(
+            endpoint, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers=headers, method="POST"
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                payload = json.loads(response.read())
+        except (OSError, urllib.error.HTTPError, json.JSONDecodeError) as exc:
+            raise ValueError("LLM request failed") from exc
+        return self.parse_chat_response(payload)

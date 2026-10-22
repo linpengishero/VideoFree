@@ -8,12 +8,14 @@ Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 <script setup>
 import { onMounted, onUnmounted, ref } from "vue";
 import { Icon } from "@iconify/vue";
+import packageInfo from "../../package.json";
 import { t } from "../services/i18n";
 
 defineEmits(["enter"]);
 
 const announcementFailed = ref(false);
 const backgroundCanvas = ref(null);
+const version = packageInfo.version;
 let animationFrame = 0;
 let resizeObserver;
 let stopAnimation = false;
@@ -233,7 +235,7 @@ onUnmounted(() => {
         <Icon icon="simple-icons:gitee" width="15" />
         Gitee
       </a>
-      <span>© 2026 VideoFree Studio</span>
+      <span>© 2026 VideoFree Studio · v{{ version }}</span>
     </footer>
   </div>
 </template>

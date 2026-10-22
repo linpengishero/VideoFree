@@ -45,6 +45,7 @@ export const gateway = {
   plugins: () => request('/api/v2/plugins'),
   capabilities: (operation = 'generate') => request(`/api/v2/capabilities?operation=${encodeURIComponent(operation)}`),
   pluginActions: ({scope = '', sourceJobId = '', sourceKind = '', automation = false, includeUnavailable = false} = {}) => request(`/api/v2/plugin-actions?scope=${encodeURIComponent(scope)}&source_job_id=${encodeURIComponent(sourceJobId)}&source_kind=${encodeURIComponent(sourceKind)}&automation=${automation}&include_unavailable=${includeUnavailable}`),
+  pluginAction: (actionId) => request(`/api/v2/plugin-actions/${encodeURIComponent(actionId)}`),
   runPluginAction: (actionId, {sourceJobId = null, sourceUploadId = null, projectId = null, categoryId = null, inputs = {}} = {}) => request(`/api/v2/plugin-actions/${encodeURIComponent(actionId)}/execute`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source_job_id:sourceJobId,source_upload_id:sourceUploadId,project_id:projectId,category_id:categoryId,inputs})}),
   createGeneration: (body) => request('/api/v2/generations', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}),
   regenerateJob: (id, body) => request(`/api/v2/jobs/${encodeURIComponent(id)}/regenerate`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}),
@@ -105,6 +106,13 @@ export const gateway = {
   settings: (revealSecrets = false) =>
     request(`/v1/settings?reveal_secrets=${revealSecrets ? "true" : "false"}`),
   llmProviders: () => request("/v1/settings/llm-providers"),
+  systemServices: () => request("/v1/settings/system-services"),
+  systemServiceSettings: (serviceId, revealSecrets = false) =>
+    request(`/v1/settings/system-services/${encodeURIComponent(serviceId)}?reveal_secrets=${revealSecrets ? "true" : "false"}`),
+  updateSystemServiceSettings: (serviceId, body) =>
+    request(`/v1/settings/system-services/${encodeURIComponent(serviceId)}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
   settingsStatus: (runtime = false) =>
     request(`/v1/settings/status?runtime=${runtime ? "true" : "false"}`),
   voices: () => request("/v1/voices"),

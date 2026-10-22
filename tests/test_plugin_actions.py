@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from fastapi import HTTPException
 from backend.core.errors import GatewayError
 
-from backend.modules.generation.actions import action_matches_source, discover_actions, execute_action, prepare_action, public_action, uploaded_source
+from backend.modules.generation.actions import action_matches_source, discover_actions, execute_action, prepare_action, public_action, uploaded_source, _snapshot_action_inputs
 from backend.modules.generation.plugins import PluginCatalog
 from backend.modules.shared.plugin_runtime import PluginRuntime
 
@@ -64,6 +64,17 @@ class PluginActionTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(inputs=inputs), self.assertRaises(GatewayError) as caught:
                 await prepare_action(self.catalog,'commands.inspect',inputs,self.context)
             self.assertEqual(caught.exception.status_code, 422)
+
+    async def test_generated_action_inputs_are_snapshotted_with_effective_defaults(self):
+        action = {
+            'ui': {'version':1,'fields':[
+                {'bind':'target_size','component':'dimensions','label':'Size'},
+                {'bind':'parameters.strength','component':'number','label':'Strength','default':0.5},
+            ]},
+        }
+        snapshot = _snapshot_action_inputs(action, {'width':1280,'height':720},
+                                           {'width':1280,'height':720,'parameters':{'strength':0.5}})
+        self.assertEqual(snapshot, {'width':1280,'height':720,'parameters':{'strength':0.5}})
 
     async def test_project_mismatch_and_missing_project_precede_plugin_execution(self):
         self.save()

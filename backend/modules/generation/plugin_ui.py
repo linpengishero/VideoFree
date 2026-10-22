@@ -12,9 +12,10 @@ from typing import Any
 
 COMPONENTS = {"textarea", "text", "number", "select", "checkbox", "style", "voice", "media", "dimensions"}
 PATH = re.compile(r"^(prompt|lyrics|target_size|upscaler|settings\.[a-zA-Z_][a-zA-Z0-9_]*|parameters\.[a-zA-Z_][a-zA-Z0-9_]*)$")
+EDIT_SUMMARY_SOURCES = {"operation_name", "model_name", "mode_name", "provider_name"}
 
 
-def validate_form(ui: dict, config: dict, *, postprocess: bool = False) -> None:
+def validate_form(ui: dict, config: dict, *, postprocess: bool = False, action_schema: dict | None = None) -> None:
     if not isinstance(ui, dict) or ui.get("version") != 1 or not isinstance(ui.get("fields"), list):
         raise ValueError("ui requires version=1 and fields")
     seen = set()
@@ -22,18 +23,27 @@ def validate_form(ui: dict, config: dict, *, postprocess: bool = False) -> None:
         if not isinstance(field, dict) or field.get("component") not in COMPONENTS or not isinstance(field.get("label"), str):
             raise ValueError("Invalid declarative UI field")
         bind = field.get("bind", "")
-        if not isinstance(bind, str) or not PATH.fullmatch(bind) or bind in seen:
+        action_properties = (action_schema or {}).get("properties", {}) if action_schema else {}
+        parameter_name = bind.split(".", 1)[1] if bind.startswith("parameters.") else ""
+        parameter_schema = action_properties.get("parameters", {}) if action_schema else {}
+        valid_action_bind = action_schema is not None and (
+            bind in action_properties or bind == "target_size"
+            or parameter_name in parameter_schema.get("properties", {})
+        )
+        if not isinstance(bind, str) or not (PATH.fullmatch(bind) or valid_action_bind) or bind in seen:
             raise ValueError(f"Invalid or duplicate UI binding: {bind}")
         seen.add(bind)
-        if postprocess and not (bind.startswith("parameters.") or bind in {"target_size", "upscaler"}):
+        if action_schema and not valid_action_bind:
+            raise ValueError(f"Action UI binding is not declared in input_schema: {bind}")
+        if postprocess and not (bind.startswith("parameters.") or bind in {"target_size", "upscaler"} or action_schema and valid_action_bind):
             raise ValueError(f"Unsupported postprocess binding: {bind}")
-        if bind in {"target_size", "upscaler"} and not postprocess:
+        if bind in {"target_size", "upscaler"} and not postprocess and not action_schema:
             raise ValueError(f"Postprocess-only UI binding: {bind}")
         if field["component"] == "select" and not field.get("options"):
             raise ValueError(f"select requires options: {bind}")
         if field.get("section", "settings") not in {"body", "settings", "submit"}:
             raise ValueError(f"Invalid UI section: {bind}")
-        if bind.startswith("parameters.") and bind.split(".")[1] not in config.get("parameters", {}):
+        if bind.startswith("parameters.") and not action_schema and bind.split(".")[1] not in config.get("parameters", {}):
             raise ValueError(f"UI parameter is not registered: {bind}")
         if field["component"] == "media":
             media = field.get("media")
@@ -42,8 +52,14 @@ def validate_form(ui: dict, config: dict, *, postprocess: bool = False) -> None:
             if bind != f"settings.reference_{media}":
                 raise ValueError(f"Invalid media binding: {bind}")
         if field["component"] == "dimensions":
-            if not postprocess or bind != "target_size" or not field.get("presets"):
+            if (not postprocess and not action_schema) or bind != "target_size" or not field.get("presets"):
                 raise ValueError("dimensions requires postprocess target_size and presets")
+            if action_schema and any(
+                not isinstance(action_properties.get(name), dict)
+                or action_properties[name].get("type") != "integer"
+                for name in ("width", "height")
+            ):
+                raise ValueError("dimensions action field requires integer width and height inputs")
             if type(field.get("alignment")) is not int or field["alignment"] <= 0:
                 raise ValueError("Invalid dimensions alignment")
             for preset in field["presets"]:
@@ -63,6 +79,42 @@ def validate_form(ui: dict, config: dict, *, postprocess: bool = False) -> None:
                 raise ValueError(f"Duplicate UI options: {bind}")
         if "default" in field:
             validate_value(field, field["default"])
+    edit = ui.get("edit")
+    if edit is not None:
+        if not isinstance(edit, dict):
+            raise ValueError("ui.edit must be an object")
+        prompt = edit.get("prompt")
+        if prompt is not None:
+            if type(prompt) is bool:
+                pass
+            elif isinstance(prompt, dict):
+                if "visible" in prompt and type(prompt["visible"]) is not bool:
+                    raise ValueError("ui.edit.prompt.visible must be boolean")
+                for key in ("label", "label_key", "placeholder", "placeholder_key"):
+                    if key in prompt and not isinstance(prompt[key], str):
+                        raise ValueError(f"ui.edit.prompt.{key} must be a string")
+            else:
+                raise ValueError("ui.edit.prompt must be a boolean or object")
+        parameters = edit.get("parameters")
+        if parameters is not None and (not isinstance(parameters, dict) or any(
+            key in parameters and not isinstance(parameters[key], str)
+            for key in ("label", "label_key")
+        )):
+            raise ValueError("ui.edit.parameters must declare string labels")
+        summary = edit.get("summary")
+        if summary is not None:
+            if not isinstance(summary, list):
+                raise ValueError("ui.edit.summary must be a list")
+            summary_sources = set()
+            for item in summary:
+                source = item.get("source") if isinstance(item, dict) else None
+                if (not isinstance(source, str) or source not in EDIT_SUMMARY_SOURCES
+                        or not isinstance(item.get("label"), str)
+                        or "label_key" in item and not isinstance(item["label_key"], str)):
+                    raise ValueError("Invalid ui.edit.summary item")
+                if source in summary_sources:
+                    raise ValueError(f"Duplicate ui.edit.summary source: {source}")
+                summary_sources.add(source)
     template = ui.get("prompt_template")
     if template is not None:
         if not isinstance(template, dict) or not isinstance(template.get("fields"), list) or not isinstance(template.get("suffix", ""), str):
@@ -71,7 +123,7 @@ def validate_form(ui: dict, config: dict, *, postprocess: bool = False) -> None:
         for bind in template["fields"]:
             if bind not in declared or not declared[bind].get("options") or any(not isinstance(item.get("prompt"), str) for item in declared[bind]["options"]):
                 raise ValueError(f"prompt_template must reference options with prompt: {bind}")
-    if not postprocess and config.get("operation", "generate") == "generate":
+    if not action_schema and not postprocess and config.get("operation", "generate") == "generate":
         for media, limits in config.get("references", {}).items():
             if limits.get("max", 0) and f"settings.reference_{media}" not in seen:
                 raise ValueError(f"Missing media UI: {media}")

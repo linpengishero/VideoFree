@@ -55,6 +55,7 @@ def capability(capability_id: str, config: dict[str, Any]) -> dict[str, Any]:
         "category": config.get("category", kind),
         "plugin_id": config.get("plugin_id"), "plugin_version": config.get("plugin_version"),
         "plugin_folder": config.get("plugin_folder"), "collaboration_ui": config.get("collaboration_ui"),
+        "collaboration_ui_entry": config.get("collaboration_ui_entry"),
         "parameters": config.get("parameters", {}),
         "prompt_translation_action": config.get("prompt_translation_action"),
         "ui": config.get("ui"),

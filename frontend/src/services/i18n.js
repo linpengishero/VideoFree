@@ -52,13 +52,20 @@ export function usePluginI18n(pluginId) {
 // Only declaration-owned presentation fields are localized. IDs, defaults, prompts,
 // input schemas and user-authored content are never traversed as display text.
 const displayFields = ['name', 'label', 'description', 'placeholder', 'help', 'title', 'selection_label', 'mode_name', 'model_name', 'provider_name'];
-const childFields = ['ui', 'fields', 'options', 'presets', 'processing_modes', 'selector_model', 'functions', 'schema', 'variants'];
+const childFields = ['ui', 'fields', 'links', 'options', 'presets', 'processing_modes', 'selector_model', 'functions', 'schema', 'variants'];
 export function localizeDeclaration(value, pluginId = value?.plugin_id || value?.id || '') {
   if (Array.isArray(value)) return value.map(item => localizeDeclaration(item, pluginId));
   if (!value || typeof value !== 'object') return value;
   const result = { ...value };
   for (const field of displayFields) {
     if (typeof value[`${field}_key`] === 'string') result[field] = translate(locale.value, pluginId, value[`${field}_key`], value[field] || '');
+  }
+  if (value.edit && typeof value.edit === 'object') {
+    result.edit = {...value.edit};
+    for (const field of ['prompt', 'parameters']) {
+      if (value.edit[field] && typeof value.edit[field] === 'object') result.edit[field] = localizeDeclaration(value.edit[field], pluginId);
+    }
+    if (Array.isArray(value.edit.summary)) result.edit.summary = value.edit.summary.map(item => localizeDeclaration(item, pluginId));
   }
   for (const field of childFields) if (value[field]) result[field] = localizeDeclaration(value[field], pluginId);
   if (result.icon_text && result.name) result.icon_text = [...result.name][0];

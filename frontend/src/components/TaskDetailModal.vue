@@ -6,7 +6,7 @@ Separate commercial licensing may be available; see COMMERCIAL_LICENSE.md.
 -->
 
 <script setup>
-import { t, localizedLabels } from '../services/i18n';
+import { t, localizedLabels, localizeDeclaration } from '../services/i18n';
 
 import PluginDialog from './PluginDialog.vue';
 import MediaPreview from './MediaPreview.vue';
@@ -14,16 +14,44 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import PluginApplication from './PluginApplication.vue';
 import PluginField from "./PluginField.vue";
-import { defaults, getValue, setValue } from "../config/pluginForm";
+import { collectActionInputs as collectDeclaredActionInputs, defaults, getValue, restoreActionInputs, setValue } from "../config/pluginForm";
 import { gateway } from "../services/api";
 
 const props = defineProps({ manifest: { type: Object, default: null }, capabilities: Array, voices: Array, applications: {type:Array, default:()=>[]} });
 const resourceApplications = computed(() => props.applications.filter(app => app.resource_entry && app.source_types?.includes(props.manifest?.kind) && props.manifest?.status === 'completed'));
 const formValues = ref({settings:{}, parameters:{}});
+const actionDeclaration = ref(null);
+const actionSourceManifest = ref(null);
+const actionLoading = ref(false);
+const actionCheckedTask = ref('');
+const actionLoadError = ref('');
 const capability = computed(() => (props.capabilities || []).find(item => item.id === (props.manifest?.parameters?.params?.capability_id || props.manifest?.parameters?.generation?.capability_id)));
-const editFields = computed(() => (capability.value?.ui?.fields || []).filter(field => field.component !== 'media' && field.bind !== 'prompt'));
+const actionTask = computed(() => Boolean(actionDeclaration.value));
+const actionSnapshotPresent = computed(() => Object.hasOwn(props.manifest?.parameters?.generation || {}, 'action_inputs'));
+const editUiDeclaration = computed(() => actionDeclaration.value?.ui || capability.value?.ui || {});
+const actionTextField = computed(() => actionTask.value
+  ? (editUiDeclaration.value.fields || []).find(field => ['textarea','text'].includes(field.component) || ['prompt','text'].includes(field.bind))
+  : null);
+const editFields = computed(() => (editUiDeclaration.value.fields || []).filter(field =>
+  field.component !== 'media' && field.bind !== 'prompt' && field !== actionTextField.value));
+const editUi = computed(() => editUiDeclaration.value.edit || {});
+const promptEditUi = computed(() => editUi.value.prompt === false ? {visible:false} : editUi.value.prompt || {});
+const showPromptEditor = computed(() => actionTask.value ? Boolean(actionTextField.value || actionPrompt.value) : promptEditUi.value.visible !== false);
+const actionPrompt = computed(() => {
+  const sourceParameters = actionSourceManifest.value?.parameters || {};
+  const sourceParams = sourceParameters.params || {};
+  const values = [sourceParams.confirmed_prompt_zh, sourceParams.execution_prompt_en, sourceParams.source_prompt,
+    sourceParameters.prompt, sourceParameters.text, draft.value.promptEn, draft.value.promptZh];
+  return values.find(value => typeof value === 'string' && value.trim()) || '';
+});
+const promptValue = computed({
+  get: () => actionTask.value ? actionPrompt.value : activePrompt.value,
+  set: value => { if (!actionTask.value) activePrompt.value = value; },
+});
+const promptLabel = computed(() => actionTask.value ? actionTextField.value?.label || t('原始提示词') : promptEditUi.value.label || (isTts.value ? t('生成文本') : isMusic.value ? t('音乐描述') : t('描述词')));
+const parametersLabel = computed(() => editUi.value.parameters?.label || (actionTask.value ? t('动作参数') : editFields.value.length ? t('生成参数') : t('任务信息')));
 const conversionModes = computed(() => (capability.value?.processing_modes || []).filter(mode => mode.id !== 'direct'));
-const emit = defineEmits(["close", "regenerate", "translate", "resource-changed"]);
+const emit = defineEmits(["close", "regenerate", "translate", "resource-changed", "process"]);
 const draft = ref({
   promptZh: "",
   promptEn: "",
@@ -40,7 +68,20 @@ const replacementUrls = new Map();
 const preview = ref(null);
 const submitting = ref(false);
 const resourceNotice = ref('');
+const resourceActions = ref([]);
+let resourceActionToken = 0;
 watch(() => props.manifest?.task_id, () => { resourceNotice.value = ''; });
+watch(() => [props.manifest?.task_id, props.manifest?.status], async ([taskId, status]) => {
+  const token = ++resourceActionToken;
+  resourceActions.value = [];
+  if (!taskId || status !== 'completed') return;
+  try {
+    const result = await gateway.pluginActions({scope:'resource', sourceJobId:taskId});
+    if (token === resourceActionToken) resourceActions.value = (result.items || []).filter(item => item.available !== false);
+  } catch {
+    if (token === resourceActionToken) resourceActions.value = [];
+  }
+}, {immediate:true});
 const conversionChoiceOpen = ref(false);
 const originalChinesePrompt = ref("");
 const promptLanguage = ref("zh");
@@ -50,27 +91,53 @@ const groups = computed(() =>
     .map((type) => ({
       type,
       label: labels[type],
-      items: (props.manifest?.inputs || []).filter(
-        (item) => item.type === type && !removed.value[key(item)],
-      ),
+      items: (props.manifest?.inputs || []).filter(item => item.type === type && !removed.value[key(item)]),
     }))
     .filter((group) => group.items.length),
 );
 const isTts = computed(() => props.manifest?.kind === "tts");
 const isMusic = computed(() => props.manifest?.kind === "music");
 const generation = computed(() => props.manifest?.parameters?.generation || {});
-const isPostprocess = computed(() => capability.value?.operation === "postprocess");
+const isPostprocess = computed(() => actionTask.value || capability.value?.operation === "postprocess");
+const actionFieldSource = computed(() => {
+  const parameters = actionSourceManifest.value?.parameters || {};
+  const params = parameters.params || {};
+  return {request:{params}, width:params.latent_width || params.width, height:params.latent_height || params.height};
+});
 const modelLabel = computed(() => {
   const item = generation.value;
-  const name = capability.value?.model_name || item.model_name || item.model_id || t('未知模型');
+  const name = actionDeclaration.value?.model_name || capability.value?.model_name || item.model_name || item.model_id || t('未知模型');
   if (!isPostprocess.value && item.model_version && item.model_version !== name && item.model_version !== item.model_name)
     return `${name} · ${item.model_version}`;
   return name;
 });
-const modeLabel = computed(() => isPostprocess.value
+const modeLabel = computed(() => actionTask.value
+  ? actionDeclaration.value.name
+  : isPostprocess.value
   ? capability.value?.name || generation.value.mode_name || generation.value.mode_id || t('未知功能')
   : capability.value?.mode_name || capability.value?.name || generation.value.mode_name || generation.value.mode_id || props.manifest?.parameters?.mode || t('未知'));
-const providerLabel = computed(() => capability.value?.provider_name || generation.value.provider_name);
+const providerLabel = computed(() => actionTask.value ? '' : capability.value?.provider_name || generation.value.provider_name);
+const summaryItems = computed(() => {
+  const declared = editUi.value.summary;
+  const items = Array.isArray(declared) ? declared : isPostprocess.value
+    ? [
+        {source:'operation_name', label:t('处理功能')},
+        {source:'model_name', label:t('执行模型')},
+        {source:'provider_name', label:t('服务')},
+      ]
+    : [
+        {source:'model_name', label:t('模型')},
+        {source:'mode_name', label:t('模式')},
+        {source:'provider_name', label:t('服务')},
+      ];
+  const values = {
+    operation_name: modeLabel.value,
+    model_name: modelLabel.value,
+    mode_name: isPostprocess.value ? '' : modeLabel.value,
+    provider_name: providerLabel.value,
+  };
+  return items.filter(item => values[item.source]).map(item => ({...item, value:values[item.source]}));
+});
 const hasBilingualPrompt = computed(() => {
   const params = props.manifest?.parameters?.params || {};
   return Boolean(params.confirmed_prompt_zh || params.execution_prompt_en);
@@ -119,11 +186,11 @@ const calculatedSize = computed(() => {
   return videoDimensions(resolution, w, h);
 });
 function key(item) {
-  return `${item.type}:${item.index}`;
+  return `${item.task_id || props.manifest.task_id}:${item.type}:${item.index}`;
 }
 function taskUrl(item) {
   const path = item.path.split("/").map(encodeURIComponent).join("/");
-  return `/v1/tasks/${encodeURIComponent(props.manifest.task_id)}/files/${path}`;
+  return `/v1/tasks/${encodeURIComponent(item.task_id || props.manifest.task_id)}/files/${path}`;
 }
 function source(item) {
   return replacementUrls.get(key(item)) || taskUrl(item);
@@ -183,9 +250,12 @@ function resetDraft() {
   };
   originalChinesePrompt.value = draft.value.promptZh;
   promptLanguage.value = hasBilingualPrompt.value ? "zh" : "en";
-  formValues.value = defaults(capability.value?.ui);
+  formValues.value = defaults(actionDeclaration.value?.ui || capability.value?.ui);
   Object.assign(formValues.value.settings, params.api_settings || {});
   Object.assign(formValues.value.parameters, params.plugin_parameters || {});
+  if (actionDeclaration.value) {
+    formValues.value = restoreActionInputs(actionDeclaration.value.ui, generation.value.action_inputs, {...parameters, ...params});
+  }
   const settings = formValues.value.settings;
   if (!params.api_settings) Object.assign(settings, {
     ratio: draft.value.ratio, resolution: draft.value.resolution === 1024 ? '1K' : draft.value.resolution === 2048 ? '2K' : `${draft.value.resolution}P`,
@@ -193,6 +263,43 @@ function resetDraft() {
     ...(parameters.character ? {voice_id: parameters.character} : {}), voice_speed: parameters.speed || 1, instruction: parameters.instruction || '',
   });
   formValues.value.lyrics = draft.value.lyrics;
+}
+async function loadActionEditor(taskId) {
+  actionDeclaration.value = null;
+  actionSourceManifest.value = null;
+  actionLoadError.value = '';
+  actionLoading.value = false;
+  actionCheckedTask.value = taskId || '';
+  if (!taskId || !generation.value.mode_id) return;
+  actionLoading.value = true;
+  try {
+    let action;
+    let sourceManifest = null;
+    try {
+      action = await gateway.pluginAction(generation.value.mode_id);
+    } catch (error) {
+      if (actionSnapshotPresent.value) throw error;
+      if (error.status !== 404) throw error;
+    }
+    if (actionCheckedTask.value !== taskId) return;
+    if (action) {
+      actionDeclaration.value = localizeDeclaration(action);
+      if (action.scope === 'resource' && props.manifest.parent_task_id)
+        sourceManifest = await gateway.jobManifest(props.manifest.parent_task_id);
+      actionSourceManifest.value = sourceManifest;
+      resetDraft();
+    }
+  } catch (error) {
+    if (actionDeclaration.value || actionSnapshotPresent.value || error.status !== 404) {
+      actionLoadError.value = error.message || t('无法读取插件动作信息');
+      resourceNotice.value = actionLoadError.value;
+    }
+  } finally {
+    if (actionCheckedTask.value === taskId) actionLoading.value = false;
+  }
+}
+function collectActionInputs() {
+  return collectDeclaredActionInputs(actionDeclaration.value?.ui, formValues.value, generation.value.action_inputs);
 }
 function replace(item, event) {
   const file = event.target.files?.[0];
@@ -217,11 +324,11 @@ function removeItem(item) {
   undoReplacement(item);
   removed.value = { ...removed.value, [key(item)]: true };
 }
-function openPreview(item) {
-  preview.value = { ...item, src: source(item) };
+function openPreview(item, url = source(item)) {
+  preview.value = { ...item, src: url };
 }
 function regenerate() {
-  if (hasBilingualPrompt.value && chineseChanged.value) {
+  if (!actionTask.value && showPromptEditor.value && hasBilingualPrompt.value && chineseChanged.value) {
     conversionChoiceOpen.value = true;
     return;
   }
@@ -229,10 +336,12 @@ function regenerate() {
 }
 function submitRegeneration(action) {
   const requiredPrompt = draft.value.promptEn;
-  if (action === "direct" && !requiredPrompt.trim()) return;
+  if (!actionTask.value && showPromptEditor.value && action === "direct" && !requiredPrompt.trim()) return;
   submitting.value = true;
   emit("regenerate", {
     manifest: props.manifest,
+    pluginAction: actionDeclaration.value,
+    pluginActionInputs: actionTask.value ? collectActionInputs() : null,
     draft: {
       ...draft.value,
       ...calculatedSize.value,
@@ -281,7 +390,11 @@ function translate(submitAfter = false) {
     done: () => { submitting.value = false; },
   });
 }
-watch([() => props.manifest?.task_id, () => capability.value?.id], resetDraft, { immediate: true });
+watch([() => props.manifest?.task_id, () => capability.value?.id], ([taskId]) => {
+  actionDeclaration.value = null;
+  resetDraft();
+  void loadActionEditor(taskId);
+}, { immediate: true });
 onBeforeUnmount(clearReplacementUrls);
 </script>
 
@@ -349,7 +462,7 @@ onBeforeUnmount(clearReplacementUrls);
                 <b v-if="replacements[key(item)]" class="task-media-replaced"
                   >{{ t('已重传') }}</b
                 >
-                <div class="task-media-actions">
+                <div v-if="!actionTask" class="task-media-actions">
                   <label :title="t('重传素材')"
                     ><Icon
                       icon="solar:upload-minimalistic-linear"
@@ -379,10 +492,21 @@ onBeforeUnmount(clearReplacementUrls);
               </article>
             </div>
           </section>
-          <section class="task-detail-section task-prompt-editor">
+          <section v-if="showPromptEditor" class="task-detail-section task-prompt-editor">
+            <PluginField
+              v-if="actionTextField"
+              class="task-primary-action-field"
+              :field="actionTextField"
+              :model-value="getValue(formValues, actionTextField.bind)"
+              :plugin-id="actionDeclaration?.plugin_id"
+              :source="actionFieldSource"
+              :text="actionPrompt"
+              @update:model-value="setValue(formValues, actionTextField.bind, $event)"
+            />
+            <template v-else>
             <div class="task-prompt-heading">
-              <h3>{{ isTts ? t('生成文本') : isMusic ? t('音乐描述') : t('描述词') }}</h3>
-              <div v-if="hasBilingualPrompt" class="task-prompt-tabs" role="tablist">
+              <h3>{{ promptLabel }}</h3>
+              <div v-if="!actionTask && hasBilingualPrompt" class="task-prompt-tabs" role="tablist">
                 <button
                   type="button"
                   role="tab"
@@ -400,34 +524,34 @@ onBeforeUnmount(clearReplacementUrls);
               </div>
             </div>
             <textarea
-              v-model="activePrompt"
+              v-model="promptValue"
+              :readonly="actionTask"
               rows="7"
               :placeholder="
-                promptLanguage === 'en' && hasBilingualPrompt
+                promptEditUi.placeholder || (promptLanguage === 'en' && hasBilingualPrompt
                   ? t('输入直接提交给生成模型的英文描述词')
                   : isTts
                   ? t('输入需要生成的文本')
                   : isMusic
                     ? t('描述曲风、演唱方式和声音质感')
-                    : t('输入生成描述词')
+                    : t('输入生成描述词'))
               "
             />
+            </template>
           </section>
-          <section class="task-detail-section">
-            <h3>{{ t('生成参数') }}</h3>
-            <dl class="task-generation-summary">
-              <template v-if="isPostprocess">
-                <div><dt>{{ t('处理功能') }}</dt><dd>{{ modeLabel }}</dd></div>
-                <div><dt>{{ t('工作流') }}</dt><dd>{{ modelLabel }}</dd></div>
-              </template>
-              <template v-else>
-                <div><dt>{{ t('模型') }}</dt><dd>{{ modelLabel }}</dd></div>
-                <div><dt>{{ t('模式') }}</dt><dd>{{ modeLabel }}</dd></div>
-              </template>
-              <div v-if="providerLabel"><dt>{{ t('服务') }}</dt><dd>{{ providerLabel }}</dd></div>
+          <p v-if="actionLoading" class="task-detail-section">{{ t('正在读取插件动作参数…') }}</p>
+          <p v-else-if="actionSnapshotPresent && !actionTask" class="task-detail-section">{{ t('此任务对应的插件动作不可用，无法安全重执行。') }}</p>
+          <section
+            v-else-if="summaryItems.length || editFields.length || !capability"
+            class="task-detail-section task-summary-section"
+            :class="{ 'is-summary-only': summaryItems.length && !editFields.length && capability }"
+          >
+            <h3 v-if="editFields.length || !capability">{{ parametersLabel }}</h3>
+            <dl v-if="summaryItems.length" class="task-generation-summary">
+              <div v-for="item in summaryItems" :key="item.source"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>
             </dl>
-            <div class="task-parameter-grid task-editor-fields">
-              <PluginField v-for="field in editFields" :key="field.bind" :field="field" :model-value="getValue(formValues,field.bind)" :voices="voices" :plugin-id="capability?.plugin_id" :text="activePrompt" @update:model-value="setValue(formValues,field.bind,$event)" />
+            <div v-if="editFields.length || !capability" class="task-parameter-grid task-editor-fields">
+              <PluginField v-for="field in editFields" :key="field.bind" :field="field" :model-value="getValue(formValues,field.bind)" :voices="voices" :plugin-id="actionDeclaration?.plugin_id || capability?.plugin_id" :source="actionFieldSource" :text="activePrompt" @update:model-value="setValue(formValues,field.bind,$event)" />
               <p v-if="!capability">{{ t('原插件未安装，无法编辑生成参数。') }}</p>
             </div>
           </section>
@@ -440,13 +564,21 @@ onBeforeUnmount(clearReplacementUrls);
           <div>
             <button type="button" class="task-cancel" :disabled="submitting" @click="emit('close')">{{ t('取消') }}</button
             ><button
+              v-if="manifest.status === 'completed' && resourceActions.length"
+              type="button"
+              class="task-continue"
+              :disabled="submitting"
+              @click="emit('process', manifest)"
+            >
+              <Icon icon="solar:tuning-square-2-linear" width="16" />{{ t('继续处理') }}
+            </button><button
               type="button"
               class="task-regenerate"
               :disabled="
-                submitting || !capability ||
-                (hasBilingualPrompt && chineseChanged
+              submitting || actionLoading || actionLoadError || actionSnapshotPresent && !actionTask || !capability && !actionTask ||
+                (!actionTask && (showPromptEditor && hasBilingualPrompt && chineseChanged
                   ? !draft.promptZh.trim()
-                  : !draft.promptEn.trim())
+                  : showPromptEditor && !draft.promptEn.trim()))
               "
               @click="regenerate"
             >
@@ -457,7 +589,7 @@ onBeforeUnmount(clearReplacementUrls);
                     : 'solar:magic-stick-3-linear'
                 "
                 width="16"
-              />{{ submitting ? t('正在提交') : t('直接重新生成') }}
+              />{{ submitting ? t('正在提交') : actionTask ? t('重新执行插件动作') : t('直接重新生成') }}
             </button>
             <PluginApplication v-for="application in resourceApplications" :key="`${application.id}-${manifest.task_id}`" :application="application" extension :manifest="manifest" :disabled="submitting" @notice="resourceNotice = $event" @changed="emit('resource-changed', $event)" />
           </div>
@@ -505,7 +637,7 @@ onBeforeUnmount(clearReplacementUrls);
 
 .task-editor-modal .task-detail-body { padding:0 20px 16px; }
 
-.task-editor-modal .task-detail-section { padding:16px 0; }
+.task-editor-modal .task-detail-section { padding:16px 0; border-bottom:0; }
 
 .task-media-grid { display:grid; grid-template-columns:repeat(auto-fill,68px); gap:7px; justify-content:start; }
 
@@ -542,6 +674,10 @@ onBeforeUnmount(clearReplacementUrls);
 .task-audio-preview audio { width:100%; min-width:0; height:30px; color-scheme:dark; }
 
 .task-prompt-editor textarea { display:block; width:100%; min-height:190px; max-height:380px; padding:14px 15px; resize:vertical; outline:0; border:1px solid #ffffff1b; border-radius:8px; background:#111314; color:#dce1da; font-size:12px; line-height:1.7; scrollbar-width:thin; scrollbar-color:#474c47 transparent; }
+.task-primary-action-field { display:block; width:100%; }
+.task-primary-action-field :deep(label) { display:flex; flex-direction:column; align-items:stretch; gap:10px; width:100%; }
+.task-primary-action-field :deep(label > span) { color:#dce1d9; font-size:12px; font-weight:500; }
+.task-primary-action-field :deep(textarea) { min-height:150px; padding:14px 15px; border-radius:8px; background:#111314; line-height:1.7; }
 
 .task-prompt-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
 
@@ -610,8 +746,24 @@ onBeforeUnmount(clearReplacementUrls);
 .task-editor-modal footer > span svg { color:var(--lime); }
 
 .task-editor-modal footer > div { display:flex; gap:7px; }
+.task-editor-modal footer > div > button,
+.task-editor-modal footer > div :deep(.plugin-application button) {
+  box-sizing:border-box;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  height:34px;
+  min-height:34px;
+  padding:0 12px;
+  border-radius:7px;
+  line-height:1;
+  white-space:nowrap;
+}
 
 .task-editor-modal footer .task-cancel { background:#282b2c; color:#cdd2ca; }
+.task-editor-modal footer .task-continue { display:flex; align-items:center; gap:6px; border:1px solid #ffffff22; background:#252a26; color:#cfe7b5; }
+.task-editor-modal footer .task-continue:hover { border-color:#b7f34a66; background:#303a2d; }
 
 .task-editor-modal footer .task-regenerate { display:flex; align-items:center; gap:6px; background:var(--lime); color:#18200f; font-weight:600; }
 
@@ -691,9 +843,10 @@ onBeforeUnmount(clearReplacementUrls);
 .task-meta b { margin-left:3px; color:#d5dbd1; font-weight:500; }
 .task-detail-modal footer { border-top:1px solid var(--line); border-bottom:0; color:#858c83; font-size:10px; }
 .task-detail-modal footer button { height:30px; padding:0 12px; border-radius:7px; background:#2a2d2e; color:#e1e5df; font-size:11px; }
+.task-summary-section.is-summary-only { padding:10px 0 4px; border-bottom:0; }
+.task-summary-section.is-summary-only .task-generation-summary { margin:0; padding:0; border-bottom:0; }
 
 .task-detail-modal.task-editor-modal { width:min(820px,calc(100vw - 36px)); max-height:min(840px,calc(100dvh - 36px)); }
-
 .task-generation-summary { display:flex; flex-wrap:wrap; gap:8px 24px; margin:0 0 18px; padding:0 0 14px; border-bottom:1px solid #ffffff12; }
 .task-generation-summary > div { display:flex; gap:8px; min-width:0; align-items:baseline; }
 .task-generation-summary dt { color:#8d969f; font-size:12px; flex-shrink:0; }

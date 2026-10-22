@@ -121,11 +121,14 @@ python -m unittest discover -s plugins/film-studio/tests -p 'test_*.py'
 
 ## 自动字幕
 
-`film.transcribe` 先由系统 FFmpeg 按最终时间线混合所有启用的视频原声和独立音频轨，
+`film.transcribe` 提交后立即返回当前成片，并在后台由插件任务识别；通过 `film.get` 读取
+`transcribe.status`（`queued`、`running`、`completed` 或 `failed`）。识别完成后，先由系统 FFmpeg 按最终时间线混合所有启用的视频原声和独立音频轨，
 排除背景音乐，再通过 ComfyUI-Whisper 的 `LoadAudio`、`Apply Whisper` 与 rgthree 的
 `Display Any` 输出节点一次识别，默认使用 `large-v3-turbo`。返回时间戳天然对应整条成片，
 并替换方案的 `captions` 字段。字幕和普通文字在预览与正式导出时统一由系统 FFmpeg
 烧录 ASS；产品不提供 SRT 导入、导出。ASR 适配、字幕模型和过程文件均不进入框架。
+
+更新现有方案时可省略 `plan.name`；创建方案仍必须提供名称。中文默认传给 Whisper 的语言为 `zh`，插件使用 OpenCC 将繁体输出转换为简体。
 
 ## 当前范围
 

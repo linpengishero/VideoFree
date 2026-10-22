@@ -19,3 +19,19 @@ class GatewayError(Exception):
         self.status_code = status_code
         self.detail = detail
         self.headers = headers or {}
+
+
+class SystemServiceError(GatewayError):
+    """Credential-free error returned by the generic system-service boundary."""
+
+    def __init__(self, status_code: int, service_id: str, provider_id: str, operation: str,
+                 code: str, *, diagnostic: str = "") -> None:
+        target = ".".join(part for part in (service_id, operation) if part) or "system-service"
+        detail = f"System service {target} failed ({code})"
+        if diagnostic:
+            detail += f": {diagnostic}"
+        super().__init__(status_code, detail)
+        self.code = code
+        self.service_id = service_id
+        self.provider_id = provider_id
+        self.operation = operation

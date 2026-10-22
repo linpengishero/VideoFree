@@ -1,5 +1,6 @@
 {
-  "云端图片生成，通过 GrisAI 服务调用。配置保存在本插件的 .env 文件。": "Cloud image generation through GrisAI. Settings are stored in this plugin's .env file.",
+  "settings.api_site": "GrisAI API website / Get a key",
+  "云端图片生成，通过 GrisAI 服务调用。配置保存在网关运行数据目录。": "Cloud image generation through GrisAI. Settings are stored in the gateway runtime data directory.",
   "API 地址": "API URL",
   "图片生成": "Image generation",
   "直接生成": "Generate directly",

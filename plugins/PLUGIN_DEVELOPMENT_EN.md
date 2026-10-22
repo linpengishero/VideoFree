@@ -75,6 +75,7 @@ Suggested template:
   "schema_version": 1,
   "id": "my-plugin",
   "version": "1.0.0",
+  "requires": {"platform_min": "2.0.0", "platform_max_exclusive": "3.0.0"},
   "name": "My plugin",
   "description": "Plugin description",
   "assets": ["assets/icon.png"],
@@ -86,6 +87,8 @@ Suggested template:
 ```
 
 `id` and `version` must be unique and contain only letters, digits, `.`, `_`, or `-`. All manifest paths are relative to and confined within the plugin directory.
+
+The single machine-readable structure is [`docs/schemas/plugin-manifest-v1.schema.json`](../docs/schemas/plugin-manifest-v1.schema.json). Do not maintain a second field list. JSON Schema owns structure and types; the framework adds file, cross-reference, and runtime ownership checks that JSON Schema cannot express.
 
 ## Capabilities, modes, and actions
 
@@ -108,6 +111,12 @@ An action receives framework-validated input and `PluginRuntime`. Validate proje
 
 Task-producing actions declare `capability_id` and return `(kind, GenerateRequest)` or `("tts", TTSRequest)`. The framework injects the action's capability ID and name into the job snapshot and runs shared submission validation; callers do not repeat them in `inputs`. Declare `model_name` if the action's algorithm/workflow differs from the capability's default model. Register only capabilities the workflow actually supports. Hidden menu entries remain MCP-discoverable; `ui_hidden` must not be used to conceal an unimplemented feature.
 
+To support editing/rerunning a generated action job, declare editable values in `input_schema.properties` and controls in `actions[].ui.fields`. Fields can bind to top-level schema properties such as `text`, `speed`, and `preset_id`, or to declared properties inside the `parameters` object using `parameters.<name>`. The framework validates this mapping and rejects undeclared fields. The task editor resolves the action ID from the job snapshot, displays the action form, and invokes that same action again; it does not substitute the capability's ordinary generation fields. The framework stores validated action inputs in the task snapshot, while the plugin remains responsible for business validation on rerun. The special `dimensions` control binds to `target_size`; declare integer `width` and `height` schema properties and map the displayed `widthxheight` value back to them. Older jobs without an action-input snapshot restore only unambiguous top-level request fields, `api_settings`, `plugin_parameters`, and dimensions; explicitly require any required value that cannot be inferred. Resource actions reuse the original parent job as their source; document source and auxiliary-file lifecycle requirements clearly. If the plugin or source is unavailable, the editor blocks fallback to ordinary generation.
+
+The `voice` control lists presets registered by the same `plugin_id`; to let users change a preset, declare `preset_id` in the action schema, bind the field to `preset_id`, and preserve the voice key unchanged. Actions that depend on an uploaded voice sample must explicitly define whether replacement is supported. Without an action-owned media replacement contract, do not expose it as an ordinary capability reference field.
+
+Actions without editable values may use an empty field list and still rerun with the saved action inputs. JSON Schema `default` does not mutate submitted data; declare `ui.fields[].default` for values that must appear in the editor and persist in the task snapshot. Tests should cover UI defaults, legacy restoration, action-input snapshots, dimension mapping, and rerunning the same action. See the [action task editing protocol](../docs/plugin-protocol.en.md#editing-and-rerunning-generated-action-jobs) for the full contract.
+
 Collaboration results with `ready` must contain complete `optimized_prompt` and `optimized_prompt_zh`. `needs_input` must contain `session_id` and non-empty `questions` (each question has `text` and optional `options`). `runtime.single(request)` creates a session and repairs one structured-format error; custom handlers should use `runtime.repair_result(...)`. `start_progress` takes stage objects, for example `[ {"id": "optimize", "label": "Optimize prompt"} ]`, not a mode-name string.
 
 ## PluginRuntime
@@ -128,6 +137,8 @@ def prepare(workflow, config, request, media, job_id, prompt, runtime=None):
 | `application` | Project/application-scoped runtime, described below |
 | `single(request)` | Asynchronous shared single-stage collaboration |
 | `call_model(messages, max_tokens=2500)` | System LLM without exposing its key |
+| `call_system_service(service_id, operation, inputs, provider_id=None)` | A declared system-service JSON operation without exposing settings |
+| `api_version` | Stable runtime contract version (`1` in VideoFree Studio 2.0.1) |
 | `comfyui_request(path, method="GET", body=None)` | Configured ComfyUI integration |
 | `job_request(job)`, `jobs()` | Persisted request and visible current-project jobs |
 | `update_job_parameters(job, parameters, **metadata)` | Persist plugin-produced job metadata |
@@ -197,7 +208,7 @@ Other reusable UI includes `SelectMenu.vue`, `MediaPreview.vue`, and `PopoverPan
 
 The host handles app/collaboration loading, runtime errors, and retry; plugins handle their request errors with a business message. Use `@framework/services/api`'s `gateway`, and `readMediaBlob(url)` for authenticated media. Resource extensions may emit `notice` and `changed` events.
 
-Applications should prefer a standalone bundle in `ui/dist/`, declared as `application.ui.entry`; it is loaded from `/api/v2/plugins/<plugin-id>/ui/...` and does not require a main frontend rebuild. The bundle default-exports a Vue component and contains its JS/CSS/images. The legacy `application.entry` and `resource_entry` modes must point to `ui/*.vue` and require `npm run build` after source changes. Use only one UI implementation mode.
+Applications should prefer a standalone bundle in `ui/dist/`, declared as `application.ui.entry`; it is loaded from `/api/v2/plugins/<plugin-id>/ui/...` and does not require a main frontend rebuild. Project tools may declare `project_tool.ui.entry`, and collaboration may declare `collaboration_ui:{"entry":"ui/dist/index.js"}`. The bundle default-exports a Vue component and contains its JS/CSS/images. The legacy `application.entry`, `project_tool.entry`, and `resource_entry` modes must point to `ui/*.vue` and require `npm run build` after source changes. Use only one UI implementation mode per host.
 
 Pages receive `application`, `project`, `category`, `categoryId`, `categories`, category-filtered `jobs`, and a host `resourcePicker`. `scope` may be workspace, project, category, or resource; workspace is an entry/action scope, not data isolation. Category tools must filter and save by `categoryId`. `categoryId: null` means project overview; an empty string is the default category. The shared category selector remounts the page when changed.
 
@@ -222,6 +233,8 @@ app.save({"id": "script-001", "project_id": project_id,
 Applications may declare `application_lifecycle` hooks for `project_delete` and `category_delete`. Handler signature is `(event, runtime)`; event includes project ID, category ID (null on project deletion), and reason. Hook failure blocks deletion. Use hooks for external data/indexes; the platform then deletes its shared documents. Store plugin files under `runtime.application.directory(project_id)` or `category_directory()`.
 
 `runtime.application.start()` and `semaphore()` create framework-managed cancellable work. The framework owns task state and reclaims it on startup/shutdown. Application startup may restore plugin state. Disabling a plugin hides its entry/actions but preserves its data.
+
+Plugin settings are declared in `plugin.json.settings` and stored at `data/plugin-settings/<plugin-id>.env`, outside the replaceable plugin source directory. Declare website, key-registration, documentation, or billing pages in `settings.links[]` as read-only credential-free HTTP(S) URLs; do not model documentation pages as editable `url` settings.
 
 ## Testing and release validation
 

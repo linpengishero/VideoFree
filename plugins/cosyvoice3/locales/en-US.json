@@ -1,4 +1,7 @@
 {
+  "action.text": "Text",
+  "action.speed": "Speed",
+  "action.preset": "Voice preset",
   "声音生成": "Speech generation",
   "直接生成": "Generate directly",
   "CosyVoice3 预设音色": "CosyVoice3 preset voice",

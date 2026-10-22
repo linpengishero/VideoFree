@@ -66,6 +66,57 @@ class PluginFormTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported postprocess"):
             validate_form(ui, self.config, postprocess=True)
 
+    def test_edit_presentation_contract_and_legacy_defaults(self):
+        validate_form(self.ui, self.config)
+        self.ui["edit"] = {
+            "prompt": {"visible": False, "label": "Source description", "label_key": "edit.prompt"},
+            "summary": [
+                {"source": "operation_name", "label": "Operation", "label_key": "edit.operation"},
+                {"source": "provider_name", "label": "Service"},
+            ],
+            "parameters": {"label": "Enhancement settings", "label_key": "edit.settings"},
+        }
+        validate_form(self.ui, self.config)
+
+    def test_edit_presentation_contract_rejects_unknown_sources_and_bad_types(self):
+        invalid = [
+            {"edit": {"prompt": "hidden"}},
+            {"edit": {"prompt": {"visible": "no"}}},
+            {"edit": {"summary": [{"source": "workflow_path", "label": "Workflow"}]}},
+            {"edit": {"summary": [{"source": "model_name", "label": "Model"},
+                                    {"source": "model_name", "label": "Engine"}]}},
+            {"edit": {"parameters": {"label": 5}}},
+        ]
+        for extension in invalid:
+            ui = {**self.ui, **extension}
+            with self.subTest(extension=extension), self.assertRaises(ValueError):
+                validate_form(ui, self.config)
+
+    def test_generated_action_form_can_bind_schema_inputs(self):
+        ui = {"version": 1, "fields": [
+            {"bind": "text", "component": "textarea", "label": "Text", "required": True},
+            {"bind": "parameters.strength", "component": "number", "label": "Strength", "default": 0.5},
+            {"bind": "target_size", "component": "dimensions", "label": "Size", "alignment": 32,
+             "presets": [{"edge": 720, "label": "720P"}]},
+        ]}
+        schema = {"type": "object", "properties": {
+            "text": {"type": "string"}, "width": {"type": "integer"},
+            "height": {"type": "integer"}, "parameters": {"type": "object", "properties": {"strength": {"type": "number"}}},
+        }}
+        validate_form(ui, {}, action_schema=schema)
+
+    def test_generated_action_form_rejects_unmapped_fields(self):
+        ui = {"version": 1, "fields": [{"bind": "parameters.hidden", "component": "text", "label": "Hidden"}]}
+        with self.assertRaisesRegex(ValueError, "not declared"):
+            validate_form(ui, {}, action_schema={"type": "object", "properties": {"parameters": {"type": "object"}}})
+
+    def test_generated_action_dimensions_require_integer_schema_fields(self):
+        ui = {"version": 1, "fields": [{"bind": "target_size", "component": "dimensions", "label": "Size",
+             "alignment": 32, "presets": [{"edge": 720, "label": "720P"}]}]}
+        schema = {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "integer"}}}
+        with self.assertRaisesRegex(ValueError, "integer width and height"):
+            validate_form(ui, {}, action_schema=schema)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -180,6 +180,14 @@
       "capability_id": "tts.cosyvoice3.preset",
       "handler": "actions.py:speech",
       "description": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {"bind": "text", "component": "textarea", "label": "生成文本", "label_key": "action.text", "required": true, "maxLength": 20000},
+          {"bind": "preset_id", "component": "voice", "label": "预设声音", "label_key": "action.preset", "required": true},
+          {"bind": "speed", "component": "number", "label": "语速", "label_key": "action.speed", "default": 1, "minimum": 0.5, "maximum": 2, "step": 0.1}
+        ]
+      },
       "input_schema": {
         "type": "object",
         "properties": {
@@ -222,6 +230,13 @@
       "capability_id": "tts.cosyvoice3.clone",
       "handler": "actions.py:speech",
       "description": "语速默认1.0，正常中文约每秒4至5字；speed为0.5至2.0倍速，实际时长因声音和停顿而异。",
+      "ui": {
+        "version": 1,
+        "fields": [
+          {"bind": "text", "component": "textarea", "label": "生成文本", "label_key": "action.text", "required": true, "maxLength": 20000},
+          {"bind": "speed", "component": "number", "label": "语速", "label_key": "action.speed", "default": 1, "minimum": 0.5, "maximum": 2, "step": 0.1}
+        ]
+      },
       "input_schema": {
         "type": "object",
         "properties": {

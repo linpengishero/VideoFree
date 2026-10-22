@@ -8,6 +8,7 @@
 import hashlib
 import importlib
 import copy
+from functools import lru_cache
 import json
 import logging
 import math
@@ -22,9 +23,52 @@ from referencing.jsonschema import DRAFT202012
 from referencing.exceptions import Unresolvable
 
 from .plugin_ui import validate_form
+from ...core.version import PLATFORM_VERSION
 
 logger = logging.getLogger(__name__)
 IDENTIFIER = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,119}$")
+PLUGIN_MANIFEST_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schemas" / "plugin-manifest-v1.schema.json"
+APPLICATION_KEYS = {
+    "name", "name_key", "entry", "ui", "resource_entry", "startup", "source_types",
+    "selection_label", "selection_label_key", "scope", "order", "icon", "library_outputs",
+    "requires_project_flags", "category_selector",
+}
+PROJECT_TOOL_KEYS = {
+    "name", "name_key", "entry", "ui", "scope", "order", "icon", "dialog",
+    "requires_project_flags",
+}
+
+
+def _version_tuple(value: str, label: str) -> tuple[int, int, int]:
+    if not isinstance(value, str) or not re.fullmatch(r"\d+\.\d+\.\d+", value):
+        raise ValueError(f"{label} must use major.minor.patch")
+    return tuple(int(part) for part in value.split("."))
+
+
+def _validate_requires(value) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict) or set(value) - {"platform_min", "platform_max_exclusive"}:
+        raise ValueError("Plugin requires only supports platform_min and platform_max_exclusive")
+    minimum = _version_tuple(value.get("platform_min", "0.0.0"), "platform_min")
+    maximum = _version_tuple(value.get("platform_max_exclusive", "999999.0.0"), "platform_max_exclusive")
+    current = _version_tuple(PLATFORM_VERSION, "platform version")
+    if minimum >= maximum:
+        raise ValueError("Plugin platform compatibility range is empty")
+    if current < minimum or current >= maximum:
+        raise ValueError(
+            f"Plugin requires VideoFree Studio >= {value.get('platform_min', '0.0.0')}"
+            f" and < {value.get('platform_max_exclusive', 'unbounded')}; current is {PLATFORM_VERSION}"
+        )
+
+
+def _validate_bundle_ui(root: Path, value, label: str) -> str:
+    if not isinstance(value, dict) or set(value) != {"entry"} or not isinstance(value.get("entry"), str):
+        raise ValueError(f"{label} ui requires only an entry")
+    entry = contained_file(root, value["entry"])
+    if not entry.is_relative_to((root / "ui" / "dist").resolve()) or entry.suffix.lower() != ".js":
+        raise ValueError(f"{label} ui entry must be a JavaScript module inside ui/dist")
+    return value["entry"]
 
 
 def validate_plugin_json_schema(schema, label="Plugin"):
@@ -56,6 +100,38 @@ def validate_action_schema(schema):
     if not isinstance(schema, dict) or schema.get("type") != "object":
         raise ValueError("Plugin action input_schema must describe an object")
     validate_plugin_json_schema(schema, "plugin action")
+
+
+@lru_cache(maxsize=1)
+def plugin_manifest_schema() -> dict[str, Any]:
+    schema = json.loads(PLUGIN_MANIFEST_SCHEMA_PATH.read_text(encoding="utf-8"))
+    validate_plugin_json_schema(schema, "plugin manifest")
+    return schema
+
+
+@lru_cache(maxsize=1)
+def _plugin_manifest_validator() -> Draft202012Validator:
+    return Draft202012Validator(plugin_manifest_schema())
+
+
+def validate_plugin_manifest(value: dict[str, Any]) -> None:
+    errors = sorted(_plugin_manifest_validator().iter_errors(value),
+                    key=lambda item: list(item.absolute_path))
+    if not errors:
+        return
+    error = errors[0]
+    location = ".".join(str(part) for part in error.absolute_path)
+    if error.validator == "additionalProperties" and not error.absolute_path:
+        raise ValueError(f"Unknown plugin manifest fields: {error.message}")
+    if error.validator == "additionalProperties" and location == "application":
+        raise ValueError(f"Unknown application fields: {error.message}")
+    if error.validator == "additionalProperties" and location == "project_tool":
+        raise ValueError(f"Unknown project tool fields: {error.message}")
+    if re.fullmatch(r"actions\.\d+\.description", location):
+        raise ValueError("Plugin action description must be a string")
+    if re.fullmatch(r"capabilities\.[^.]+(?:\.[^.]+)*\.ui_hidden", location):
+        raise ValueError("ui_hidden must be a boolean")
+    raise ValueError(f"Invalid plugin manifest{f' at {location}' if location else ''}: {error.message}")
 
 
 def contained_file(root: Path, name: str) -> Path:
@@ -117,10 +193,12 @@ class PluginCatalog:
         value = json.loads(contained_file(root, "plugin.json").read_text(encoding="utf-8"))
         if not isinstance(value, dict):
             raise ValueError("Plugin manifest must be an object")
+        validate_plugin_manifest(value)
         if value.get("enabled") is False:
             return {"enabled": False}
         if value.get("schema_version") != 1:
             raise ValueError("Unsupported plugin schema_version")
+        _validate_requires(value.get("requires"))
         contained_file(root, "INSTALL.md")
         for key in ("id", "version"):
             if not isinstance(value.get(key), str) or not IDENTIFIER.fullmatch(value[key]):
@@ -176,12 +254,21 @@ class PluginCatalog:
         if application is not None:
             if not isinstance(application, dict) or not isinstance(application.get('name'), str) or not application['name'].strip():
                 raise ValueError('Application requires a name')
-            for entry in ('entry', 'resource_entry'):
-                if entry == 'entry' or entry in application:
-                    entry_path = application.get(entry, '')
-                    if (contained_file(root, entry_path).suffix != '.vue'
-                            or Path(entry_path).parent.as_posix() != 'ui'):
-                        raise ValueError('Application UI entry must be a local Vue component')
+            if set(application) - APPLICATION_KEYS:
+                raise ValueError(f"Unknown application fields: {sorted(set(application) - APPLICATION_KEYS)}")
+            ui = application.get('ui')
+            if bool(application.get('entry')) == bool(ui):
+                raise ValueError('Application requires exactly one of entry or ui')
+            if application.get('entry'):
+                entry_path = application['entry']
+                if (contained_file(root, entry_path).suffix != '.vue'
+                        or Path(entry_path).parent.as_posix() != 'ui'):
+                    raise ValueError('Application entry must be a local Vue component')
+            if 'resource_entry' in application:
+                entry_path = application.get('resource_entry', '')
+                if (contained_file(root, entry_path).suffix != '.vue'
+                        or Path(entry_path).parent.as_posix() != 'ui'):
+                    raise ValueError('Application resource_entry must be a local Vue component')
             if application.get('startup'):
                 filename, separator, symbol = application['startup'].partition(':')
                 if not separator or not symbol.isidentifier() or contained_file(root, filename).suffix != '.py':
@@ -192,13 +279,8 @@ class PluginCatalog:
                 raise ValueError('Invalid application selection_label')
             if application.get('scope', 'project') not in {'workspace', 'project', 'category', 'resource'}:
                 raise ValueError('Invalid application scope')
-            ui = application.get('ui')
             if ui is not None:
-                if not isinstance(ui, dict) or not isinstance(ui.get('entry'), str):
-                    raise ValueError('Application ui requires an entry')
-                entry_path = contained_file(root, ui['entry'])
-                if not entry_path.is_relative_to((root / 'ui' / 'dist').resolve()):
-                    raise ValueError('Application ui entry must be inside ui/dist')
+                _validate_bundle_ui(root, ui, 'Application')
             if 'order' in application and (type(application['order']) is not int or application['order'] < 0):
                 raise ValueError('Application order must be a non-negative integer')
             icon = application.get('icon')
@@ -216,10 +298,18 @@ class PluginCatalog:
         if project_tool is not None:
             if not isinstance(project_tool, dict) or not isinstance(project_tool.get('name'), str) or not project_tool['name'].strip():
                 raise ValueError('Project tool requires a name')
-            entry = project_tool.get('entry', '')
-            entry_path = contained_file(root, entry)
-            if entry_path.suffix != '.vue' or Path(entry).parent.as_posix() != 'ui':
-                raise ValueError('Project tool entry must be a local Vue component')
+            if set(project_tool) - PROJECT_TOOL_KEYS:
+                raise ValueError(f"Unknown project tool fields: {sorted(set(project_tool) - PROJECT_TOOL_KEYS)}")
+            ui = project_tool.get('ui')
+            if bool(project_tool.get('entry')) == bool(ui):
+                raise ValueError('Project tool requires exactly one of entry or ui')
+            if project_tool.get('entry'):
+                entry = project_tool['entry']
+                entry_path = contained_file(root, entry)
+                if entry_path.suffix != '.vue' or Path(entry).parent.as_posix() != 'ui':
+                    raise ValueError('Project tool entry must be a local Vue component')
+            else:
+                _validate_bundle_ui(root, ui, 'Project tool')
             if project_tool.get('scope', 'category') not in {'project', 'category'}:
                 raise ValueError('Invalid project tool scope')
             required_flags = project_tool.get('requires_project_flags', [])
@@ -240,9 +330,12 @@ class PluginCatalog:
                     raise ValueError('Project tool icon must be a local image')
         collaboration_ui = value.get('collaboration_ui')
         if collaboration_ui is not None:
-            entry_path = contained_file(root, collaboration_ui)
-            if entry_path.suffix != '.vue' or Path(collaboration_ui).parent.as_posix() != 'ui':
-                raise ValueError('Collaboration UI entry must be a local Vue component')
+            if isinstance(collaboration_ui, str):
+                entry_path = contained_file(root, collaboration_ui)
+                if entry_path.suffix != '.vue' or Path(collaboration_ui).parent.as_posix() != 'ui':
+                    raise ValueError('Collaboration UI entry must be a local Vue component')
+            else:
+                _validate_bundle_ui(root, collaboration_ui, 'Collaboration')
         actions = value.get("actions", [])
         lifecycle = value.get("resource_lifecycle", {})
         if not isinstance(lifecycle, dict) or set(lifecycle) - {"completed", "recover", "delete"}:
@@ -297,7 +390,10 @@ class PluginCatalog:
             validate_action_schema(input_schema)
             action["input_schema"] = input_schema
             if "ui" in action:
-                validate_form(action["ui"], value["capabilities"].get(capability_id, {}), postprocess=True)
+                capability_config = value["capabilities"].get(capability_id, {})
+                validate_form(action["ui"], capability_config,
+                              postprocess=capability_config.get("operation") == "postprocess",
+                              action_schema=input_schema)
             local_action_ids.add(action["id"])
         if value.get("voice_presets"):
             filename, separator, symbol = str(value["voice_presets"]).partition(":")
@@ -420,7 +516,14 @@ class PluginCatalog:
             self._files(root, config)
             config.update(plugin_id=value["id"], plugin_version=value["version"], plugin_revision=revision.hexdigest(), plugin_folder=root.name)
             if value.get('collaboration_ui'):
-                config['collaboration_ui'] = value['collaboration_ui']
+                collaboration_ui = value['collaboration_ui']
+                if isinstance(collaboration_ui, str):
+                    config['collaboration_ui'] = collaboration_ui
+                else:
+                    config['collaboration_ui_entry'] = (
+                        f"/api/v2/plugins/{value['id']}/ui/"
+                        f"{collaboration_ui['entry'].split('ui/dist/', 1)[-1]}"
+                    )
             config.setdefault("compiler", "declarative")
             if config.get("operation", "generate") not in {"generate", "postprocess"}:
                 raise ValueError("Invalid capability operation")
@@ -541,6 +644,9 @@ class PluginCatalog:
             item.setdefault('scope', 'category')
             item.setdefault('order', 1000)
             item['icon_text'] = (item.get('name') or item['id'])[:1]
+            ui = item.get('ui')
+            if isinstance(ui, dict) and ui.get('entry'):
+                item['ui_entry'] = f"/api/v2/plugins/{item['id']}/ui/{ui['entry'].split('ui/dist/', 1)[-1]}"
         return sorted(result, key=lambda item: (item.get('order', 1000), item['id']))
 
     async def start_applications(self, context):

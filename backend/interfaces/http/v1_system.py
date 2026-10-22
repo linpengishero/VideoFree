@@ -21,6 +21,7 @@ from ...modules.settings.plugins import PluginSettings
 from ...modules.presets.voices import VoicePresets
 from ...modules.projects import ProjectService
 from ...core.schemas import AIModelsRequest, SettingsRequest
+from ...core.errors import SystemServiceError
 from .dependencies import auth, set_session
 
 
@@ -124,6 +125,37 @@ async def settings(reveal_secrets: bool = False):
 async def llm_providers():
     return {"items": settings_service.llm_providers(),
             "errors": getattr(context.system_services, "errors", [])}
+
+
+@router.get("/v1/settings/system-services", dependencies=[Depends(auth)])
+async def system_service_catalog():
+    registry = context.system_services
+    return {"items": registry.services(), "errors": registry.errors}
+
+
+@router.get("/v1/settings/system-services/{service_id}", dependencies=[Depends(auth)])
+async def read_system_service_settings(service_id: str, reveal_secrets: bool = False):
+    try:
+        return context.system_services.selected_configuration(
+            service_id, context, reveal_secrets=reveal_secrets,
+        )
+    except SystemServiceError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+
+
+@router.put("/v1/settings/system-services/{service_id}", dependencies=[Depends(auth)])
+async def update_system_service_settings(service_id: str, body: dict):
+    provider_id = body.get("provider_id") if isinstance(body, dict) else None
+    values = body.get("values") if isinstance(body, dict) else None
+    if not isinstance(provider_id, str) or not isinstance(values, dict):
+        raise HTTPException(422, "provider_id and values are required")
+    try:
+        return {
+            "provider_id": provider_id,
+            "values": context.system_services.configure(service_id, provider_id, values, context),
+        }
+    except SystemServiceError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
 
 
 @router.get("/v1/settings/plugins", dependencies=[Depends(auth)])

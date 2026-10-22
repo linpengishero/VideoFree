@@ -217,7 +217,10 @@
   "取消成片合成": "Cancel rendering",
   "取消当前成片的正式合成或预览任务；不会删除已完成的历史版本。": "Cancel the current render or preview without deleting completed versions.",
   "识别全时间线生成字幕": "Generate captions for the full timeline",
-  "提取并混合时间线上所有启用的主轨视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper 一次生成全片字幕。": "Mix enabled main-track video audio and independent speech sources, excluding background music, then transcribe the complete timeline using ComfyUI-Whisper.",
+  "字幕识别排队中": "Caption recognition queued",
+  "正在识别字幕": "Recognizing captions",
+  "字幕识别失败": "Caption recognition failed",
+  "立即排队识别整条时间线的字幕；通过 film.get 查询 transcribe.status。插件混合视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper。": "Queue full-timeline caption recognition immediately, then poll transcribe.status with film.get. The plugin mixes enabled video audio and independent speech tracks, excluding background music, and runs ComfyUI-Whisper.",
   "生成时间线缩略图与波形": "Generate timeline thumbnails and waveforms",
   "为视频生成缩略图条与波形、为音频生成波形，返回图片地址与素材时长；同一素材重复调用直接复用缓存。": "Generate thumbnail strips and waveforms for video, and waveforms for audio. Returns image URLs and media duration; repeated calls reuse the cache."
 }

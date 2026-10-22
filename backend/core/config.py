@@ -19,6 +19,7 @@ class ProjectPaths:
     collaborations: Path
     uploads: Path
     plugins: Path
+    plugin_settings: Path
     static_dist: Path
     legacy_settings: Path
 
@@ -38,6 +39,7 @@ class ProjectPaths:
             collaborations=data / "collaborations",
             uploads=cache / "uploads",
             plugins=plugins,
+            plugin_settings=data / "plugin-settings",
             static_dist=root / "static" / "dist",
             legacy_settings=data / "settings.json",
         )
@@ -50,6 +52,7 @@ class ProjectPaths:
             self.tasks,
             self.collaborations,
             self.plugins,
+            self.plugin_settings,
         ):
             path.mkdir(parents=True, exist_ok=True)
 

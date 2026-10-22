@@ -49,6 +49,7 @@ An agent may install documented dependencies when the user's request authorizes 
 - Use `application` for a full independent product page such as an editor.
 - Add custom collaboration only when model-specific prompting, clarification, or confirmation materially improves execution. Keep its skills and UI inside the plugin.
 - Combine these shapes in one plugin only when they belong to the same product capability.
+- For generated plugin actions that users must edit and rerun, declare editable action inputs in `input_schema.properties` and `actions[].ui.fields`. Bind fields to declared top-level properties or to declared `parameters.<name>` values. The special `dimensions` field binds to `target_size` and requires integer `width` and `height` schema properties. The framework task editor saves effective inputs, restores old task values only when unambiguous, and reruns the same action against its original source; do not model action parameters as ordinary capability fields or add model-specific framework UI. JSON Schema defaults are not applied automatically; use `ui.fields[].default` for editor defaults. Test defaults, legacy restoration, dimensions mapping and rerun behavior. Follow `docs/plugin-protocol.md` and `plugins/PLUGIN_DEVELOPMENT.md` for the current contract.
 
 Do not add a new framework route, MCP tool, category renderer, or global model rule when the existing capability/action/application contracts can express the feature. If a genuine reusable framework contract is missing, explain the gap and its consumers before changing framework code; obtain user direction when that change expands the requested scope.
 
@@ -71,10 +72,12 @@ Plugins are trusted local code, not a sandbox. Preserve third-party licenses and
 
 1. Create or update only `plugins/<plugin-id>/` plus focused tests and protocol documentation that truly changed. Add or update the plugin's `INSTALL.md`.
 2. Declare identity, version, capabilities/actions/UI/settings/assets and local handler paths in `plugin.json`.
+   Declare `requires.platform_min` / `platform_max_exclusive` when the plugin depends on a particular VideoFree Studio release line. Use `settings.links` for read-only HTTPS documentation, API-key, or billing pages; do not model those pages as editable `url` settings.
 3. Bind prompts, media, dimensions, seed, duration, and plugin parameters explicitly. Never depend on a user's node numbering beyond the bundled workflow snapshot.
 4. Use a plugin compiler only for graph logic that declarative bindings cannot express.
 5. Return generation requests to the framework instead of submitting directly. Use `PluginRuntime` for model calls, capability/action invocation, project access, uploads, jobs, styles, voices, and ComfyUI output lookup.
-6. For independent application UI, build and distribute `ui/dist/`; do not require a main frontend rebuild. For repository-local legacy Vue entries, follow the current protocol and build process exactly.
+   Use `runtime.call_system_service(service_id, operation, inputs)` only for operations declared by the framework system-service registry; never import a Provider or read its settings. Validate `plugin.json` against `docs/schemas/plugin-manifest-v1.schema.json`; the repository schema is the only machine-readable manifest contract.
+6. For independent application, project-tool, or collaboration UI, build and distribute `ui/dist/`; do not require a main frontend rebuild. Use `application.ui.entry`, `project_tool.ui.entry`, or object-form `collaboration_ui.entry`. For repository-local legacy Vue entries, follow the current protocol and build process exactly. Never declare both forms for one host.
 7. Give every user-visible plugin entry an icon owned by the plugin. The framework may fall back to the first character only when no icon exists.
 8. Add the smallest executable tests for manifest validation, parameter/media mapping, handlers, lifecycle/data isolation, and UI behavior affected by the change.
 

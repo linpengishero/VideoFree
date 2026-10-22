@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 from .core.context import ApplicationContext
 from .core.config import EnvironmentConfig, ProjectPaths
 from .integrations.system_services.comfyui import load_provider
-from .integrations.system_services import LLMProviderCatalog, LocalStorageProvider
+from .integrations.system_services import SystemServiceRegistry, LocalStorageProvider
 from .persistence import Database
 
 
@@ -34,7 +34,7 @@ def create_context(root: Path) -> ApplicationContext:
         db=db,
         comfyui_url=config.default_comfyui_url,
         comfyui_output_dir=config.default_comfyui_output_dir,
-        system_services=LLMProviderCatalog(root / "backend" / "integrations" / "system_services" / "llm_providers"),
+        system_services=SystemServiceRegistry(root / "backend" / "integrations" / "system_services"),
         storage_provider=LocalStorageProvider(project_storage_root),
         comfyui_provider=load_provider(config.default_comfyui_url),
     )
@@ -53,6 +53,9 @@ def check_installation(root: Path = ROOT) -> None:
     plugins, errors = PluginCatalog(root / "plugins").scan()
     if errors:
         raise RuntimeError(f"Invalid plugins: {errors}")
+    system_services = SystemServiceRegistry(root / "backend" / "integrations" / "system_services")
+    if system_services.errors:
+        raise RuntimeError(f"Invalid system service providers: {system_services.errors}")
     dist = root / "static" / "dist"
     index = dist / "index.html"
     if not index.is_file():
@@ -99,7 +102,11 @@ def check_installation(root: Path = ROOT) -> None:
                     raise RuntimeError(f"Plugin independent UI missing: {plugin['id']}/{independent['entry']}")
     except (ValueError, KeyError, TypeError, AttributeError) as exc:
         raise RuntimeError("Frontend manifest invalid: rebuild frontend with npm run build") from exc
-    print(f"Release check OK: {len(plugins)} plugins, frontend assets, socket/SSL/SQLite runtime")
+    provider_count = sum(len(service["providers"]) for service in system_services.services())
+    print(
+        f"Release check OK: {len(plugins)} plugins, {provider_count} system service providers, "
+        "frontend assets, socket/SSL/SQLite runtime"
+    )
 
 
 __all__ = ["ROOT", "context", "comfyui_client", "create_context", "check_installation"]

@@ -362,6 +362,15 @@ class ReleaseRegressionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(RuntimeError, 'Invalid plugins'):
                 check_installation(self.root)
 
+    def test_release_check_rejects_invalid_system_service_providers(self):
+        from backend.bootstrap import check_installation
+        services = Mock()
+        services.errors = [{"provider": "broken", "error": "Invalid manifest"}]
+        with patch('backend.modules.generation.plugins.PluginCatalog.scan', return_value=([], [])), \
+                patch('backend.bootstrap.SystemServiceRegistry', return_value=services):
+            with self.assertRaisesRegex(RuntimeError, 'Invalid system service providers'):
+                check_installation(self.root)
+
 
 if __name__ == '__main__':
     unittest.main()

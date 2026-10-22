@@ -12,6 +12,16 @@
 
 ## 其他依赖与验证
 
+VideoFree API 使用 `zh`/`en` 等稳定语言值；插件提交给 ComfyUI-Whisper 时会转换为其要求的 `Chinese`/`English` 枚举。
+
+中文自动字幕必须安装 `opencc-python-reimplemented`，用于将 Whisper 输出统一转换为简体中文。在 VideoFree Studio 使用的 Python 环境中安装插件依赖：
+
+```powershell
+python -m pip install --target "runtime/python/Lib/site-packages" -r plugins/film-studio/requirements.txt
+```
+
+未安装时中文识别任务会明确失败并提示安装依赖；英文识别不需要 OpenCC。
+
 FFmpeg 与 ffprobe 是必需的系统依赖，不随 VideoFree Studio 或本插件提交、下载或分发：
 
 - 官方下载入口：[ffmpeg.org/download.html](https://ffmpeg.org/download.html)。

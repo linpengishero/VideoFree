@@ -23,6 +23,49 @@ export function defaults(ui) {
   return result;
 }
 
+export function restoreActionInputs(ui, saved, requestParams = {}) {
+  const base = defaults(ui);
+  const result = {...base, ...(saved || {}),
+    settings: {...base.settings, ...(saved?.settings || {})},
+    parameters: {...base.parameters, ...(saved?.parameters || {})}};
+  if (saved && typeof saved === 'object' && Object.keys(saved).length) return result;
+
+  for (const field of ui?.fields || []) {
+    if (field.component === 'dimensions') {
+      const width = Number(requestParams.width), height = Number(requestParams.height);
+      if (width > 0 && height > 0) setValue(result, field.bind, `${width}x${height}`);
+      continue;
+    }
+    const parts = field.bind.split('.');
+    const value = parts.length === 2
+      ? parts[0] === 'settings'
+        ? requestParams.api_settings?.[parts[1]]
+        : requestParams.plugin_parameters?.[parts[1]] ?? requestParams.parameters?.[parts[1]]
+      : requestParams[field.bind]
+        ?? (field.bind === 'preset_id' ? requestParams.character : undefined)
+        ?? (field.bind === 'voice_description' ? requestParams.instruction : undefined);
+    if (value !== undefined) setValue(result, field.bind, value);
+  }
+  return result;
+}
+
+export function collectActionInputs(ui, values, saved = {}) {
+  const result = JSON.parse(JSON.stringify(saved || {}));
+  for (const field of ui?.fields || []) {
+    if (field.component === 'dimensions') {
+      const match = String(getValue(values, field.bind) || '').match(/^(\d+)x(\d+)$/i);
+      if (match) {
+        result.width = Number(match[1]);
+        result.height = Number(match[2]);
+      }
+      continue;
+    }
+    const value = getValue(values, field.bind);
+    if (value !== undefined) setValue(result, field.bind, value);
+  }
+  return result;
+}
+
 export function fieldOptions(field, source) {
   if (field.component !== 'dimensions') return field.options || [];
   const width = Number(source?.request?.params?.latent_width || source?.width || 16);

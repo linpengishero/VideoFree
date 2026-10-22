@@ -20,6 +20,9 @@ defineProps({ notice: { type: String, default: "" } });
 const emit = defineEmits(["saved"]);
 const form = ref({ gateway_token: "", comfyui_url: "", resource_directory: "", ai_provider: "openai", ai_base_url: "", ai_api_key: "", ai_model: "gpt-4.1-mini", ai_multimodal_video: true, ai_thinking_mode: "medium" });
 const plugins = ref([]);
+const systemServices = ref([]);
+const systemValues = ref({});
+const systemProviders = ref({});
 const localizedPlugins = computed(() => plugins.value.map(plugin => localizeDeclaration(plugin)));
 const pluginValues = ref({});
 const active = ref("basic");
@@ -35,6 +38,10 @@ const loadingModels = ref(false);
 const showAiKey = ref(false);
 const visiblePluginSecrets = ref(new Set());
 const activePlugin = computed(() => localizeDeclaration(plugins.value.find(item => `plugin:${item.id}` === active.value)));
+const activeService = computed(() => systemServices.value.find(item => `service:${item.id}` === active.value));
+const activeServiceProvider = computed(() => activeService.value?.providers.find(
+  item => item.id === systemProviders.value[activeService.value?.id]
+));
 async function changeLocale(event) {
   if (changingLocale.value || saving.value) return;
   changingLocale.value = true;
@@ -48,11 +55,17 @@ async function changeLocale(event) {
 }
 
 async function load() {
-  const [data, catalog, providerCatalog] = await Promise.all([gateway.settings(), gateway.pluginSettings(), gateway.llmProviders()]);
+  const [data, catalog, providerCatalog, serviceCatalog] = await Promise.all([gateway.settings(), gateway.pluginSettings(), gateway.llmProviders(), gateway.systemServices()]);
   delete data.comfyui_output_dir;
   form.value = { ...form.value, ...data };
   llmProviders.value = providerCatalog.items || [];
   plugins.value = catalog.items || [];
+  systemServices.value = (serviceCatalog.items || []).filter(item => !item.ui_hidden && item.id !== 'llm');
+  await Promise.all(systemServices.value.map(async service => {
+    const result = await gateway.systemServiceSettings(service.id);
+    systemProviders.value[service.id] = result.provider_id;
+    systemValues.value[service.id] = result.values || {};
+  }));
   await Promise.all(plugins.value.map(async plugin => {
     const result = await gateway.pluginSettingValues(plugin.id);
     pluginValues.value[plugin.id] = result.values || {};
@@ -77,7 +90,13 @@ async function save() {
   saving.value = true;
   message.value = "";
   try {
-    if (activePlugin.value) {
+    if (activeService.value) {
+      const serviceId = activeService.value.id;
+      const result = await gateway.updateSystemServiceSettings(serviceId, {
+        provider_id: systemProviders.value[serviceId], values: systemValues.value[serviceId] || {},
+      });
+      systemValues.value[serviceId] = result.values || {};
+    } else if (activePlugin.value) {
       const result = await gateway.updatePluginSettings(activePlugin.value.id, pluginValues.value[activePlugin.value.id]);
       pluginValues.value[activePlugin.value.id] = result.values;
     } else {
@@ -88,6 +107,12 @@ async function save() {
     emit("saved");
   } catch (error) { feedback(error.message); }
   finally { saving.value = false; }
+}
+function chooseSystemProvider(service) {
+  const provider = service.providers.find(item => item.id === systemProviders.value[service.id]);
+  systemValues.value[service.id] = Object.fromEntries(
+    (provider?.settings?.fields || []).map(field => [field.key, field.default ?? ''])
+  );
 }
 async function toggleAiSecret() {
   if (showAiKey.value) return void (showAiKey.value = false);
@@ -134,6 +159,7 @@ onMounted(() => load().catch(error => { feedback(error.message); }));
         <nav class="settings-nav" :aria-label="t('设置分类')">
           <button :class="{ active: active === 'basic' }" @click="active = 'basic'"><Icon icon="solar:server-square-linear" width="17" />{{ t('基础设置') }}</button>
           <button :class="{ active: active === 'llm' }" @click="active = 'llm'"><Icon icon="solar:magic-stick-3-linear" width="17" />{{ t('LLM 服务') }}</button>
+          <template v-if="systemServices.length"><small>{{ t('系统服务') }}</small><button v-for="service in systemServices" :key="service.id" :class="{ active: active === `service:${service.id}` }" @click="active = `service:${service.id}`"><Icon icon="solar:server-path-linear" width="17" />{{ service.id }}</button></template>
           <template v-if="plugins.length"><small>{{ t('插件配置') }}</small><button v-for="plugin in localizedPlugins" :key="plugin.id" :class="{ active: active === `plugin:${plugin.id}` }" @click="active = `plugin:${plugin.id}`"><Icon icon="solar:plug-circle-linear" width="17" />{{ plugin.name }}</button></template>
         </nav>
         <div class="settings-body">
@@ -158,8 +184,23 @@ onMounted(() => load().catch(error => { feedback(error.message); }));
               <label class="settings-toggle"><span><b>{{ t('视频智能体多模态') }}</b><small>{{ t('允许视觉模型识别参考图片') }}</small></span><input v-model="form.ai_multimodal_video" type="checkbox" /><i></i></label>
             </div>
           </section>
+          <section v-else-if="activeService" class="settings-section">
+            <div class="settings-section-title"><Icon icon="solar:server-path-linear" width="17" /><span><b>{{ activeService.id }}</b><small>{{ t('框架公共系统服务') }}</small></span></div>
+            <div class="settings-grid one-column">
+              <label>{{ t('服务提供方') }}<select v-model="systemProviders[activeService.id]" @change="chooseSystemProvider(activeService)"><option v-for="provider in activeService.providers" :key="provider.id" :value="provider.id">{{ provider.name }}</option></select></label>
+              <label v-for="field in activeServiceProvider?.settings?.fields || []" :key="field.key">{{ field.label || field.key }}
+                <select v-if="field.type === 'select'" v-model="systemValues[activeService.id][field.key]"><option v-for="option in field.options || []" :key="option" :value="option">{{ option }}</option></select>
+                <input v-else-if="field.type === 'boolean'" v-model="systemValues[activeService.id][field.key]" type="checkbox" />
+                <input v-else v-model="systemValues[activeService.id][field.key]" :type="field.secret ? 'password' : field.type === 'number' ? 'number' : 'text'" />
+                <small v-if="field.description">{{ field.description }}</small>
+              </label>
+            </div>
+          </section>
           <section v-else-if="activePlugin" class="settings-section">
             <div class="settings-section-title"><Icon icon="solar:plug-circle-linear" width="17" /><span><b>{{ activePlugin.name }}</b><small>{{ activePlugin.schema.description || t('插件专属配置') }}</small></span></div>
+            <div v-if="activePlugin.schema.links?.length" class="plugin-settings-links" :aria-label="t('插件链接')">
+              <a v-for="link in activePlugin.schema.links" :key="link.url" :href="link.url" target="_blank" rel="noopener noreferrer"><Icon icon="solar:square-arrow-right-up-linear" width="16" />{{ link.label }}</a>
+            </div>
             <div class="settings-grid one-column">
               <label v-for="field in activePlugin.schema.fields" :key="field.key">{{ field.label }}
                 <select v-if="field.type === 'select'" v-model="pluginValues[activePlugin.id][field.key]"><option v-for="option in field.options" :key="option.value" :value="option.value">{{ option.label }}</option></select>
@@ -207,6 +248,7 @@ onMounted(() => load().catch(error => { feedback(error.message); }));
 .settings-section-title small{color:var(--muted);font-size:10px}
 .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 16px}
 .settings-grid.one-column{grid-template-columns:1fr}
+.plugin-settings-links{display:flex;flex-wrap:wrap;gap:8px}.plugin-settings-links a{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#ffffff05;color:var(--lime);font-size:11px;text-decoration:none}.plugin-settings-links a:hover{border-color:#b7f34a66;background:#b7f34a0b}
 .settings-grid p{margin:0;color:var(--muted);font-size:10px}
 .settings-grid .settings-recommend{grid-column:1/-1;display:flex;align-items:center;gap:5px}
 .settings-recommend a{display:inline-flex;align-items:center;gap:3px;color:var(--lime);text-decoration:none}

@@ -7,6 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from ...core.version import PLATFORM_VERSION
+
 from ...bootstrap import context
 from ...core.errors import GatewayError
 from ...modules.generation.service import (
@@ -32,7 +34,7 @@ UPLOAD_CACHE = context.paths.uploads
 WORKFLOWS = context.paths.plugins
 
 
-app = FastAPI(title="videofree", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="videofree", version=PLATFORM_VERSION, lifespan=lifespan)
 
 
 @app.exception_handler(GatewayError)

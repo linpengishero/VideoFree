@@ -10,6 +10,44 @@ from pathlib import Path
 
 SUPPORTED_MODELS = {"tiny", "base", "small", "medium", "large-v1", "large-v2",
                     "large-v3", "large-v3-turbo", "turbo"}
+COMFYUI_LANGUAGES = {
+    "zh": "Chinese",
+    "zh-cn": "Chinese",
+    "中文": "Chinese",
+    "en": "English",
+    "en-us": "English",
+    "英文": "English",
+}
+TRANSCRIPTION_PROMPTS = {
+    "Chinese": "这是一段普通话语音。请使用简体中文转写，保留完整词语、专有名词和数字，不要翻译或改写原意。",
+    "English": "Transcribe the speech accurately in English. Preserve complete words, names, and numbers without translating or rewriting.",
+    "auto": "Transcribe the speech accurately in its original language. Preserve complete words, names, and numbers without translating or rewriting.",
+}
+
+
+def _comfyui_language(language) -> str:
+    value = str(language or "auto").strip()
+    if value.lower() == "auto":
+        return "auto"
+    return COMFYUI_LANGUAGES.get(value.lower(), COMFYUI_LANGUAGES.get(value, value))
+
+
+def transcription_prompt(language) -> str:
+    return TRANSCRIPTION_PROMPTS.get(_comfyui_language(language), TRANSCRIPTION_PROMPTS['auto'])
+
+
+def normalize_text(text: str, language: str) -> str:
+    """Convert Chinese recognition output to simplified Chinese."""
+    value = str(text or '').strip()
+    if str(language or '').strip().lower() not in {'zh', 'zh-cn', 'chinese', '中文'}:
+        return value
+    try:
+        from opencc import OpenCC
+    except ImportError as exc:
+        raise RuntimeError(
+            '中文自动字幕需要 opencc-python-reimplemented，请按插件 INSTALL.md 安装依赖后重试'
+        ) from exc
+    return OpenCC('t2s').convert(value)
 
 
 def _output_value(output, *names):
@@ -72,14 +110,15 @@ class ComfyWhisper:
         uploaded = await asyncio.to_thread(self.runtime.comfyui_upload, source.read_bytes(), media_type, filename)
         if not uploaded:
             raise RuntimeError("ComfyUI 未返回上传文件名")
-        node_language = "auto" if language in (None, "", "auto") else language
+        node_language = _comfyui_language(language)
+        prompt_text = str(prompt or '').strip() or TRANSCRIPTION_PROMPTS.get(node_language, '')
         workflow = {
             "1": {"class_type": "LoadAudio", "inputs": {
                 "audio": uploaded,
             }},
             "2": {"class_type": "Apply Whisper", "inputs": {
                 "audio": ["1", 0], "model": model, "language": node_language,
-                "prompt": str(prompt or ""),
+                "prompt": prompt_text,
             }},
             # Apply Whisper is not an output node. Display Any keeps its alignment output
             # in ComfyUI history so the gateway can retrieve timestamps without a temp SRT.
@@ -95,9 +134,10 @@ class ComfyWhisper:
             detail = str(exc)
             if "prompt_no_outputs" in detail:
                 raise RuntimeError("字幕识别工作流缺少可用输出节点；请确认 rgthree 的 Display Any 节点已安装并重启 ComfyUI") from exc
-            if "does not exist" in detail or "class_type" in detail:
+            lowered = detail.lower()
+            if "does not exist" in lowered or "node not found" in lowered:
                 raise RuntimeError("字幕识别所需的 ComfyUI-Whisper 或 rgthree 节点未正确加载") from exc
-            raise RuntimeError("ComfyUI 拒绝字幕识别任务，请检查 Whisper 节点与模型配置") from exc
+            raise RuntimeError(f"ComfyUI 拒绝字幕识别任务：{detail}") from exc
         prompt_id = response.get("prompt_id") if isinstance(response, dict) else None
         if not prompt_id:
             raise RuntimeError("ComfyUI 未接受字幕识别任务")

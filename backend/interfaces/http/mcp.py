@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from ...bootstrap import context
+from ...core.version import PLATFORM_VERSION
 from ...modules.generation.service import workflow_registry
 from ...modules.settings import SettingsService
 from .v2_capabilities import capability as public_capability
@@ -32,7 +33,7 @@ from .v2_schemas import CreateRequest, RegenerateRequest
 
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-MCP_SERVER_INFO = {"name": "videofree", "version": "2.0.0"}
+MCP_SERVER_INFO = {"name": "videofree", "version": PLATFORM_VERSION}
 
 
 def _jsonrpc(request_id: Any, result: Any = None, error: dict[str, Any] | None = None) -> dict[str, Any]:

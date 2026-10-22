@@ -90,7 +90,7 @@ async function submit() {
 
 <style scoped>
 .post-options button:disabled{opacity:.5;cursor:not-allowed}
-.post-fields :deep(.plugin-field){justify-content:flex-start;justify-self:start;width:100%;text-align:left}.post-fields :deep(.field-label){flex:0 0 66px}.post-fields :deep(.select-menu){flex:0 1 auto}
+.post-fields :deep(.plugin-field){justify-content:flex-end;justify-self:end;width:100%;text-align:left}.post-fields :deep(.field-label){flex:0 0 auto}.post-fields :deep(.select-menu){flex:0 1 auto}
 .post-fields{display:grid;gap:12px;margin:0;padding:0 16px 18px;border:0;min-width:0}
 .post-modal{width:min(500px,calc(100vw - 32px));max-height:calc(100dvh - 40px);overflow:auto;border:1px solid #ffffff24;border-radius:8px;background:#1b1c1f;box-shadow:0 28px 90px #000d}
 .post-modal>p{padding:0 18px;font-size:13px}.post-preview audio{width:100%;margin-top:45px}

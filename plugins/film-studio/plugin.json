@@ -628,9 +628,6 @@
                 "default": 2
               }
             },
-            "required": [
-              "name"
-            ],
             "additionalProperties": false
           }
         },
@@ -962,7 +959,7 @@
     {
       "id": "film.transcribe",
       "name": "识别全时间线生成字幕",
-      "description": "提取并混合时间线上所有启用的主轨视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper 一次生成全片字幕。",
+      "description": "立即排队识别整条时间线的字幕；通过 film.get 查询 transcribe.status。插件混合视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper。",
       "scope": "workspace",
       "automation": true,
       "handler": "actions.py:execute",
@@ -975,7 +972,7 @@
           },
           "language": {
             "type": "string",
-            "default": "auto",
+            "default": "zh",
             "maxLength": 40
           },
           "model": {
@@ -997,7 +994,7 @@
         "additionalProperties": false
       },
       "name_key": "识别全时间线生成字幕",
-      "description_key": "提取并混合时间线上所有启用的主轨视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper 一次生成全片字幕。"
+      "description_key": "立即排队识别整条时间线的字幕；通过 film.get 查询 transcribe.status。插件混合视频原声与独立语音素材，排除背景音乐后使用 ComfyUI-Whisper。"
     },
     {
       "id": "film.proxies",

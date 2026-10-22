@@ -33,7 +33,7 @@ function onScroll(e) {
   const el = e.currentTarget;
   if (!draft.value && limit.value < films.value.length && el.scrollTop + el.clientHeight >= el.scrollHeight - 240) limit.value += PAGE;
 }
-const locked = computed(()=>busy.value || ['render','preview'].some(key=>['queued','running'].includes(active.value?.[key]?.status)));
+const locked = computed(()=>busy.value || ['render','preview','transcribe'].some(key=>['queued','running'].includes(active.value?.[key]?.status)));
 const total = computed(()=>{
   const d=draft.value; if(!d) return 0;
   const clips=d.clips||[], offs=mainOffsets(clips);
@@ -211,7 +211,14 @@ async function load() {
     for (const item of (imported.items || [])) if (!known.has(item.path)) localAssets.value.push(item);
     saveLocalAssets();
     if (active.value?.id) {
+      const previousTranscribe = active.value.transcribe?.status;
       active.value = list.items.find(f=>f.id===active.value.id) || null;
+      if (active.value?.transcribe?.status==='completed' && previousTranscribe!=='completed' && !dirty.value) {
+        draft.value=normalizePlan(active.value); lastStable=JSON.stringify(draft.value);
+      }
+      if (active.value?.transcribe?.status==='failed' && previousTranscribe!=='failed') {
+        error.value=active.value.transcribe.error || t('字幕识别失败');
+      }
       if (!active.value) { draft.value=null; dirty.value=false; history.value=false; stopPlayback(); }
     }
   } catch (e) { if (token === scope) error.value = e.message; }
@@ -307,8 +314,8 @@ async function transcribeTimeline() {
       active.value=await gateway.saveFilm(props.project.id,sanitizePlan(draft.value),active.value?.id,active.value?.revision);
       draft.value=normalizePlan(active.value); dirty.value=false; lastStable=JSON.stringify(draft.value);
     }
-    const film=await gateway.transcribeFilm(props.project.id, active.value.id, {language:'auto', model:'large-v3-turbo'});
-    active.value=film; draft.value=normalizePlan(film); dirty.value=false; lastStable=JSON.stringify(draft.value);
+    const film=await gateway.transcribeFilm(props.project.id, active.value.id, {language:'zh', model:'large-v3-turbo'});
+    active.value=film;
   } catch(e) { error.value=e.message || t('字幕识别失败'); }
   finally { busy.value=false; }
 }
@@ -688,6 +695,7 @@ watch(proxyKeys, keys=>{
     <template v-else-if="!draft">
       <header class="film-head"><div><small>{{ project.name }}</small><h1>{{ t('成片') }}<span>{{ films.length }}</span></h1></div><button class="primary" @click="create"><Icon icon="solar:add-circle-linear" />{{ t('新建成片') }}</button></header>
       <p v-if="error" class="film-error" role="alert">{{ error }}</p>
+      <div v-if="['queued','running','failed'].includes(active?.transcribe?.status)" class="film-render-state" role="status"><b>{{ active?.transcribe?.status==='queued' ? t('字幕识别排队中') : active?.transcribe?.status==='running' ? t('正在识别字幕') : t('字幕识别失败') }}</b><span v-if="active?.transcribe?.status==='failed'">{{ active?.transcribe?.error }}</span></div>
       <div class="film-list"><article v-for="film in paged" :key="film.id" class="film-card">
         <button class="film-cover" @click="open(film)"><video v-if="film.render?.url" :src="film.render.url" preload="metadata" muted /><Icon v-else icon="solar:clapperboard-play-linear" width="38" /><span>{{ status(film) }}</span></button>
         <div class="film-card-meta"><button @click="open(film)">{{ film.name }}</button><button class="icon" :title="t('删除成片')" :disabled="['render','preview'].some(key=>['queued','running'].includes(film[key]?.status))" @click="destroy(film)"><Icon icon="solar:trash-bin-trash-linear" /></button></div>

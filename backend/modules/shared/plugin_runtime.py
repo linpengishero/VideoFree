@@ -12,6 +12,8 @@ from typing import Any
 from ...core.schemas import AgentChatRequest, GenerateRequest, TTSRequest
 from ...core.errors import AgentCollaborationCancelled, GatewayError as PluginError
 
+PLUGIN_RUNTIME_API_VERSION = 1
+
 def apply_image_dimensions(*args, **kwargs):
     from ...integrations.comfyui.compiler import apply_image_dimensions as impl
     return impl(*args, **kwargs)
@@ -49,6 +51,11 @@ class PluginRuntime:
     _call_model: Callable[..., str] | None = None
     _submit: Callable[..., Any] | None = None
     _invoke_capability: Callable[..., Any] | None = None
+
+    @property
+    def api_version(self) -> int:
+        """Stable public runtime contract version implemented by this instance."""
+        return PLUGIN_RUNTIME_API_VERSION
 
     @property
     def application(self):
@@ -151,6 +158,14 @@ class PluginRuntime:
         if self._call_model is None:
             raise RuntimeError("LLM service is unavailable for this action")
         return self._call_model(messages, max_tokens)
+
+    def call_system_service(self, service_id: str, operation: str, inputs: dict[str, Any], *,
+                            provider_id: str | None = None) -> dict[str, Any]:
+        """Invoke one manifest-declared JSON operation without exposing service settings."""
+        registry = getattr(self._context, "system_services", None)
+        if registry is None or not callable(getattr(registry, "invoke", None)):
+            raise RuntimeError("System service registry is unavailable")
+        return registry.invoke(service_id, operation, inputs, provider_id=provider_id, context=self._context)
 
     def comfyui_request(self, path: str, method="GET", body: bytes | None = None):
         """Access the configured system ComfyUI adapter."""

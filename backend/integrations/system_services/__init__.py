@@ -6,6 +6,7 @@
 """System service provider discovery and contracts."""
 
 from .llm import LLMProviderCatalog
+from .registry import SystemServiceRegistry
 from .storage import LocalStorageProvider, StorageObject, StorageProvider, StorageProviderError
 
-__all__ = ["LLMProviderCatalog", "LocalStorageProvider", "StorageObject", "StorageProvider", "StorageProviderError"]
+__all__ = ["LLMProviderCatalog", "SystemServiceRegistry", "LocalStorageProvider", "StorageObject", "StorageProvider", "StorageProviderError"]

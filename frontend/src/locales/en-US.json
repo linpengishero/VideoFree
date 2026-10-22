@@ -327,6 +327,8 @@
   "插件界面加载失败": "Failed to load plugin UI",
   "插件界面运行失败": "Plugin UI error",
   "后期处理": "Post-processing",
+  "后处理": "Post-processed",
+  "继续处理": "Continue processing",
   "关闭": "Close",
   "待处理图片": "Source image",
   "当前资源": "Current media",
@@ -468,6 +470,7 @@
   "视频智能体多模态": "Video agent vision",
   "允许视觉模型识别参考图片": "Allow vision models to inspect reference images",
   "插件专属配置": "Plugin-specific settings",
+  "插件链接": "Plugin links",
   "清空密钥": "Clear key",
   "保存设置": "Save settings",
   "选择参考图": "Choose reference image",
@@ -582,5 +585,11 @@
   "打开官网查看": "Open website",
   "VideoFree Studio 公告": "VideoFree Studio announcements",
   "GitHub 源码仓库": "GitHub source repository",
-  "码云源码仓库": "Gitee source repository"
+  "码云源码仓库": "Gitee source repository",
+  "动作参数": "Action parameters",
+  "正在读取插件动作参数…": "Loading plugin action parameters…",
+  "此任务对应的插件动作不可用，无法安全重执行。": "The plugin action for this task is unavailable; it cannot be safely rerun.",
+  "无法读取插件动作信息": "Could not load plugin action details",
+  "原任务缺少插件动作所需的源素材": "The original task is missing the source media required by this action.",
+  "重新执行插件动作": "Rerun plugin action"
 }

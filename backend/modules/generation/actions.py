@@ -105,6 +105,23 @@ def _validate_input_schema(schema: dict[str, Any], values: dict[str, Any]) -> No
         raise ValueError(f"{path}: {error.message}")
 
 
+def _snapshot_action_inputs(action: dict[str, Any], supplied: dict[str, Any], options: dict[str, Any]) -> dict[str, Any]:
+    """Persist the effective public action values without UI-only containers."""
+    result = dict(supplied)
+    for field in action.get("ui", {}).get("fields", []):
+        bind = field.get("bind", "")
+        if field.get("component") == "dimensions":
+            continue
+        parts = bind.split(".")
+        if len(parts) == 2:
+            value = options.get(parts[0], {}).get(parts[1])
+            if value is not None:
+                result.setdefault(parts[0], {})[parts[1]] = value
+        elif bind in options and options[bind] is not None:
+            result[bind] = options[bind]
+    return result
+
+
 async def prepare_action(catalog: PluginCatalog, action_id: str, inputs: dict[str, Any],
                          context, source: dict[str, Any] | None = None, project_id=None, category_id=None,
                          submit=None, invoke_capability=None):
@@ -177,6 +194,7 @@ async def prepare_action(catalog: PluginCatalog, action_id: str, inputs: dict[st
         result[1].params["capability_id"] = action["capability_id"]
         result[1].params["_action_id"] = action["id"]
         result[1].params["_action_name"] = action["name"]
+        result[1].params["_action_inputs"] = _snapshot_action_inputs(action, inputs, options)
         if action.get("model_name"):
             result[1].params["_action_model_name"] = action["model_name"]
         return result
@@ -185,6 +203,7 @@ async def prepare_action(catalog: PluginCatalog, action_id: str, inputs: dict[st
     result = _prepare_generation_action(source, action, config, options, context, runtime)
     result[1].params["_action_id"] = action["id"]
     result[1].params["_action_name"] = action["name"]
+    result[1].params["_action_inputs"] = _snapshot_action_inputs(action, inputs, options)
     if action.get("model_name"):
         result[1].params["_action_model_name"] = action["model_name"]
     return result

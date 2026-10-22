@@ -1,11 +1,22 @@
 {
   "schema_version": 1,
-  "id": "openai",
+  "service_id": "llm",
+  "contract_version": 1,
+  "provider_id": "openai",
   "name": "OpenAI",
   "entry": "openai-compatible/provider.py:Provider",
+  "selection_key": "ai_provider",
+  "default": true,
   "thinking": "openai",
-  "defaults": {
-    "ai_base_url": "https://api.openai.com/v1",
-    "ai_model": "gpt-4.1-mini"
+  "defaults": {"ai_base_url":"https://api.openai.com/v1","ai_model":"gpt-4.1-mini"},
+  "settings": {"fields": [
+    {"key":"ai_base_url","source":"ai_base_url","environment":"AI_BASE_URL","type":"string","default":"https://api.openai.com/v1"},
+    {"key":"ai_api_key","source":"ai_api_key","environment":"AI_API_KEY","type":"string","secret":true},
+    {"key":"ai_model","source":"ai_model","environment":"AI_MODEL","type":"string","default":"gpt-4.1-mini"},
+    {"key":"ai_thinking_mode","source":"ai_thinking_mode","environment":"AI_THINKING_MODE","type":"string","default":"medium"}
+  ]},
+  "operations": {
+    "chat":{"input_schema":{"type":"object","additionalProperties":false,"required":["messages"],"properties":{"messages":{"type":"array","items":{"type":"object"}},"max_tokens":{"type":"integer","minimum":1,"maximum":200000},"tools":{"type":["array","null"],"items":{"type":"object"}},"tool_choice":{},"plain_request":{"type":"boolean"},"disable_thinking":{"type":"boolean"}}},"output_schema":{"type":"object","additionalProperties":false,"required":["content","tool_calls","reasoning","finish_reason"],"properties":{"content":{"type":"string"},"tool_calls":{"type":"array"},"reasoning":{"type":"string"},"finish_reason":{"type":"string"}}}},
+    "list-models":{"input_schema":{"type":"object","additionalProperties":false,"properties":{"base_url":{"type":"string"},"api_key":{"type":"string"}}},"output_schema":{"type":"object","additionalProperties":false,"required":["items"],"properties":{"items":{"type":"array","items":{"type":"string"}}}}}
   }
 }

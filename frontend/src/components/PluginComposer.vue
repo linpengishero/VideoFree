@@ -26,11 +26,18 @@ const values=ref({settings:{},parameters:{}}),inputs=ref([]),processing=ref('dir
 const activities=ref([]),activityId=ref('');
 const referencesOpen=ref(false),preview=ref(null),collaborationOpen=ref(true);
 const collaborationEntries=import.meta.glob('../../../plugins/*/ui/*.vue');
+const collaborationRuntimeComponents=new Map();
 const collaborationComponent=computed(()=>{
   const entry=props.selected?.collaboration_ui;
   if(!entry || !props.selected?.plugin_folder)return null;
   const key=`../../../plugins/${props.selected.plugin_folder}/${entry}`;
   return collaborationEntries[key] || null;
+});
+const collaborationRuntimeComponent=computed(()=>{
+  const entry=props.selected?.collaboration_ui_entry;
+  if(!entry)return null;
+  if(!collaborationRuntimeComponents.has(entry))collaborationRuntimeComponents.set(entry,()=>import(/* @vite-ignore */ entry));
+  return collaborationRuntimeComponents.get(entry);
 });
 const fields=computed(()=>props.selected?.ui?.fields || []);
 const section=name=>fields.value.filter(field=>(field.section || 'settings')===name&&field.component!=='media');
@@ -195,7 +202,7 @@ onBeforeUnmount(()=>{revision++;clearTimeout(timer);clearInterval(activityTimer)
           <button v-if="!['cancelled','deleted'].includes(item.status)" type="button" :title="t(&quot;取消此协作&quot;)" :aria-label="t(&quot;取消此协作&quot;)" @click="cancelActivity(item.id)"><Icon icon="solar:stop-circle-linear" width="15"/></button>
         </article>
       </section>
-      <PluginView v-if="collaborationComponent" :loader="collaborationComponent" :plugin-id="selected?.plugin_id" :session="session" :busy="busy" :pending="pending" :can-answer="canAnswer" :answer="answer" @update:answer="answer=$event" @confirm="submit('confirm')" @answer="submit('answer')" @new-task="newTask" />
+      <PluginView v-if="collaborationRuntimeComponent || collaborationComponent" :loader="collaborationRuntimeComponent || collaborationComponent" :plugin-id="selected?.plugin_id" :session="session" :busy="busy" :pending="pending" :can-answer="canAnswer" :answer="answer" @update:answer="answer=$event" @confirm="submit('confirm')" @answer="submit('answer')" @new-task="newTask" />
       <div v-else class="plugin-collaboration-fallback" role="status">{{session.error || session.message || session.status}}</div>
     </aside>
   </Teleport>

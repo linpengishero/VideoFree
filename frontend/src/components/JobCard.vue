@@ -23,6 +23,9 @@ function statusText(status) {
 function typeText(job) {
   return ({ image: t('图片'), video: t('视频'), tts: t('声音'), music: t('音乐') })[job.kind] || t('产物')
 }
+function isPostprocessed(job) {
+  return Object.hasOwn(job.request?.generation || {}, 'action_inputs')
+}
 </script>
 
 <template>
@@ -41,6 +44,7 @@ function typeText(job) {
         </button>
         <span v-if="job.kind === 'tts'" class="audio-label">{{ t('播放声音') }}</span>
         <span v-if="applications.some(app => app.selection_label && job.application_marks?.includes(app.id))" class="job-application-marks"><span v-for="app in applications.filter(app => app.selection_label && job.application_marks?.includes(app.id))" :key="app.id"><Icon icon="solar:check-circle-linear" width="12" />{{ app.selection_label }}</span></span>
+        <span v-if="isPostprocessed(job)" class="job-postprocess-mark"><Icon icon="solar:tuning-square-2-linear" width="12" />{{ t('后处理') }}</span>
       </template>
       <div v-else class="job-error" @click.stop>
         <strong>{{ displayError(job.error) || t('任务失败') }}</strong>
@@ -65,6 +69,7 @@ function typeText(job) {
 .job-card { position: relative; }
 .job-application-marks{position:absolute;bottom:8px;left:8px;display:flex;flex-wrap:wrap;gap:4px;font-size:10px}
 .job-application-marks > span{display:flex;align-items:center;gap:4px;background:#20351ee6;color:#c3eba4;padding:4px 6px;border-radius:4px}
+.job-postprocess-mark{position:absolute;top:7px;left:7px;display:flex;align-items:center;gap:4px;padding:4px 6px;border:1px solid #e2bd6b66;border-radius:5px;background:#3a3020e8;color:#f0d38a;font-size:10px;line-height:1;box-shadow:0 2px 8px #1712084d;backdrop-filter:blur(5px)}
 .job-card.status-failed .job-media { overflow:auto; }
 .job-error p { margin:8px 0; }
 .job-error pre { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0; font-size:10px; }

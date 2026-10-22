@@ -75,6 +75,7 @@ plugins/my-plugin/
   "schema_version": 1,
   "id": "my-plugin",
   "version": "1.0.0",
+  "requires": {"platform_min": "2.0.0", "platform_max_exclusive": "3.0.0"},
   "name": "我的插件",
   "description": "插件说明",
   "assets": ["assets/icon.png"],
@@ -86,6 +87,8 @@ plugins/my-plugin/
 ```
 
 `id`、`version` 必须唯一且只能使用字母、数字、`.`、`_`、`-`。所有清单路径必须是插件目录内的相对路径。
+
+完整结构以 [`docs/schemas/plugin-manifest-v1.schema.json`](../docs/schemas/plugin-manifest-v1.schema.json) 为唯一机器契约；不要复制或自行维护另一份字段表。JSON Schema 负责结构与类型，框架额外校验本地文件、跨字段引用和运行归属。
 
 ## 能力、模式和动作
 
@@ -108,6 +111,12 @@ plugins/my-plugin/
 
 生成动作须在动作声明中填写 `capability_id`，处理器返回 `(kind, GenerateRequest)` 或 `("tts", TTSRequest)`。框架会把动作声明的能力 ID 和动作名称注入任务快照后走统一提交校验；动作使用的算法或工作流不同于能力默认模型时，再声明 `model_name`。调用方无需在动作 `inputs` 中重复传入。只注册工作流真实支持的能力；隐藏入口也会被 MCP 发现，不能用 `ui_hidden` 掩盖未实现的功能。
 
+生成动作需要支持任务编辑/重执行时，在动作自身的 `input_schema.properties` 声明可编辑值，并用 `actions[].ui.fields` 描述控件。字段可绑定 schema 顶层属性（如 `text`、`speed`、`preset_id`），或绑定已声明 `parameters` 对象中的 `parameters.<名称>`；框架会校验映射，未声明的字段会使插件清单校验失败。任务编辑器按快照中的动作 ID 显示动作表单并重新调用该动作，不使用 capability 的普通生成字段代替动作参数。框架保存已校验的动作输入快照，插件负责重执行时的业务校验。特殊 `dimensions` 控件绑定 `target_size`，需在 schema 声明整数 `width`、`height`，并把界面的 `宽x高` 转换回这两个值。老任务没有新快照时，仅从请求中无歧义的顶层字段、`api_settings`、`plugin_parameters` 和宽高恢复；必填值不能推断时要通过 UI 明确要求用户补齐。资源动作使用原父任务作为来源；插件应保证依赖的源任务/辅助文件生命周期清楚。插件卸载或来源不可用时，编辑器会阻止错误地按普通生成提交。
+
+`voice` 控件按 `plugin_id` 显示该插件注册的音色；编辑动作如果需要让用户更换音色，输入 schema 应声明 `preset_id`，表单绑定 `preset_id`，音色 key 原样回传。语音克隆等依赖任务外上传参考音频的动作应明确是否支持编辑替换；没有动作自己的媒体重传契约时不要伪装成普通 capability 的参考素材字段。
+
+如果动作没有用户可编辑的值，可以保留空字段表；任务仍可使用原动作输入重执行。JSON Schema 的 `default` 不会自动应用到数据；需要界面展示并持久化的缺省值必须同时在 UI 字段写 `default`。测试至少覆盖字段默认值、老任务参数回填、动作输入快照、尺寸映射和同一动作重执行。完整契约见 [`插件动作任务编辑`](../docs/plugin-protocol.md#生成动作的编辑与重执行)。
+
 协作返回 `ready` 时必须提供完整的 `optimized_prompt` 和 `optimized_prompt_zh`；返回 `needs_input` 时必须提供 `session_id` 及非空 `questions`（每项包含 `text`、可选择的 `options`）。复用 `runtime.single(request)` 会由框架创建会话并修复一次格式异常；自定义协作处理器应使用 `runtime.repair_result(...)`。`start_progress` 接收阶段对象列表，例如 `[{"id": "optimize", "label": "提示词优化"}]`，不能传模式名称字符串。
 
 ## PluginRuntime
@@ -125,6 +134,7 @@ def prepare(workflow, config, request, media, job_id, prompt, runtime=None):
 runtime.job_request(job)
 runtime.jobs()
 runtime.call_model(messages, max_tokens=2500)
+runtime.call_system_service(service_id, operation, inputs, provider_id=None)
 runtime.comfyui_request(path, method="GET", body=None)
 runtime.application
 ```
@@ -134,6 +144,9 @@ runtime.application
 插件处理器不应导入 `backend` 内部模块；需要平台能力时只使用下面的稳定接口。
 
 `PluginRuntime` 提供：
+
+- `api_version == 1`：稳定运行时协议版本；
+- `call_system_service()`：调用已注册系统服务，插件看不到系统密钥；
 
 | 接口 | 用途 |
 | --- | --- |
@@ -255,7 +268,7 @@ export { default } from './ScriptApplication.vue';
 JS、CSS、图片和依赖全部由插件构建并放在 `ui/dist/`。框架通过
 `/api/v2/plugins/<plugin-id>/ui/...` 动态加载，不需要重新构建主前端。
 
-也可以使用传统入口 `application.entry`（以及资源扩展的 `resource_entry`），但这类入口是主前端构建的一部分，必须位于插件的 `ui/*.vue`，新增或修改后运行 `cd frontend; npm run build`。推荐新插件使用 `application.ui.entry` 独立 bundle；两种模式只能选择一种，不要同时注册两套页面实现。独立 bundle 不得引用主前端的相对源码路径。
+也可以使用传统入口 `application.entry`（以及资源扩展的 `resource_entry`），但这类入口是主前端构建的一部分，必须位于插件的 `ui/*.vue`，新增或修改后运行 `cd frontend; npm run build`。`project_tool` 可声明 `ui.entry`，协作界面可声明 `collaboration_ui:{"entry":"ui/dist/index.js"}`；三类独立入口均由网关运行时加载，不需要重建主前端。传统入口和同一宿主的独立入口只能选一种，独立 bundle 不得引用主前端相对源码路径。
 
 页面会收到 `application`、`project`、`category`、`categoryId`、`categories`、当前分类筛选后的 `jobs`，以及宿主提供的 `resourcePicker` 函数。`scope` 可为 `workspace`、`project`、`category` 或 `resource`；其中 `workspace` 仅表示工作台动作/入口范围，不提供数据隔离。分类插件必须按 `categoryId` 过滤和保存数据。
 
@@ -370,6 +383,7 @@ def category_delete(event, runtime):
 ## 配置和固定资源
 
 - 插件配置在 `plugin.json.settings` 声明，通过插件设置接口读取。
+- 插件设置值保存在 `data/plugin-settings/<plugin-id>.env`，升级插件目录不会覆盖。官网、申请 Key、文档和计费说明使用 `settings.links[]` 声明只读 HTTP(S) 外链，不得伪装成可编辑 `url` 字段。
 - 音色预设在清单声明，样本 MP3 使用插件内相对路径。预设语音提交前会验证音色存在、归属插件和样本文件；模型专用的音频时长限制应由插件处理，不能在框架硬编码统一的 30 秒限制。
 - 风格必须内置在插件中：使用 `style_library.directory` 指向插件内 JSON 风格目录，使用 `style_library.default_id` 指定默认项，并在 `assets` 中声明风格 JSON 与预览图片。用网关的插件能力生成实际风格示例，作为该插件的缩略图，不从 ComfyUI 风格目录复制素材。`runtime.style_items()` 只返回当前插件的风格；没有风格库的插件得到空列表。框架不读取 ComfyUI 风格目录、`MEDIA_STYLE_DIR` 或其它插件的资源。
 - 8-bit PCM WAV 在上传给 ComfyUI 时自动转换为 PCM16；原始上传文件及任务输入哈希保持不变。

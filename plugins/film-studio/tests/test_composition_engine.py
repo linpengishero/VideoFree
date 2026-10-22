@@ -37,6 +37,99 @@ except ValueError:
 needs_toolkit = unittest.skipUnless(FFMPEG is not None, '系统 PATH 中未安装 FFmpeg/ffprobe')
 
 
+class ComfyWhisperTests(unittest.TestCase):
+    def setUp(self):
+        self.catalog = PluginCatalog(ROOT / 'plugins')
+        self.action = self.catalog.actions()['film.transcribe']
+        self.whisper_type = self.catalog._load_handler(self.action, 'asr.py:ComfyWhisper')
+
+    def test_api_chinese_language_is_mapped_to_comfyui_enum(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'voice.wav'
+            source.write_bytes(b'fake audio')
+            runtime = SimpleNamespace(comfyui_upload=lambda *_args: 'input/voice.wav')
+            requests = []
+
+            def request(path, method='GET', body=None):
+                if path == '/prompt':
+                    workflow = json.loads(body)['prompt']
+                    requests.append(workflow['2']['inputs']['language'])
+                    return {'prompt_id': 'prompt-1'}
+                return {'prompt-1': {
+                    'status': {'completed': True},
+                    'outputs': {'3': {'text': '[{"text":"你好","start":0,"end":1}]'}},
+                }}
+
+            runtime.comfyui_request = request
+            result = asyncio.run(self.whisper_type(runtime).transcribe(source, language='zh'))
+
+        self.assertEqual(requests, ['Chinese'])
+        self.assertEqual(result, [{'text': '你好', 'start': 0.0, 'end': 1.0}])
+
+    def test_whisper_prompt_defaults_to_language_specific_transcription_guidance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'voice.wav'
+            source.write_bytes(b'fake audio')
+            runtime = SimpleNamespace(comfyui_upload=lambda *_args: 'input/voice.wav')
+            received = {}
+
+            def request(path, method='GET', body=None):
+                workflow = json.loads(body)['prompt']
+                received.update(workflow['2']['inputs'])
+                return {'prompt_id': 'prompt-1'}
+
+            runtime.comfyui_request = request
+            with self.assertRaisesRegex(RuntimeError, '超时'):
+                asyncio.run(self.whisper_type(runtime).transcribe(source, language='zh', timeout=0))
+
+        self.assertIn('简体中文转写', received['prompt'])
+        self.assertEqual(received['language'], 'Chinese')
+
+    def test_chinese_normalization_requires_opencc_and_handles_locale_case(self):
+        from types import ModuleType
+        module = sys.modules[self.whisper_type.__module__]
+
+        fake_opencc = ModuleType('opencc')
+        fake_opencc.OpenCC = lambda config: SimpleNamespace(convert=lambda text: f'{config}:{text}')
+        with patch.dict('sys.modules', {'opencc': fake_opencc}):
+            self.assertEqual(module.normalize_text('測試', 'zh-cn'), 't2s:測試')
+        with patch.dict('sys.modules', {'opencc': None}):
+            with self.assertRaisesRegex(RuntimeError, 'opencc-python-reimplemented'):
+                module.normalize_text('測試', 'zh')
+
+    def test_auto_language_and_validation_errors_are_not_reported_as_missing_nodes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'voice.wav'
+            source.write_bytes(b'fake audio')
+            languages = []
+            runtime = SimpleNamespace(comfyui_upload=lambda *_args: 'input/voice.wav')
+
+            def request(path, method='GET', body=None):
+                if path == '/prompt':
+                    workflow = json.loads(body)['prompt']
+                    languages.append(workflow['2']['inputs']['language'])
+                    return {'prompt_id': 'prompt-1'}
+                return {'prompt-1': {
+                    'status': {'completed': True},
+                    'outputs': {'3': {'text': '[{"text":"hello","start":0,"end":1}]'}},
+                }}
+
+            runtime.comfyui_request = request
+            whisper = self.whisper_type(runtime)
+            result = asyncio.run(whisper.transcribe(source, language='auto'))
+            self.assertTrue(result)
+            self.assertEqual(languages, ['auto'])
+
+            failing_runtime = SimpleNamespace(
+                comfyui_upload=lambda *_args: 'input/voice.wav',
+                comfyui_request=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    RuntimeError('Invalid input for node 2 Apply Whisper class_type: language must be Chinese')),
+            )
+            with self.assertRaisesRegex(RuntimeError, 'ComfyUI 拒绝字幕识别任务.*Invalid input') as raised:
+                asyncio.run(self.whisper_type(failing_runtime).transcribe(source, language='zh'))
+            self.assertNotIn('节点未正确加载', str(raised.exception))
+
+
 def tool(*args) -> bytes:
     """Run the installed ffmpeg with an argument array and return stdout."""
     result = subprocess.run([str(FFMPEG), '-hide_banner', '-nostdin', '-loglevel', 'error', *map(str, args)],
@@ -400,6 +493,69 @@ class TimelineTaskTests(unittest.TestCase):
         self.assertEqual(valid['summary']['clips'], 1)
         self.assertEqual(valid['summary']['output'], '1280x720@30fps')
         self.assertFalse(self.context.application_tasks)
+
+    def test_save_allows_omitted_name_on_existing_film(self):
+        film = self.service.save(self.project, {'name': 'partial update', 'clips': []})
+        updated = self.service.save(self.project, {'volume': 27}, film['id'])
+        self.assertEqual(updated['name'], 'partial update')
+        self.assertEqual(updated['volume'], 27)
+        self.assertNotIn('name', ACTION['input_schema']['properties']['plan'].get('required', []))
+
+    def test_transcription_is_queued_and_persisted_for_polling(self):
+        async def scenario():
+            film = self.service.save(self.project, {'name': 'async transcription', 'clips': []})
+            self.service.plugin_runtime = object()
+
+            async def fake_transcribe(project_id, film_id, language, model):
+                result = self.service.get(project_id, film_id)
+                result['captions'] = [{'text': '简体字幕', 'start': 0, 'end': 1}]
+                return result
+
+            with patch.object(self.service, 'transcribe', side_effect=fake_transcribe):
+                queued = await self.service.queue_transcribe(self.project, film['id'])
+                self.assertEqual(queued['transcribe']['status'], 'queued')
+                await next(iter(self.context.application_tasks.values()))
+            return film['id']
+
+        film_id = asyncio.run(scenario())
+
+        completed = self.service.get(self.project, film_id)
+        self.assertEqual(completed['transcribe']['status'], 'completed')
+        self.assertEqual(completed['captions'][0]['text'], '简体字幕')
+        self.assertFalse(self.context.application_tasks)
+
+    def test_recovery_marks_interrupted_transcription_failed(self):
+        film = self.service.save(self.project, {'name': 'interrupted transcription', 'clips': []})
+        film['transcribe'] = {'status': 'running', 'progress': 5}
+        self.service.persist(film)
+        self.service.recover()
+        recovered = self.service.get(self.project, film['id'])
+        self.assertEqual(recovered['transcribe']['status'], 'failed')
+        self.assertIn('网关重启', recovered['transcribe']['error'])
+
+    def test_transcription_failure_is_pollable_and_blocks_edits_while_running(self):
+        async def scenario():
+            film = self.service.save(self.project, {'name': 'transcription state', 'clips': []})
+            self.service.plugin_runtime = object()
+            started, release = asyncio.Event(), asyncio.Event()
+
+            async def failing_transcribe(*_args):
+                started.set()
+                await release.wait()
+                raise RuntimeError('Whisper unavailable')
+
+            with patch.object(self.service, 'transcribe', side_effect=failing_transcribe):
+                await self.service.queue_transcribe(self.project, film['id'])
+                await started.wait()
+                with self.assertRaisesRegex(RuntimeError, '任务进行中'):
+                    self.service.save(self.project, {'volume': 20}, film['id'])
+                release.set()
+                await next(iter(self.context.application_tasks.values()))
+            failed = self.service.get(self.project, film['id'])
+            self.assertEqual(failed['transcribe']['status'], 'failed')
+            self.assertEqual(failed['transcribe']['error'], 'Whisper unavailable')
+
+        asyncio.run(scenario())
 
     def test_render_publishes_final_and_keeps_history(self):
         self.add_job('video-one')

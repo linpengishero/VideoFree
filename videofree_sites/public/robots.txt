@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://videofreestudio.com/sitemap-index.xml
