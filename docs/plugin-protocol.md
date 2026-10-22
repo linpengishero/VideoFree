@@ -473,7 +473,7 @@ async def review(request, runtime):
 }
 ```
 
-支持 `string`、`secret`、`url`、`boolean`、`number`、`select`。字段值写入运行数据目录中的插件配置文件，不写入插件源码目录、系统数据库或能力/MCP目录。`runtime_key` 决定插件运行时可见的名称；密钥只在任务执行时注入。系统配置（ComfyUI、资源目录、公共 LLM）仍写入数据库。设置还可声明只读外链：`"links":[{"label":"GrisAI API 官网 / 申请 Key","label_key":"settings.api_site","url":"https://grsai.dakka.com.cn"}]`。链接只允许无凭据的 HTTP(S) 地址，统一显示在插件设置页；`url` 字段仍表示用户可编辑并保存的配置值。
+支持 `string`、`secret`、`url`、`boolean`、`number`、`select`。字段值写入运行数据目录中的插件配置文件，不写入插件源码目录、系统数据库或能力/MCP目录。`runtime_key` 决定插件运行时可见的名称；密钥只在任务执行时注入。系统配置（ComfyUI、资源目录、公共 LLM）仍写入数据库。设置还可声明只读外链：`"links":[{"label":"GrisAI API 官网 / 申请 Key","label_key":"settings.api_site","url":"https://grsai.ai/"}]`。链接只允许无凭据的 HTTP(S) 地址，统一显示在插件设置页；`url` 字段仍表示用户可编辑并保存的配置值。
 
 返回值必须是字典：
 - `status: needs_input`：同时返回 session_id、questions，保留会话上下文，用户答复后继续该会话。

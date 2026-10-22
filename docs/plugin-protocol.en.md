@@ -354,7 +354,7 @@ Declare `settings` only when the plugin needs its own settings; the settings pag
 }
 ```
 
-Values are stored in a plugin-specific file under runtime data, not in the plugin source directory, system database, or capability/MCP catalog. `runtime_key` determines the name visible to the plugin; secrets are injected only during execution. System settings such as ComfyUI, storage paths, and the shared LLM remain in the framework settings store. Settings may also expose read-only links such as `"links":[{"label":"GrisAI API website / Get a key","label_key":"settings.api_site","url":"https://grsai.dakka.com.cn"}]`; links must be credential-free HTTP(S) URLs and are never saved as configuration values.
+Values are stored in a plugin-specific file under runtime data, not in the plugin source directory, system database, or capability/MCP catalog. `runtime_key` determines the name visible to the plugin; secrets are injected only during execution. System settings such as ComfyUI, storage paths, and the shared LLM remain in the framework settings store. Settings may also expose read-only links such as `"links":[{"label":"GrisAI API website / Get a key","label_key":"settings.api_site","url":"https://grsai.ai/"}]`; links must be credential-free HTTP(S) URLs and are never saved as configuration values.
 
 Collaboration handler results must be dictionaries:
 
