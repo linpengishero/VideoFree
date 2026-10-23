@@ -291,14 +291,6 @@
       }
     }
   },
-  "application": {
-    "name": "连戏导演台",
-    "name_key": "app.name",
-    "icon": "ui/icon.png",
-    "scope": "project",
-    "order": 110,
-    "ui": { "entry": "ui/dist/index.js" }
-  },
   "localization": {
     "default_locale": "zh-CN",
     "messages": {

@@ -147,17 +147,9 @@ class TestManifest(unittest.TestCase):
         self.assertIn("const H3A_STYLES =", bundle)
         self.assertIn(".h3a-collaboration", bundle)
 
-    def test_optional_application_page_remains_loadable(self):
-        application = MANIFEST["application"]
-        self.assertEqual(application["ui"]["entry"], "ui/dist/index.js")
-        self.assertTrue((PLUGIN / "ui" / "dist" / "index.js").is_file())
-        self.assertTrue((PLUGIN / application["icon"]).is_file())
-        bundle = (PLUGIN / "ui" / "dist" / "index.js").read_text(encoding="utf-8")
-        # A runtime-loaded bundle must not import bare 'vue' (no import map) and
-        # must not ship a second Vue runtime.
-        self.assertNotIn("from 'vue'", bundle)
-        self.assertNotIn('from "vue"', bundle)
-        self.assertIn("export default", bundle)
+    def test_plugin_does_not_register_an_application_menu(self):
+        self.assertNotIn("application", MANIFEST)
+        self.assertFalse((PLUGIN / "ui" / "dist" / "index.js").exists())
 
 
 class TestWorkflow(unittest.TestCase):
@@ -740,12 +732,6 @@ class TestCollaboration(unittest.TestCase):
             lambda *_: review, "", "digest")
         self.assertEqual(drafts, ["draft one", "draft two"])
         self.assertIn("无效的 segment_index", warning)
-
-    def test_application_ui_has_choice_cancel_poll_retry_and_job_resume_paths(self):
-        source = (PLUGIN / "ui" / "dist" / "index.js").read_text(encoding="utf-8")
-        for marker in ("question.options", "collaborations/${encodeURIComponent(collab.id)}/cancel",
-                       "this.submitting", "this.pollFailures", "rememberedJob()", "rememberJob(this.job.id)"):
-            self.assertIn(marker, source)
 
     def test_guide_uses_five_frame_clip_skipping_last_frame(self):
         # Continuity guide: the 5 frames just before the final one (avoids flash/motion-blur
